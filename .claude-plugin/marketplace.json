@@ -1,0 +1,16 @@
+{
+  "name": "agent-extensions",
+  "owner": {
+    "name": "Ben Buzbee"
+  },
+  "metadata": {
+    "description": "Marketplace of plugins for agentic harnesses (Claude Code, OpenCode, Pi, etc)"
+  },
+  "plugins": [
+    {
+      "name": "useful-skills",
+      "source": "./plugins/useful-skills",
+      "description": "Useful skills for Agentic Harnesses (Claude Code, OpenCode, Pi, etc)"
+    }
+  ]
+}

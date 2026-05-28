@@ -1,0 +1,27 @@
+version: 1
+direction: down
+lanes: [client, server, db]
+nodes:
+  client:
+    label: Client
+    children: [browser, mobile]
+    style: { fill: blue-light }
+  server:
+    label: Server
+    children: [api, worker]
+    style: { fill: green-light }
+  db:
+    label: Database
+    children: [postgres]
+    style: { fill: yellow-light }
+  browser: { label: Browser }
+  mobile: { label: Mobile }
+  api: { label: API }
+  worker: { label: Worker }
+  postgres: { label: Postgres, shape: ellipse }
+edges:
+  - { from: browser, to: api, label: "GET /things" }
+  - { from: mobile, to: api, label: "POST" }
+  - { from: api, to: postgres, label: "SELECT" }
+  - { from: worker, to: postgres, label: "INSERT" }
+  - { from: postgres, to: api, label: "rows", style: { strokeStyle: dashed } }

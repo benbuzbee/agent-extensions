@@ -1,0 +1,43 @@
+version: 1
+direction: right
+nodes:
+  cluster:
+    label: Production Cluster
+    children: [frontend, backend]
+  frontend:
+    label: Frontend
+    children: [web, cdn]
+  web:
+    label: Web App
+    style:
+      fill: blue-light
+  cdn:
+    label: CDN
+    style:
+      fill: blue-light
+  backend:
+    label: Backend
+    children: [api, worker]
+  api:
+    label: API
+    style:
+      fill: green-light
+  worker:
+    label: Worker
+    style:
+      fill: green-light
+  external:
+    label: 3rd Party
+    shape: ellipse
+    style:
+      fill: gray-light
+edges:
+  - from: web
+    to: api
+    label: requests
+  - from: cdn
+    to: web
+    label: serves
+  - from: worker
+    to: external
+    label: webhook

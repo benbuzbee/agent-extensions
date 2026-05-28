@@ -1,0 +1,7 @@
+version: 1
+nodes:
+  parent:
+    label: Parent
+    children: [child, child]
+  child:
+    label: Child

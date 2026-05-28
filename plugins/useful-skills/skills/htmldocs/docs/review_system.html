@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>htmldocs review-comments — architecture</title>
+<style>
+  :root {
+    --bg: #fdfdfc;
+    --fg: #1a1a1a;
+    --muted: #6a6a6a;
+    --accent: #2a5d9f;
+    --border: #d8d8d4;
+    --code-bg: #f3f3ef;
+    --aside-bg: #f7f3e9;
+    --aside-border: #d9c98a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --fg: #e6e6e6;
+      --muted: #9aa0a6;
+      --accent: #7fb1ff;
+      --border: #2a2e36;
+      --code-bg: #161a21;
+      --aside-bg: #1d1a10;
+      --aside-border: #5a4a16;
+    }
+  }
+  html { color-scheme: light dark; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 860px;
+    margin: 2rem auto;
+    padding: 0 1.25rem;
+  }
+  h1, h2, h3 { line-height: 1.25; }
+  h1 { font-size: 1.65rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  h3 { font-size: 1.02rem; margin: 1.25rem 0 .35rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  p.meta { color: var(--muted); font-size: .88rem; margin: .25rem 0 1rem; }
+  nav.toc { border: 1px solid var(--border); border-radius: 6px; padding: .5rem .9rem; margin: 1rem 0 1.5rem; background: var(--code-bg); }
+  nav.toc ol { margin: .25rem 0; padding-left: 1.25rem; }
+  nav.toc li { margin: .1rem 0; }
+  article { margin: 1.5rem 0; }
+  section { margin: .9rem 0; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: .65rem .8rem;
+    overflow-x: auto;
+    font-size: .87rem;
+  }
+  code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+  :not(pre) > code { background: var(--code-bg); padding: .05rem .3rem; border-radius: 3px; }
+  table { border-collapse: collapse; margin: .5rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .3rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  aside {
+    background: var(--aside-bg);
+    border-left: 3px solid var(--aside-border);
+    padding: .55rem .85rem;
+    margin: 1.5rem 0;
+    border-radius: 0 4px 4px 0;
+  }
+  details { margin: .5rem 0; }
+  details summary { cursor: pointer; color: var(--accent); }
+  figure { margin: 1rem 0; }
+  figcaption { color: var(--muted); font-size: .86rem; margin-top: .35rem; }
+  ul.triggers li code { font-size: .92em; }
+</style>
+</head>
+<body>
+
+<h1>htmldocs review-comments — architecture</h1>
+<p class="meta" data-updated="2026-05-26" data-status="shipped">Last updated 2026-05-26 · shipped (PRs 1–13 + no-copies)</p>
+
+<nav class="toc" aria-label="Table of contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#components">Components</a></li>
+    <li><a href="#data-flow">Data flow</a></li>
+    <li><a href="#known-friction">Known friction</a></li>
+    <li><a href="#related">Related</a></li>
+  </ol>
+</nav>
+
+<article id="overview">
+  <h2>Overview</h2>
+  <p>
+    User asks the agent to open a doc in review mode. The agent runs
+    <code>serve.sh</code> in the background and hands User a localhost URL.
+    User opens it, selects any text inside an <code>&lt;article&gt;</code>,
+    clicks the Comment button that appears, and writes a note. The note lands
+    in a JSON sidecar under the server's sidecar directory (auto-tmp by default,
+    or pinned via <code>--sidecar-dir</code>). On its next pass the agent reads
+    that file and addresses each comment via HTML edits.
+  </p>
+  <figure>
+    <svg viewBox="0 0 560 80" role="img" aria-label="User opens doc in review mode, leaves comments, then the agent reads and responds">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g fill="none" stroke="currentColor" stroke-width="1.2" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">
+        <rect x="10"  y="22" width="160" height="36" rx="4"/>
+        <text x="90"  y="44" text-anchor="middle" fill="currentColor" stroke="none">Open in review mode</text>
+
+        <line x1="172" y1="40" x2="206" y2="40" marker-end="url(#arr)"/>
+
+        <rect x="208" y="22" width="150" height="36" rx="4"/>
+        <text x="283" y="44" text-anchor="middle" fill="currentColor" stroke="none">Leave comments</text>
+
+        <line x1="360" y1="40" x2="394" y2="40" marker-end="url(#arr)"/>
+
+        <rect x="396" y="22" width="154" height="36" rx="4"/>
+        <text x="473" y="44" text-anchor="middle" fill="currentColor" stroke="none">Agent reads &amp; responds</text>
+      </g>
+    </svg>
+    <figcaption>User flow. Each step is one Bash invocation, one browser session, one agent turn.</figcaption>
+  </figure>
+</article>
+
+<article id="components" data-kind="components">
+  <h2>Components</h2>
+
+  <section id="components-serve-sh">
+    <h3><code>serve.sh</code></h3>
+    <p>
+      The agent's entry into review mode. A small Bash shim next to <code>SKILL.md</code>
+      that preflights <code>node</code> on PATH, picks a free port in 8000–8099, prints
+      the <code>URL:</code> line, and execs the Node server (<code>dist/serve.mjs</code>)
+      bound to <code>127.0.0.1</code>. Accepts a file or a directory; either way every
+      <code>.html</code> under the served folder becomes reviewable. Optional
+      <code>--sidecar-dir &lt;path&gt;</code> pins the sidecar location for resume; absent
+      it, the server picks an auto-tmp directory and announces it via the second stdout
+      line (<code>SIDECAR_DIR:</code>). Invocation contract — argument shapes, the two-line
+      stdout, what to hand User —
+      in <a href="../references/comments.md"><code>references/comments.md</code></a>.
+    </p>
+  </section>
+
+  <section id="components-widget">
+    <h3>The widget (<code>dist/comments.mjs</code>)</h3>
+    <p>
+      A single ESM artifact (~130&nbsp;KB, checked in) bundled by esbuild from TypeScript
+      sources under <code>src/comments/</code>. The server injects it at runtime —
+      pages on disk stay vanilla, with no <code>&lt;script&gt;</code> wiring required.
+      The widget mounts only when the inline JSON seed
+      (<code>#__htmldocs_comments</code>) is present in the DOM; absent seed means
+      review mode isn't active and the page renders normally.
+    </p>
+    <p>Modules:</p>
+    <ul>
+      <li><code>main.ts</code> — <code>CommentsWidget</code> class; bootstrap and init flow.</li>
+      <li><code>anchor.ts</code> — encode/decode between a DOM <code>Range</code> and the W3C TextQuoteSelector triple (32-char prefix/suffix windows, Hypothesis convention). The encoder also records the ids of every <code>&lt;article&gt;</code> the selection intersects in an <code>anchor.sections</code> array — pure metadata, the decoder always searches the full document and uses prefix/suffix as the disambiguator. The popover gate (<code>ui.ts</code>) requires the selection to <em>intersect</em> at least one <code>&lt;article&gt;</code>; selections spanning multiple articles are supported, selections outside every article are not.</li>
+      <li><code>persistence.ts</code> — <code>HttpSidecarStore</code>; reads the inline JSON seed on construction, writes via <code>PUT /__htmldocs/sidecar/&lt;doc-path&gt;</code> where the path is derived from <code>location.pathname</code>.</li>
+      <li><code>ui.ts</code> — selection popover, <code>&lt;dialog&gt;</code> composer, margin-gutter thread bubbles.</li>
+      <li><code>types.ts</code> — <code>Anchor</code>, <code>Comment</code>, <code>CommentsModel</code>, <code>TestHandle</code>; the same <code>CommentsModel</code> the server validates against.</li>
+    </ul>
+    <p>
+      Styles inject via a constructable <code>CSSStyleSheet</code> on
+      <code>document.adoptedStyleSheets</code> with the <code>--htmldocs-cmt-*</code> prefix so
+      they cannot collide with the host doc's tokens. Highlights register as <code>Range</code>
+      objects under one named registry (<code>htmldocs-cmt</code>) in <code>CSS.highlights</code> —
+      no <code>&lt;mark&gt;</code> wrappers, no DOM rewriting.
+    </p>
+  </section>
+
+  <section id="components-http-endpoint">
+    <h3>HTTP endpoint (<code>PUT /__htmldocs/sidecar/&lt;doc-path&gt;</code>)</h3>
+    <p>
+      The persistence transport between widget and disk. One write route; body is the
+      full <code>CommentsModel</code> JSON. The doc path in the URL is validated the
+      same way a static GET is — it must resolve under <code>--root</code> to an
+      <code>.html</code> / <code>.htm</code> file — and the resulting sidecar lands
+      under <code>SIDECAR_DIR</code>, mirroring the doc's root-relative path. Writes
+      are atomic, so a crash mid-write cannot truncate the sidecar. Concurrency
+      semantics (two tabs against the same doc) are last-writer-wins —
+      see <a href="#known-friction">§ Known friction</a>.
+    </p>
+  </section>
+
+  <section id="components-sidecar">
+    <h3>Sidecar JSON</h3>
+    <p>
+      The durable artifact between widget and agent. One JSON file per doc, under
+      <code>SIDECAR_DIR</code>, mirroring the doc's root-relative path
+      (<code>overview.html</code> → <code>&lt;SIDECAR_DIR&gt;/overview.comments.json</code>;
+      <code>sub/bar.html</code> → <code>&lt;SIDECAR_DIR&gt;/sub/bar.comments.json</code>).
+      Multi-doc sessions produce one sidecar per doc that received a save; they never
+      aggregate. Schema (<code>schema: 1</code>) is canonical in
+      <a href="../references/comments.md"><code>references/comments.md</code></a>;
+      v1 comments are implicitly open (no resolve/thread/orphan-flag fields).
+    </p>
+  </section>
+
+  <section id="components-agent-recipe">
+    <h3>Agent recipe</h3>
+    <p>
+      Entry point lives in <a href="../SKILL.md"><code>SKILL.md</code></a> § Review mode:
+      run <code>bash &lt;htmldocs-skill&gt;/serve.sh path/to/doc.html</code> in the background,
+      capture the <code>URL:</code> line, hand it to User. To read comments back,
+      <code>Read</code> the sidecar JSON directly. Full recipe — sidecar shape,
+      orphan handling — in <a href="../references/comments.md"><code>references/comments.md</code></a>.
+    </p>
+  </section>
+</article>
+
+<article id="data-flow" data-kind="flow">
+  <h2>Data flow</h2>
+  <figure>
+    <svg viewBox="0 0 600 80" role="img" aria-label="Server injects bundle and seed, widget captures selection, save PUTs to the server, agent reads the sidecar">
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g fill="none" stroke="currentColor" stroke-width="1.2" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">
+        <rect x="10"  y="22" width="120" height="36" rx="4"/>
+        <text x="70"  y="44" text-anchor="middle" fill="currentColor" stroke="none">Inject</text>
+
+        <line x1="132" y1="40" x2="166" y2="40" marker-end="url(#arr2)"/>
+
+        <rect x="168" y="22" width="130" height="36" rx="4"/>
+        <text x="233" y="44" text-anchor="middle" fill="currentColor" stroke="none">Capture</text>
+
+        <line x1="300" y1="40" x2="334" y2="40" marker-end="url(#arr2)"/>
+
+        <rect x="336" y="22" width="120" height="36" rx="4"/>
+        <text x="396" y="44" text-anchor="middle" fill="currentColor" stroke="none">Save</text>
+
+        <line x1="458" y1="40" x2="492" y2="40" marker-end="url(#arr2)"/>
+
+        <rect x="494" y="22" width="100" height="36" rx="4"/>
+        <text x="544" y="44" text-anchor="middle" fill="currentColor" stroke="none">Read-back</text>
+      </g>
+    </svg>
+    <figcaption>Four phases. The sidecar JSON is the only durable artifact between widget and agent.</figcaption>
+  </figure>
+  <ol>
+    <li><strong>Inject.</strong> The server reads the current sidecar from disk and rewrites the HTML response, inserting the bundle <code>&lt;script&gt;</code> and an inline <code>&lt;script type="application/json" id="__htmldocs_comments"&gt;</code> carrying the sidecar contents. The browser loads the doc; the widget sees the seed, mounts, adopts its stylesheet, and registers existing anchors as <code>CSS.highlights</code> entries — zero network round trips for initial state.</li>
+    <li><strong>Capture.</strong> User selects text inside an <code>&lt;article&gt;</code>. The selection popover surfaces a Comment button. Clicking it calls <code>encodeAnchor(range)</code> immediately — freezing prefix/exact/suffix against the live DOM — then opens a <code>&lt;dialog&gt;</code> composer with the textarea focused.</li>
+    <li><strong>Save.</strong> Submit appends the new comment, serializes the model, and <code>PUT</code>s it to the sidecar route for this doc. The server lands the sidecar atomically under <code>SIDECAR_DIR</code>. The widget updates its highlights and gutter without reloading. Write errors roll the in-memory model back.</li>
+    <li><strong>Read-back.</strong> On the next agent turn the agent reads each sidecar under <code>$SIDECAR_DIR</code> directly (<code>find "$SIDECAR_DIR" -name '*.comments.json'</code> lists every doc that received a save) and addresses each comment via HTML edits. Reloading any page re-seeds from disk, so User sees whatever the agent last left there. v1 agents do not write the sidecar; User clears entries by editing the JSON.</li>
+  </ol>
+</article>
+
+<article id="known-friction" data-kind="known-friction">
+  <h2>Known friction</h2>
+  <ul>
+    <li>
+      <strong>Two-tab last-writer-wins.</strong> Opening the same review URL in two
+      tabs and submitting from each leaves only the second body on disk — the
+      <code>PUT</code>s collapse to the most recent write. The losing tab learns on
+      next reload, when the inline seed re-reads the on-disk sidecar. Documented,
+      not solved; conflict resolution (ETags, version field, server-side merge)
+      would dominate the rewrite. See
+      <a href="plans/review_server_buildout.html#decisions-last-writer-wins">plans/review_server_buildout.html § Decisions</a>.
+    </li>
+    <li>
+      <strong>Port collisions outside 8000–8099.</strong> <code>serve.sh</code>
+      probes that range and exits if every port is taken. User running 100+ dev
+      servers (or a stale <code>serve.sh</code> per port) needs to free one before
+      review mode will start.
+    </li>
+  </ul>
+</article>
+
+<aside id="related" data-kind="related">
+  <strong>Related:</strong>
+  <a href="../SKILL.md"><code>SKILL.md</code></a> § Review mode — opt-in entry point ·
+  <a href="../references/comments.md"><code>references/comments.md</code></a> — agent recipe and sidecar schema ·
+  <a href="plans/review_comments.html">plans/review_comments.html</a> — v1 plan and PR-by-PR chronology (PRs 1–4) ·
+  <a href="plans/review_server_buildout.html">plans/review_server_buildout.html</a> — PR 5 plan: localhost transport replaces FS Access ·
+  <a href="plans/no_copies.html">plans/no_copies.html</a> — most recent plan: sidecars move off the served root into a server-chosen dir ·
+  <a href="overview.html">overview.html</a> — skill entry-point doc.
+</aside>
+
+</body>
+</html>

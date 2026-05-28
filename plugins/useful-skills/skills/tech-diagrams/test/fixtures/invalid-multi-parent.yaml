@@ -1,0 +1,10 @@
+version: 1
+nodes:
+  parent1:
+    label: Parent 1
+    children: [shared]
+  parent2:
+    label: Parent 2
+    children: [shared]
+  shared:
+    label: Shared

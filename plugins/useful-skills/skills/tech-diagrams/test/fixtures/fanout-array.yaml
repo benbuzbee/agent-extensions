@@ -1,0 +1,12 @@
+version: 1
+direction: right
+nodes:
+  source: { label: Source }
+  a: { label: Worker A }
+  b: { label: Worker B }
+  c: { label: Worker C }
+  d: { label: Worker D }
+edges:
+  - from: source
+    to: [a, b, c, d]
+    label: dispatch

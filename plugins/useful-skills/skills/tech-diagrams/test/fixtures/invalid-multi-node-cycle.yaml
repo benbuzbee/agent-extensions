@@ -1,0 +1,11 @@
+version: 1
+nodes:
+  a:
+    label: A
+    children: [b]
+  b:
+    label: B
+    children: [c]
+  c:
+    label: C
+    children: [a]

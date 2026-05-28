@@ -1,0 +1,8 @@
+{
+  "name": "useful-skills",
+  "description": "Useful skills for Claude Code — diagram rendering and agent-readable HTML docs.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Ben Buzbee"
+  }
+}

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>htmldocs skill — overview</title>
+<style>
+  :root {
+    --bg: #fdfdfc;
+    --fg: #1a1a1a;
+    --muted: #6a6a6a;
+    --accent: #2a5d9f;
+    --border: #d8d8d4;
+    --code-bg: #f3f3ef;
+    --aside-bg: #f7f3e9;
+    --aside-border: #d9c98a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --fg: #e6e6e6;
+      --muted: #9aa0a6;
+      --accent: #7fb1ff;
+      --border: #2a2e36;
+      --code-bg: #161a21;
+      --aside-bg: #1d1a10;
+      --aside-border: #5a4a16;
+    }
+  }
+  html { color-scheme: light dark; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 860px;
+    margin: 2rem auto;
+    padding: 0 1.25rem;
+  }
+  h1, h2, h3 { line-height: 1.25; }
+  h1 { font-size: 1.65rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  h3 { font-size: 1.02rem; margin: 1.25rem 0 .35rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  p.meta { color: var(--muted); font-size: .88rem; margin: .25rem 0 1rem; }
+  nav.toc { border: 1px solid var(--border); border-radius: 6px; padding: .5rem .9rem; margin: 1rem 0 1.5rem; background: var(--code-bg); }
+  nav.toc ol { margin: .25rem 0; padding-left: 1.25rem; }
+  nav.toc li { margin: .1rem 0; }
+  article { margin: 1.5rem 0; }
+  section { margin: .9rem 0; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: .65rem .8rem;
+    overflow-x: auto;
+    font-size: .87rem;
+  }
+  code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+  :not(pre) > code { background: var(--code-bg); padding: .05rem .3rem; border-radius: 3px; }
+  table { border-collapse: collapse; margin: .5rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .3rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  aside {
+    background: var(--aside-bg);
+    border-left: 3px solid var(--aside-border);
+    padding: .55rem .85rem;
+    margin: 1.5rem 0;
+    border-radius: 0 4px 4px 0;
+  }
+  details { margin: .5rem 0; }
+  details summary { cursor: pointer; color: var(--accent); }
+  figure { margin: 1rem 0; }
+  figcaption { color: var(--muted); font-size: .86rem; margin-top: .35rem; }
+  ul.triggers li code { font-size: .92em; }
+</style>
+</head>
+<body>
+
+<h1>htmldocs skill — overview</h1>
+<p class="meta" data-updated="2026-05-23">Last updated 2026-05-23</p>
+
+<nav class="toc" aria-label="Table of contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#where-the-detail-lives">Where the detail lives</a></li>
+    <li><a href="#related">Related</a></li>
+  </ol>
+</nav>
+
+<article id="overview">
+  <h2>Overview</h2>
+  <p>
+    <code>htmldocs</code> maintains and creates HTML-based documentation — issue logs,
+    architecture specs, handoffs, runbooks — so files read well for humans <em>and</em>
+    parse predictably for downstream agents. The DOM is the workspace: elements are
+    addressable units, <code>data-*</code> attributes carry state, and structure itself
+    is the index.
+  </p>
+  <p>
+    Triggered by phrasings like <em>"update the docs"</em> in repos whose documentation
+    folder is HTML-based. Triggers, workflow, and principles are canonical in
+    <a href="../SKILL.md"><code>SKILL.md</code></a> — this page is the entry point, not the source.
+  </p>
+  <figure>
+    <svg viewBox="0 0 420 70" role="img" aria-label="Trigger phrase to workflow to self-contained HTML output">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g fill="none" stroke="currentColor" stroke-width="1.2" font-family="ui-sans-serif, system-ui, sans-serif" font-size="11">
+        <rect x="6" y="20" width="110" height="32" rx="4"/>
+        <text x="61" y="40" text-anchor="middle" fill="currentColor" stroke="none">trigger phrase</text>
+        <line x1="118" y1="36" x2="148" y2="36" marker-end="url(#arr)"/>
+        <rect x="150" y="20" width="110" height="32" rx="4"/>
+        <text x="205" y="40" text-anchor="middle" fill="currentColor" stroke="none">3-step workflow</text>
+        <line x1="262" y1="36" x2="292" y2="36" marker-end="url(#arr)"/>
+        <rect x="294" y="20" width="120" height="32" rx="4"/>
+        <text x="354" y="40" text-anchor="middle" fill="currentColor" stroke="none">self-contained .html</text>
+      </g>
+    </svg>
+    <figcaption>Trigger to workflow to portable HTML output.</figcaption>
+  </figure>
+</article>
+
+<article id="where-the-detail-lives">
+  <h2>Where the detail lives</h2>
+  <p>Canonical content lives one click away. This page links rather than restates — the same rule the skill itself enforces:</p>
+  <ul>
+    <li><a href="../SKILL.md"><code>SKILL.md</code></a> — triggers, workflow, and the principles (including <em>link, don't restate</em>, which justifies the shape of this page).</li>
+    <li><a href="../references/conventions.md"><code>references/conventions.md</code></a> — default <code>data-*</code> vocabularies, ID naming, document-type schemas, doc-level meta convention, escape rule.</li>
+    <li><a href="../references/examples.md"><code>references/examples.md</code></a> — bad/good pairs per principle.</li>
+  </ul>
+</article>
+
+<aside id="related" data-kind="related">
+  <strong>Related:</strong> the <a href="../../tech-diagrams/SKILL.md"><code>tech-diagrams</code></a> skill for any diagram that exceeds a few inline SVG shapes — embed the resulting SVG here instead of hand-coding it.
+</aside>
+
+</body>
+</html>

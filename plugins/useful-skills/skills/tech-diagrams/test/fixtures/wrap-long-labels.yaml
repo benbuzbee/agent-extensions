@@ -1,0 +1,14 @@
+version: 1
+direction: right
+nodes:
+  rect:
+    label: "the quick brown fox jumps over the lazy dog"
+  ellip:
+    label: "the quick brown fox jumps over the lazy dog"
+    shape: ellipse
+  diam:
+    label: "the quick brown fox jumps over the lazy dog"
+    shape: diamond
+edges:
+  - { from: rect, to: ellip }
+  - { from: ellip, to: diam }

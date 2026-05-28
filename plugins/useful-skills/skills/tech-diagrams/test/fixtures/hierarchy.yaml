@@ -1,0 +1,23 @@
+version: 1
+layout: layered
+direction: down
+nodes:
+  app:
+    label: Application
+    children: [api, worker]
+  api:
+    label: API
+  worker:
+    label: Worker
+  db:
+    label: Postgres
+    shape: ellipse
+    style:
+      fill: blue-light
+edges:
+  - from: api
+    to: db
+    label: reads
+  - from: worker
+    to: db
+    label: writes

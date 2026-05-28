@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="tg-svg" viewBox="8 8 1513.6 234.5" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif">
+<style>
+  .tg-svg {
+    color-scheme: light dark;
+    --tg-stroke-black: #1e1e1e;
+    --tg-stroke-gray: #5c5f66;
+    --tg-stroke-red: #e03131;
+    --tg-stroke-orange: #f08c00;
+    --tg-stroke-yellow: #f59f00;
+    --tg-stroke-green: #2f9e44;
+    --tg-stroke-teal: #0c8599;
+    --tg-stroke-blue: #1971c2;
+    --tg-stroke-violet: #6741d9;
+    --tg-stroke-pink: #c2255c;
+    --tg-halo: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    .tg-svg {
+      --tg-stroke-black: #e6e6e6;
+      --tg-stroke-gray: #9aa0a6;
+      --tg-stroke-red: #ff8585;
+      --tg-stroke-orange: #ffb066;
+      --tg-stroke-yellow: #ffd966;
+      --tg-stroke-green: #7fd28f;
+      --tg-stroke-teal: #6dd5e6;
+      --tg-stroke-blue: #7fb1ff;
+      --tg-stroke-violet: #bda3ff;
+      --tg-stroke-pink: #ff8fb6;
+      --tg-halo: #0f1115;
+    }
+  }
+  .tg-svg .tg-stroke-black { stroke: var(--tg-stroke-black); }
+  .tg-svg .tg-stroke-gray { stroke: var(--tg-stroke-gray); }
+  .tg-svg .tg-stroke-red { stroke: var(--tg-stroke-red); }
+  .tg-svg .tg-stroke-orange { stroke: var(--tg-stroke-orange); }
+  .tg-svg .tg-stroke-yellow { stroke: var(--tg-stroke-yellow); }
+  .tg-svg .tg-stroke-green { stroke: var(--tg-stroke-green); }
+  .tg-svg .tg-stroke-teal { stroke: var(--tg-stroke-teal); }
+  .tg-svg .tg-stroke-blue { stroke: var(--tg-stroke-blue); }
+  .tg-svg .tg-stroke-violet { stroke: var(--tg-stroke-violet); }
+  .tg-svg .tg-stroke-pink { stroke: var(--tg-stroke-pink); }
+  .tg-svg .tg-text-black { fill: var(--tg-stroke-black); }
+  .tg-svg .tg-text-gray { fill: var(--tg-stroke-gray); }
+  .tg-svg .tg-text-red { fill: var(--tg-stroke-red); }
+  .tg-svg .tg-text-orange { fill: var(--tg-stroke-orange); }
+  .tg-svg .tg-text-yellow { fill: var(--tg-stroke-yellow); }
+  .tg-svg .tg-text-green { fill: var(--tg-stroke-green); }
+  .tg-svg .tg-text-teal { fill: var(--tg-stroke-teal); }
+  .tg-svg .tg-text-blue { fill: var(--tg-stroke-blue); }
+  .tg-svg .tg-text-violet { fill: var(--tg-stroke-violet); }
+  .tg-svg .tg-text-pink { fill: var(--tg-stroke-pink); }
+  .tg-svg .tg-fill-gray-light { fill: color-mix(in srgb, var(--tg-stroke-gray) 18%, transparent); }
+  .tg-svg .tg-fill-red-light { fill: color-mix(in srgb, var(--tg-stroke-red) 18%, transparent); }
+  .tg-svg .tg-fill-orange-light { fill: color-mix(in srgb, var(--tg-stroke-orange) 18%, transparent); }
+  .tg-svg .tg-fill-yellow-light { fill: color-mix(in srgb, var(--tg-stroke-yellow) 18%, transparent); }
+  .tg-svg .tg-fill-green-light { fill: color-mix(in srgb, var(--tg-stroke-green) 18%, transparent); }
+  .tg-svg .tg-fill-teal-light { fill: color-mix(in srgb, var(--tg-stroke-teal) 18%, transparent); }
+  .tg-svg .tg-fill-blue-light { fill: color-mix(in srgb, var(--tg-stroke-blue) 18%, transparent); }
+  .tg-svg .tg-fill-violet-light { fill: color-mix(in srgb, var(--tg-stroke-violet) 18%, transparent); }
+  .tg-svg .tg-fill-pink-light { fill: color-mix(in srgb, var(--tg-stroke-pink) 18%, transparent); }
+  .tg-svg .tg-fill-transparent { fill: transparent; }
+  .tg-svg .tg-fill-none { fill: none; }
+  .tg-svg .tg-halo-stroke { stroke: var(--tg-halo); }
+  .tg-svg .tg-halo-fill { fill: var(--tg-halo); }
+</style>
+<defs><marker id="m-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker></defs>
+<ellipse cx="544" cy="196.5" rx="80" ry="30" class="tg-stroke-black tg-fill-green-light" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
+<rect x="684" y="82.5" width="160" height="60" rx="6" ry="6" class="tg-stroke-black tg-fill-yellow-light" fill="#ffec99" stroke="#1e1e1e" stroke-width="2"/>
+<rect x="1025.6" y="27" width="160" height="60" rx="6" ry="6" class="tg-stroke-black tg-fill-blue-light" fill="#a5d8ff" stroke="#1e1e1e" stroke-width="2"/>
+<ellipse cx="1425.6" cy="57" rx="80" ry="30" class="tg-stroke-green tg-fill-green-light" fill="#b2f2bb" stroke="#2f9e44" stroke-width="3"/>
+<ellipse cx="104" cy="57" rx="80" ry="30" class="tg-stroke-red tg-fill-red-light" fill="#ffc9c9" stroke="#e03131" stroke-width="3"/>
+<polygon points="324,68 404,102.5 324,137 244,102.5" class="tg-stroke-black tg-fill-orange-light" fill="#ffd8a8" stroke="#1e1e1e" stroke-width="2"/>
+<path class="tg-stroke-black" d="M 624 196.5 L 634 196.5 L 634 122.5 L 684 122.5" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 844 112.5 L 975.6 112.5 L 975.6 67 L 1025.6 67" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-green" d="M 1185.6 57 L 1345.6 57" fill="none" stroke="#2f9e44" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-red" d="M 1025.6 47 L 184 47" fill="none" stroke="#e03131" stroke-width="2" stroke-dasharray="8 4" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 184 67 L 194 67 L 194 102.5 L 244 102.5" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 404 102.5 L 684 102.5" fill="none" stroke="#1e1e1e" stroke-width="2" stroke-dasharray="2 4" marker-end="url(#m-arrow)"/>
+<text x="544" y="196.5" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central">Start</text>
+<text x="764" y="112.5" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central">Pending</text>
+<text x="1105.6" y="57" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central">Running</text>
+<text x="1425.6" y="57" font-size="18" class="tg-text-green" fill="#2f9e44" text-anchor="middle" dominant-baseline="central">Success</text>
+<text x="104" y="57" font-size="18" class="tg-text-red" fill="#e03131" text-anchor="middle" dominant-baseline="central">Failed</text>
+<text x="324" y="102.5" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central">Retry</text>
+<text x="934.8" y="125.5" font-size="16" fill="#1e1e1e" class="tg-text-black tg-halo-stroke" stroke="white" stroke-width="4" stroke-linejoin="round" paint-order="stroke" text-anchor="middle" dominant-baseline="central">dequeue</text>
+<text x="1265.6" y="70" font-size="16" fill="#1e1e1e" class="tg-text-black tg-halo-stroke" stroke="white" stroke-width="4" stroke-linejoin="round" paint-order="stroke" text-anchor="middle" dominant-baseline="central">ok</text>
+<text x="544" y="34" font-size="16" fill="#1e1e1e" class="tg-text-black tg-halo-stroke" stroke="white" stroke-width="4" stroke-linejoin="round" paint-order="stroke" text-anchor="middle" dominant-baseline="central">error</text>
+<text x="544" y="115.5" font-size="16" fill="#1e1e1e" class="tg-text-black tg-halo-stroke" stroke="white" stroke-width="4" stroke-linejoin="round" paint-order="stroke" text-anchor="middle" dominant-baseline="central">requeue</text>
+</svg>

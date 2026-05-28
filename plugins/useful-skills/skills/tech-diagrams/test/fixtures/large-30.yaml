@@ -1,0 +1,108 @@
+version: 1
+direction: right
+nodes:
+  ingress:
+    label: Ingress
+    style: { fill: blue-light }
+  lb:
+    label: Load Balancer
+    style: { fill: blue-light }
+  api1:
+    label: API 1
+  api2:
+    label: API 2
+  api3:
+    label: API 3
+  apicluster:
+    label: API Cluster
+    children: [api1, api2, api3]
+  cache:
+    label: Redis
+    shape: ellipse
+    style: { fill: red-light }
+  queue:
+    label: Queue
+    shape: ellipse
+    style: { fill: orange-light }
+  worker1:
+    label: Worker 1
+  worker2:
+    label: Worker 2
+  workers:
+    label: Workers
+    children: [worker1, worker2]
+  primary:
+    label: Primary DB
+    shape: ellipse
+    style: { fill: blue-light }
+  replica1:
+    label: Replica 1
+    shape: ellipse
+    style: { fill: gray-light }
+  replica2:
+    label: Replica 2
+    shape: ellipse
+    style: { fill: gray-light }
+  dbcluster:
+    label: DB Cluster
+    children: [primary, replica1, replica2]
+  s3:
+    label: Object Store
+    style: { fill: green-light }
+  search:
+    label: Search Index
+    style: { fill: violet-light }
+  metrics:
+    label: Metrics
+    style: { fill: pink-light }
+  logs:
+    label: Logs
+    style: { fill: pink-light }
+  auth:
+    label: Auth Service
+  users:
+    label: User DB
+    shape: ellipse
+  cdn:
+    label: CDN
+  static:
+    label: Static Assets
+    style: { fill: gray-light }
+  monitor:
+    label: Monitor
+    shape: diamond
+    style: { fill: yellow-light }
+  alerts:
+    label: Alerts
+    shape: diamond
+    style: { fill: red-light }
+  pager:
+    label: Pager
+    shape: ellipse
+edges:
+  - { from: ingress, to: lb }
+  - { from: lb, to: api1 }
+  - { from: lb, to: api2 }
+  - { from: lb, to: api3 }
+  - { from: api1, to: cache, label: read }
+  - { from: api2, to: cache }
+  - { from: api3, to: queue, label: enqueue }
+  - { from: queue, to: worker1 }
+  - { from: queue, to: worker2 }
+  - { from: api1, to: primary, label: write }
+  - { from: api2, to: replica1, label: read }
+  - { from: api3, to: replica2, label: read }
+  - { from: worker1, to: primary }
+  - { from: worker2, to: s3, label: store }
+  - { from: api1, to: search }
+  - { from: api1, to: metrics }
+  - { from: api2, to: logs }
+  - { from: lb, to: auth }
+  - { from: auth, to: users }
+  - { from: cdn, to: static }
+  - { from: ingress, to: cdn }
+  - { from: monitor, to: api1 }
+  - { from: monitor, to: api2 }
+  - { from: monitor, to: api3 }
+  - { from: alerts, to: pager }
+  - { from: monitor, to: alerts, label: trigger }

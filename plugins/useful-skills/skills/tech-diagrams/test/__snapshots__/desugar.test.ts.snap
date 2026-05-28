@@ -1,0 +1,1632 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`desugar — frozen snapshots > colored-states.yaml ELK JSON snapshot 1`] = `
+{
+  "children": [
+    {
+      "height": 60,
+      "id": "start",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Start",
+          "width": 49.5,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "pending",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Pending",
+          "width": 69.3,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "running",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Running",
+          "width": 69.3,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "success",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Success",
+          "width": 69.3,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "failed",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Failed",
+          "width": 59.400000000000006,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 69,
+      "id": "retry",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Retry",
+          "width": 49.5,
+        },
+      ],
+      "width": 160,
+    },
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "sources": [
+        "start",
+      ],
+      "targets": [
+        "pending",
+      ],
+    },
+    {
+      "id": "e1",
+      "labels": [
+        {
+          "height": 20,
+          "text": "dequeue",
+          "width": 61.60000000000001,
+        },
+      ],
+      "sources": [
+        "pending",
+      ],
+      "targets": [
+        "running",
+      ],
+    },
+    {
+      "id": "e2",
+      "labels": [
+        {
+          "height": 20,
+          "text": "ok",
+          "width": 40,
+        },
+      ],
+      "sources": [
+        "running",
+      ],
+      "targets": [
+        "success",
+      ],
+    },
+    {
+      "id": "e3",
+      "labels": [
+        {
+          "height": 20,
+          "text": "error",
+          "width": 44,
+        },
+      ],
+      "sources": [
+        "running",
+      ],
+      "targets": [
+        "failed",
+      ],
+    },
+    {
+      "id": "e4",
+      "sources": [
+        "failed",
+      ],
+      "targets": [
+        "retry",
+      ],
+    },
+    {
+      "id": "e5",
+      "labels": [
+        {
+          "height": 20,
+          "text": "requeue",
+          "width": 61.60000000000001,
+        },
+      ],
+      "sources": [
+        "retry",
+      ],
+      "targets": [
+        "pending",
+      ],
+    },
+  ],
+  "id": "root",
+  "layoutOptions": {
+    "elk.algorithm": "layered",
+    "elk.direction": "RIGHT",
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.layered.spacing.nodeNodeBetweenLayers": "60",
+    "elk.padding": "[top=24,left=24,bottom=24,right=24]",
+    "elk.spacing.edgeEdge": "20",
+    "elk.spacing.edgeNode": "20",
+    "elk.spacing.nodeNode": "40",
+  },
+}
+`;
+
+exports[`desugar — frozen snapshots > dataflow-mixed.yaml ELK JSON snapshot 1`] = `
+{
+  "children": [
+    {
+      "height": 60,
+      "id": "user",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "User",
+          "width": 40,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 69,
+      "id": "validator",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Validate",
+          "width": 79.2,
+        },
+      ],
+      "width": 183,
+    },
+    {
+      "height": 60,
+      "id": "store",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Store",
+          "width": 49.5,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "reject",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Reject",
+          "width": 59.400000000000006,
+        },
+      ],
+      "width": 160,
+    },
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "sources": [
+        "user",
+      ],
+      "targets": [
+        "validator",
+      ],
+    },
+    {
+      "id": "e1",
+      "labels": [
+        {
+          "height": 20,
+          "text": "ok",
+          "width": 40,
+        },
+      ],
+      "sources": [
+        "validator",
+      ],
+      "targets": [
+        "store",
+      ],
+    },
+    {
+      "id": "e2",
+      "labels": [
+        {
+          "height": 20,
+          "text": "fail",
+          "width": 40,
+        },
+      ],
+      "sources": [
+        "validator",
+      ],
+      "targets": [
+        "reject",
+      ],
+    },
+  ],
+  "id": "root",
+  "layoutOptions": {
+    "elk.algorithm": "layered",
+    "elk.direction": "RIGHT",
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.layered.spacing.nodeNodeBetweenLayers": "60",
+    "elk.padding": "[top=24,left=24,bottom=24,right=24]",
+    "elk.spacing.edgeEdge": "20",
+    "elk.spacing.edgeNode": "20",
+    "elk.spacing.nodeNode": "40",
+  },
+}
+`;
+
+exports[`desugar — frozen snapshots > groups-nested.yaml ELK JSON snapshot 1`] = `
+{
+  "children": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "height": 60,
+              "id": "web",
+              "labels": [
+                {
+                  "height": 22.5,
+                  "text": "Web App",
+                  "width": 69.3,
+                },
+              ],
+              "width": 160,
+            },
+            {
+              "height": 60,
+              "id": "cdn",
+              "labels": [
+                {
+                  "height": 22.5,
+                  "text": "CDN",
+                  "width": 40,
+                },
+              ],
+              "width": 160,
+            },
+          ],
+          "id": "frontend",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "Frontend",
+              "width": 79.2,
+            },
+          ],
+          "layoutOptions": {
+            "elk.padding": "[top=47,left=24,bottom=24,right=24]",
+          },
+        },
+        {
+          "children": [
+            {
+              "height": 60,
+              "id": "api",
+              "labels": [
+                {
+                  "height": 22.5,
+                  "text": "API",
+                  "width": 40,
+                },
+              ],
+              "width": 160,
+            },
+            {
+              "height": 60,
+              "id": "worker",
+              "labels": [
+                {
+                  "height": 22.5,
+                  "text": "Worker",
+                  "width": 59.400000000000006,
+                },
+              ],
+              "width": 160,
+            },
+          ],
+          "id": "backend",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "Backend",
+              "width": 69.3,
+            },
+          ],
+          "layoutOptions": {
+            "elk.padding": "[top=47,left=24,bottom=24,right=24]",
+          },
+        },
+      ],
+      "id": "cluster",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Production Cluster",
+          "width": 178.20000000000002,
+        },
+      ],
+      "layoutOptions": {
+        "elk.padding": "[top=47,left=24,bottom=24,right=24]",
+      },
+    },
+    {
+      "height": 60,
+      "id": "external",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "3rd Party",
+          "width": 89.10000000000001,
+        },
+      ],
+      "width": 160,
+    },
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "labels": [
+        {
+          "height": 20,
+          "text": "requests",
+          "width": 70.4,
+        },
+      ],
+      "sources": [
+        "web",
+      ],
+      "targets": [
+        "api",
+      ],
+    },
+    {
+      "id": "e1",
+      "labels": [
+        {
+          "height": 20,
+          "text": "serves",
+          "width": 52.800000000000004,
+        },
+      ],
+      "sources": [
+        "cdn",
+      ],
+      "targets": [
+        "web",
+      ],
+    },
+    {
+      "id": "e2",
+      "labels": [
+        {
+          "height": 20,
+          "text": "webhook",
+          "width": 61.60000000000001,
+        },
+      ],
+      "sources": [
+        "worker",
+      ],
+      "targets": [
+        "external",
+      ],
+    },
+  ],
+  "id": "root",
+  "layoutOptions": {
+    "elk.algorithm": "layered",
+    "elk.direction": "RIGHT",
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.layered.spacing.nodeNodeBetweenLayers": "60",
+    "elk.padding": "[top=24,left=24,bottom=24,right=24]",
+    "elk.spacing.edgeEdge": "20",
+    "elk.spacing.edgeNode": "20",
+    "elk.spacing.nodeNode": "40",
+  },
+}
+`;
+
+exports[`desugar — frozen snapshots > hierarchy.yaml ELK JSON snapshot 1`] = `
+{
+  "children": [
+    {
+      "children": [
+        {
+          "height": 60,
+          "id": "api",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "API",
+              "width": 40,
+            },
+          ],
+          "width": 160,
+        },
+        {
+          "height": 60,
+          "id": "worker",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "Worker",
+              "width": 59.400000000000006,
+            },
+          ],
+          "width": 160,
+        },
+      ],
+      "id": "app",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Application",
+          "width": 108.9,
+        },
+      ],
+      "layoutOptions": {
+        "elk.padding": "[top=47,left=24,bottom=24,right=24]",
+      },
+    },
+    {
+      "height": 60,
+      "id": "db",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Postgres",
+          "width": 79.2,
+        },
+      ],
+      "width": 160,
+    },
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "labels": [
+        {
+          "height": 20,
+          "text": "reads",
+          "width": 44,
+        },
+      ],
+      "sources": [
+        "api",
+      ],
+      "targets": [
+        "db",
+      ],
+    },
+    {
+      "id": "e1",
+      "labels": [
+        {
+          "height": 20,
+          "text": "writes",
+          "width": 52.800000000000004,
+        },
+      ],
+      "sources": [
+        "worker",
+      ],
+      "targets": [
+        "db",
+      ],
+    },
+  ],
+  "id": "root",
+  "layoutOptions": {
+    "elk.algorithm": "layered",
+    "elk.direction": "DOWN",
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.layered.spacing.nodeNodeBetweenLayers": "60",
+    "elk.padding": "[top=24,left=24,bottom=24,right=24]",
+    "elk.spacing.edgeEdge": "20",
+    "elk.spacing.edgeNode": "20",
+    "elk.spacing.nodeNode": "40",
+  },
+}
+`;
+
+exports[`desugar — frozen snapshots > lanes-down.yaml ELK JSON snapshot 1`] = `
+{
+  "children": [
+    {
+      "children": [
+        {
+          "height": 60,
+          "id": "browser",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "Browser",
+              "width": 69.3,
+            },
+          ],
+          "width": 160,
+        },
+        {
+          "height": 60,
+          "id": "mobile",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "Mobile",
+              "width": 59.400000000000006,
+            },
+          ],
+          "width": 160,
+        },
+      ],
+      "id": "client",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Client",
+          "width": 59.400000000000006,
+        },
+      ],
+      "layoutOptions": {
+        "elk.padding": "[top=47,left=24,bottom=24,right=24]",
+        "elk.partitioning.partition": "0",
+      },
+    },
+    {
+      "children": [
+        {
+          "height": 60,
+          "id": "api",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "API",
+              "width": 40,
+            },
+          ],
+          "width": 160,
+        },
+        {
+          "height": 60,
+          "id": "worker",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "Worker",
+              "width": 59.400000000000006,
+            },
+          ],
+          "width": 160,
+        },
+      ],
+      "id": "server",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Server",
+          "width": 59.400000000000006,
+        },
+      ],
+      "layoutOptions": {
+        "elk.padding": "[top=47,left=24,bottom=24,right=24]",
+        "elk.partitioning.partition": "1",
+      },
+    },
+    {
+      "children": [
+        {
+          "height": 60,
+          "id": "postgres",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "Postgres",
+              "width": 79.2,
+            },
+          ],
+          "width": 160,
+        },
+      ],
+      "id": "db",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Database",
+          "width": 79.2,
+        },
+      ],
+      "layoutOptions": {
+        "elk.padding": "[top=47,left=24,bottom=24,right=24]",
+        "elk.partitioning.partition": "2",
+      },
+    },
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "labels": [
+        {
+          "height": 20,
+          "text": "GET /things",
+          "width": 96.80000000000001,
+        },
+      ],
+      "sources": [
+        "browser",
+      ],
+      "targets": [
+        "api",
+      ],
+    },
+    {
+      "id": "e1",
+      "labels": [
+        {
+          "height": 20,
+          "text": "POST",
+          "width": 40,
+        },
+      ],
+      "sources": [
+        "mobile",
+      ],
+      "targets": [
+        "api",
+      ],
+    },
+    {
+      "id": "e2",
+      "labels": [
+        {
+          "height": 20,
+          "text": "SELECT",
+          "width": 52.800000000000004,
+        },
+      ],
+      "sources": [
+        "api",
+      ],
+      "targets": [
+        "postgres",
+      ],
+    },
+    {
+      "id": "e3",
+      "labels": [
+        {
+          "height": 20,
+          "text": "INSERT",
+          "width": 52.800000000000004,
+        },
+      ],
+      "sources": [
+        "worker",
+      ],
+      "targets": [
+        "postgres",
+      ],
+    },
+    {
+      "id": "e4",
+      "labels": [
+        {
+          "height": 20,
+          "text": "rows",
+          "width": 40,
+        },
+      ],
+      "sources": [
+        "postgres",
+      ],
+      "targets": [
+        "api",
+      ],
+    },
+  ],
+  "id": "root",
+  "layoutOptions": {
+    "elk.algorithm": "layered",
+    "elk.direction": "DOWN",
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.layered.spacing.nodeNodeBetweenLayers": "60",
+    "elk.padding": "[top=24,left=24,bottom=24,right=24]",
+    "elk.partitioning.activate": "true",
+    "elk.spacing.edgeEdge": "20",
+    "elk.spacing.edgeNode": "20",
+    "elk.spacing.nodeNode": "40",
+  },
+}
+`;
+
+exports[`desugar — frozen snapshots > lanes-right.yaml ELK JSON snapshot 1`] = `
+{
+  "children": [
+    {
+      "children": [
+        {
+          "height": 60,
+          "id": "a",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "A",
+              "width": 40,
+            },
+          ],
+          "width": 160,
+        },
+        {
+          "height": 60,
+          "id": "b",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "B",
+              "width": 40,
+            },
+          ],
+          "width": 160,
+        },
+      ],
+      "id": "src",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Source",
+          "width": 59.400000000000006,
+        },
+      ],
+      "layoutOptions": {
+        "elk.padding": "[top=47,left=24,bottom=24,right=24]",
+        "elk.partitioning.partition": "0",
+      },
+    },
+    {
+      "children": [
+        {
+          "height": 60,
+          "id": "m",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "M",
+              "width": 40,
+            },
+          ],
+          "width": 160,
+        },
+      ],
+      "id": "mid",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Middle",
+          "width": 59.400000000000006,
+        },
+      ],
+      "layoutOptions": {
+        "elk.padding": "[top=47,left=24,bottom=24,right=24]",
+        "elk.partitioning.partition": "1",
+      },
+    },
+    {
+      "children": [
+        {
+          "height": 60,
+          "id": "x",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "X",
+              "width": 40,
+            },
+          ],
+          "width": 160,
+        },
+        {
+          "height": 60,
+          "id": "y",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "Y",
+              "width": 40,
+            },
+          ],
+          "width": 160,
+        },
+      ],
+      "id": "dst",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Destination",
+          "width": 108.9,
+        },
+      ],
+      "layoutOptions": {
+        "elk.padding": "[top=47,left=24,bottom=24,right=24]",
+        "elk.partitioning.partition": "2",
+      },
+    },
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "sources": [
+        "a",
+      ],
+      "targets": [
+        "m",
+      ],
+    },
+    {
+      "id": "e1",
+      "sources": [
+        "b",
+      ],
+      "targets": [
+        "m",
+      ],
+    },
+    {
+      "id": "e2",
+      "sources": [
+        "m",
+      ],
+      "targets": [
+        "x",
+      ],
+    },
+    {
+      "id": "e3",
+      "sources": [
+        "m",
+      ],
+      "targets": [
+        "y",
+      ],
+    },
+  ],
+  "id": "root",
+  "layoutOptions": {
+    "elk.algorithm": "layered",
+    "elk.direction": "RIGHT",
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.layered.spacing.nodeNodeBetweenLayers": "60",
+    "elk.padding": "[top=24,left=24,bottom=24,right=24]",
+    "elk.partitioning.activate": "true",
+    "elk.spacing.edgeEdge": "20",
+    "elk.spacing.edgeNode": "20",
+    "elk.spacing.nodeNode": "40",
+  },
+}
+`;
+
+exports[`desugar — frozen snapshots > large-30.yaml ELK JSON snapshot 1`] = `
+{
+  "children": [
+    {
+      "height": 60,
+      "id": "ingress",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Ingress",
+          "width": 69.3,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "lb",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Load Balancer",
+          "width": 128.70000000000002,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "children": [
+        {
+          "height": 60,
+          "id": "api1",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "API 1",
+              "width": 49.5,
+            },
+          ],
+          "width": 160,
+        },
+        {
+          "height": 60,
+          "id": "api2",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "API 2",
+              "width": 49.5,
+            },
+          ],
+          "width": 160,
+        },
+        {
+          "height": 60,
+          "id": "api3",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "API 3",
+              "width": 49.5,
+            },
+          ],
+          "width": 160,
+        },
+      ],
+      "id": "apicluster",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "API Cluster",
+          "width": 108.9,
+        },
+      ],
+      "layoutOptions": {
+        "elk.padding": "[top=47,left=24,bottom=24,right=24]",
+      },
+    },
+    {
+      "height": 60,
+      "id": "cache",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Redis",
+          "width": 49.5,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "queue",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Queue",
+          "width": 49.5,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "children": [
+        {
+          "height": 60,
+          "id": "worker1",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "Worker 1",
+              "width": 79.2,
+            },
+          ],
+          "width": 160,
+        },
+        {
+          "height": 60,
+          "id": "worker2",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "Worker 2",
+              "width": 79.2,
+            },
+          ],
+          "width": 160,
+        },
+      ],
+      "id": "workers",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Workers",
+          "width": 69.3,
+        },
+      ],
+      "layoutOptions": {
+        "elk.padding": "[top=47,left=24,bottom=24,right=24]",
+      },
+    },
+    {
+      "children": [
+        {
+          "height": 88,
+          "id": "primary",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "Primary DB",
+              "width": 99,
+            },
+          ],
+          "width": 160,
+        },
+        {
+          "height": 60,
+          "id": "replica1",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "Replica 1",
+              "width": 89.10000000000001,
+            },
+          ],
+          "width": 160,
+        },
+        {
+          "height": 60,
+          "id": "replica2",
+          "labels": [
+            {
+              "height": 22.5,
+              "text": "Replica 2",
+              "width": 89.10000000000001,
+            },
+          ],
+          "width": 160,
+        },
+      ],
+      "id": "dbcluster",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "DB Cluster",
+          "width": 99,
+        },
+      ],
+      "layoutOptions": {
+        "elk.padding": "[top=47,left=24,bottom=24,right=24]",
+      },
+    },
+    {
+      "height": 60,
+      "id": "s3",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Object Store",
+          "width": 118.80000000000001,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "search",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Search Index",
+          "width": 118.80000000000001,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "metrics",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Metrics",
+          "width": 69.3,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "logs",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Logs",
+          "width": 40,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "auth",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Auth Service",
+          "width": 118.80000000000001,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "users",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "User DB",
+          "width": 69.3,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "cdn",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "CDN",
+          "width": 40,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "static",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Static Assets",
+          "width": 128.70000000000002,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 69,
+      "id": "monitor",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Monitor",
+          "width": 69.3,
+        },
+      ],
+      "width": 163,
+    },
+    {
+      "height": 69,
+      "id": "alerts",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Alerts",
+          "width": 59.400000000000006,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "pager",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Pager",
+          "width": 49.5,
+        },
+      ],
+      "width": 160,
+    },
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "sources": [
+        "ingress",
+      ],
+      "targets": [
+        "lb",
+      ],
+    },
+    {
+      "id": "e1",
+      "sources": [
+        "lb",
+      ],
+      "targets": [
+        "api1",
+      ],
+    },
+    {
+      "id": "e2",
+      "sources": [
+        "lb",
+      ],
+      "targets": [
+        "api2",
+      ],
+    },
+    {
+      "id": "e3",
+      "sources": [
+        "lb",
+      ],
+      "targets": [
+        "api3",
+      ],
+    },
+    {
+      "id": "e4",
+      "labels": [
+        {
+          "height": 20,
+          "text": "read",
+          "width": 40,
+        },
+      ],
+      "sources": [
+        "api1",
+      ],
+      "targets": [
+        "cache",
+      ],
+    },
+    {
+      "id": "e5",
+      "sources": [
+        "api2",
+      ],
+      "targets": [
+        "cache",
+      ],
+    },
+    {
+      "id": "e6",
+      "labels": [
+        {
+          "height": 20,
+          "text": "enqueue",
+          "width": 61.60000000000001,
+        },
+      ],
+      "sources": [
+        "api3",
+      ],
+      "targets": [
+        "queue",
+      ],
+    },
+    {
+      "id": "e7",
+      "sources": [
+        "queue",
+      ],
+      "targets": [
+        "worker1",
+      ],
+    },
+    {
+      "id": "e8",
+      "sources": [
+        "queue",
+      ],
+      "targets": [
+        "worker2",
+      ],
+    },
+    {
+      "id": "e9",
+      "labels": [
+        {
+          "height": 20,
+          "text": "write",
+          "width": 44,
+        },
+      ],
+      "sources": [
+        "api1",
+      ],
+      "targets": [
+        "primary",
+      ],
+    },
+    {
+      "id": "e10",
+      "labels": [
+        {
+          "height": 20,
+          "text": "read",
+          "width": 40,
+        },
+      ],
+      "sources": [
+        "api2",
+      ],
+      "targets": [
+        "replica1",
+      ],
+    },
+    {
+      "id": "e11",
+      "labels": [
+        {
+          "height": 20,
+          "text": "read",
+          "width": 40,
+        },
+      ],
+      "sources": [
+        "api3",
+      ],
+      "targets": [
+        "replica2",
+      ],
+    },
+    {
+      "id": "e12",
+      "sources": [
+        "worker1",
+      ],
+      "targets": [
+        "primary",
+      ],
+    },
+    {
+      "id": "e13",
+      "labels": [
+        {
+          "height": 20,
+          "text": "store",
+          "width": 44,
+        },
+      ],
+      "sources": [
+        "worker2",
+      ],
+      "targets": [
+        "s3",
+      ],
+    },
+    {
+      "id": "e14",
+      "sources": [
+        "api1",
+      ],
+      "targets": [
+        "search",
+      ],
+    },
+    {
+      "id": "e15",
+      "sources": [
+        "api1",
+      ],
+      "targets": [
+        "metrics",
+      ],
+    },
+    {
+      "id": "e16",
+      "sources": [
+        "api2",
+      ],
+      "targets": [
+        "logs",
+      ],
+    },
+    {
+      "id": "e17",
+      "sources": [
+        "lb",
+      ],
+      "targets": [
+        "auth",
+      ],
+    },
+    {
+      "id": "e18",
+      "sources": [
+        "auth",
+      ],
+      "targets": [
+        "users",
+      ],
+    },
+    {
+      "id": "e19",
+      "sources": [
+        "cdn",
+      ],
+      "targets": [
+        "static",
+      ],
+    },
+    {
+      "id": "e20",
+      "sources": [
+        "ingress",
+      ],
+      "targets": [
+        "cdn",
+      ],
+    },
+    {
+      "id": "e21",
+      "sources": [
+        "monitor",
+      ],
+      "targets": [
+        "api1",
+      ],
+    },
+    {
+      "id": "e22",
+      "sources": [
+        "monitor",
+      ],
+      "targets": [
+        "api2",
+      ],
+    },
+    {
+      "id": "e23",
+      "sources": [
+        "monitor",
+      ],
+      "targets": [
+        "api3",
+      ],
+    },
+    {
+      "id": "e24",
+      "sources": [
+        "alerts",
+      ],
+      "targets": [
+        "pager",
+      ],
+    },
+    {
+      "id": "e25",
+      "labels": [
+        {
+          "height": 20,
+          "text": "trigger",
+          "width": 61.60000000000001,
+        },
+      ],
+      "sources": [
+        "monitor",
+      ],
+      "targets": [
+        "alerts",
+      ],
+    },
+  ],
+  "id": "root",
+  "layoutOptions": {
+    "elk.algorithm": "layered",
+    "elk.direction": "RIGHT",
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.layered.spacing.nodeNodeBetweenLayers": "60",
+    "elk.padding": "[top=24,left=24,bottom=24,right=24]",
+    "elk.spacing.edgeEdge": "20",
+    "elk.spacing.edgeNode": "20",
+    "elk.spacing.nodeNode": "40",
+  },
+}
+`;
+
+exports[`desugar — frozen snapshots > pipeline.yaml ELK JSON snapshot 1`] = `
+{
+  "children": [
+    {
+      "height": 60,
+      "id": "ingest",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Ingest",
+          "width": 59.400000000000006,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "transform",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Transform",
+          "width": 89.10000000000001,
+        },
+      ],
+      "width": 160,
+    },
+    {
+      "height": 60,
+      "id": "load",
+      "labels": [
+        {
+          "height": 22.5,
+          "text": "Load",
+          "width": 40,
+        },
+      ],
+      "width": 160,
+    },
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "sources": [
+        "ingest",
+      ],
+      "targets": [
+        "transform",
+      ],
+    },
+    {
+      "id": "e1",
+      "sources": [
+        "transform",
+      ],
+      "targets": [
+        "load",
+      ],
+    },
+  ],
+  "id": "root",
+  "layoutOptions": {
+    "elk.algorithm": "layered",
+    "elk.direction": "RIGHT",
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.layered.spacing.nodeNodeBetweenLayers": "60",
+    "elk.padding": "[top=24,left=24,bottom=24,right=24]",
+    "elk.spacing.edgeEdge": "20",
+    "elk.spacing.edgeNode": "20",
+    "elk.spacing.nodeNode": "40",
+  },
+}
+`;

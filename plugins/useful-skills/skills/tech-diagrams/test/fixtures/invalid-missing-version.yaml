@@ -1,0 +1,4 @@
+layout: layered
+nodes:
+  a:
+    label: A

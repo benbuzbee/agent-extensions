@@ -1,0 +1,15 @@
+version: 1
+layout: layered
+direction: right
+nodes:
+  ingest:
+    label: Ingest
+  transform:
+    label: Transform
+  load:
+    label: Load
+edges:
+  - from: ingest
+    to: transform
+  - from: transform
+    to: load

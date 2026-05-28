@@ -1,0 +1,75 @@
+version: 1
+direction: down
+nodes:
+  entry_fb:
+    label: "/bulk-triage:fb"
+    style: { fill: blue-light }
+  entry_hq:
+    label: "/bulk-triage:hq"
+    style: { fill: yellow-light }
+  gather:
+    label: Gather
+  gather_jsonl:
+    label: "gather.jsonl\n(rich IssueRow)"
+    shape: ellipse
+    style: { fill: green-light }
+  classify:
+    label: "Classify + Enrich"
+  classified_jsonl:
+    label: "classified.jsonl\n(rich + component)"
+    shape: ellipse
+    style: { fill: green-light }
+  find_related:
+    label: "Find Related\n(discovery only)"
+  related_jsonl:
+    label: "related.jsonl\n(1 row/source, nested)"
+    shape: ellipse
+    style: { fill: green-light }
+  promote:
+    label: "Promote\n(FB only - cluster\nunmatched -> new tickets)"
+    style: { fill: red-light }
+  promote_ops:
+    label: "promote-ops.jsonl"
+    shape: ellipse
+    style: { fill: green-light }
+  prioritize:
+    label: "Prioritize\n(HQ only)"
+    style: { stroke: gray, strokeStyle: dashed }
+  prioritized_jsonl:
+    label: "prioritized.jsonl\n(raise-only)"
+    shape: ellipse
+    style: { fill: yellow-light, stroke: gray, strokeStyle: dashed }
+  build_ops:
+    label: "Build Ops"
+  ops_jsonl:
+    label: "ops.jsonl"
+    shape: ellipse
+    style: { fill: green-light }
+  commit:
+    label: Commit
+  results_jsonl:
+    label: "results.jsonl"
+    shape: ellipse
+    style: { fill: green-light }
+  report:
+    label: "Report + Publish"
+edges:
+  - { from: entry_fb, to: gather }
+  - { from: entry_hq, to: gather }
+  - { from: gather, to: gather_jsonl }
+  - { from: gather_jsonl, to: classify }
+  - { from: classify, to: classified_jsonl }
+  - { from: classified_jsonl, to: find_related }
+  - { from: find_related, to: related_jsonl }
+  - { from: related_jsonl, to: promote, label: "FB: no dup" }
+  - { from: promote, to: promote_ops }
+  - { from: related_jsonl, to: prioritize, label: "HQ", style: { strokeStyle: dashed } }
+  - { from: classified_jsonl, to: prioritize, label: "HQ: content", style: { strokeStyle: dashed } }
+  - { from: prioritize, to: prioritized_jsonl, style: { strokeStyle: dashed } }
+  - { from: related_jsonl, to: build_ops, label: "duplicates +\nrelations" }
+  - { from: promote_ops, to: build_ops, label: "FB: creates" }
+  - { from: prioritized_jsonl, to: build_ops, label: "HQ: priority", style: { strokeStyle: dashed } }
+  - { from: build_ops, to: ops_jsonl }
+  - { from: ops_jsonl, to: commit }
+  - { from: commit, to: results_jsonl }
+  - { from: results_jsonl, to: report }

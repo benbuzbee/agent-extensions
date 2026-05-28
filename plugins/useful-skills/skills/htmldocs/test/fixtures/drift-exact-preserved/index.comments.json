@@ -1,0 +1,18 @@
+{
+  "doc": "index.html",
+  "schema": 1,
+  "comments": [
+    {
+      "id": "c1",
+      "anchor": {
+        "sections": ["alpha"],
+        "prefix": "talks about the ",
+        "exact": "quick brown fox",
+        "suffix": " and then continues"
+      },
+      "body": "Is this still the right metaphor here?",
+      "author": "user",
+      "created_at": "2026-05-25T10:00:00Z"
+    }
+  ]
+}

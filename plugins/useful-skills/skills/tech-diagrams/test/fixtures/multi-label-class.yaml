@@ -1,0 +1,23 @@
+version: 1
+direction: down
+nodes:
+  user:
+    width: 200
+    height: 100
+    style: { fill: blue-light }
+    labels:
+      - { text: "User", at: inside-top, style: { size: 20 } }
+      - { text: "<<entity>>", at: inside-center, style: { size: 12, color: gray } }
+      - { text: "+ id: UUID", at: inside-bottom, style: { size: 14 } }
+  account:
+    width: 200
+    height: 100
+    style: { fill: green-light }
+    labels:
+      - { text: "Account", at: inside-top, style: { size: 20 } }
+      - { text: "<<aggregate>>", at: inside-center, style: { size: 12, color: gray } }
+      - { text: "+ owner: User", at: inside-bottom, style: { size: 14 } }
+edges:
+  - from: user
+    to: account
+    label: "1..*"

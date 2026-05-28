@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture: orphan-svg</title>
+<style>
+  body { font: 15px/1.5 ui-sans-serif, system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+  article { margin: 1.5rem 0; }
+  figure { margin: 1.5rem 0; }
+  svg { display: block; }
+</style>
+<script type="module" src="../../../dist/comments.mjs"></script>
+</head>
+<body>
+<h1>Orphan-SVG fixture</h1>
+<article id="before">
+  <h2>Before</h2>
+  <p>Article before the orphan diagram.</p>
+</article>
+<figure>
+  <svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+    <rect x="10" y="10" width="80" height="40" fill="none" stroke="black"/>
+    <text x="50" y="35" text-anchor="middle" font-size="14">Orphan</text>
+  </svg>
+</figure>
+<article id="after">
+  <h2>After</h2>
+  <p>Article after the orphan diagram.</p>
+</article>
+</body>
+</html>

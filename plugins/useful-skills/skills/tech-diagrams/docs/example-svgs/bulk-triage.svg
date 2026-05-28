@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="tg-svg" viewBox="8 8 751.1 1983" font-family="ui-sans-serif, system-ui, -apple-system, sans-serif">
+<style>
+  .tg-svg {
+    color-scheme: light dark;
+    --tg-stroke-black: #1e1e1e;
+    --tg-stroke-gray: #5c5f66;
+    --tg-stroke-red: #e03131;
+    --tg-stroke-orange: #f08c00;
+    --tg-stroke-yellow: #f59f00;
+    --tg-stroke-green: #2f9e44;
+    --tg-stroke-teal: #0c8599;
+    --tg-stroke-blue: #1971c2;
+    --tg-stroke-violet: #6741d9;
+    --tg-stroke-pink: #c2255c;
+    --tg-halo: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    .tg-svg {
+      --tg-stroke-black: #e6e6e6;
+      --tg-stroke-gray: #9aa0a6;
+      --tg-stroke-red: #ff8585;
+      --tg-stroke-orange: #ffb066;
+      --tg-stroke-yellow: #ffd966;
+      --tg-stroke-green: #7fd28f;
+      --tg-stroke-teal: #6dd5e6;
+      --tg-stroke-blue: #7fb1ff;
+      --tg-stroke-violet: #bda3ff;
+      --tg-stroke-pink: #ff8fb6;
+      --tg-halo: #0f1115;
+    }
+  }
+  .tg-svg .tg-stroke-black { stroke: var(--tg-stroke-black); }
+  .tg-svg .tg-stroke-gray { stroke: var(--tg-stroke-gray); }
+  .tg-svg .tg-stroke-red { stroke: var(--tg-stroke-red); }
+  .tg-svg .tg-stroke-orange { stroke: var(--tg-stroke-orange); }
+  .tg-svg .tg-stroke-yellow { stroke: var(--tg-stroke-yellow); }
+  .tg-svg .tg-stroke-green { stroke: var(--tg-stroke-green); }
+  .tg-svg .tg-stroke-teal { stroke: var(--tg-stroke-teal); }
+  .tg-svg .tg-stroke-blue { stroke: var(--tg-stroke-blue); }
+  .tg-svg .tg-stroke-violet { stroke: var(--tg-stroke-violet); }
+  .tg-svg .tg-stroke-pink { stroke: var(--tg-stroke-pink); }
+  .tg-svg .tg-text-black { fill: var(--tg-stroke-black); }
+  .tg-svg .tg-text-gray { fill: var(--tg-stroke-gray); }
+  .tg-svg .tg-text-red { fill: var(--tg-stroke-red); }
+  .tg-svg .tg-text-orange { fill: var(--tg-stroke-orange); }
+  .tg-svg .tg-text-yellow { fill: var(--tg-stroke-yellow); }
+  .tg-svg .tg-text-green { fill: var(--tg-stroke-green); }
+  .tg-svg .tg-text-teal { fill: var(--tg-stroke-teal); }
+  .tg-svg .tg-text-blue { fill: var(--tg-stroke-blue); }
+  .tg-svg .tg-text-violet { fill: var(--tg-stroke-violet); }
+  .tg-svg .tg-text-pink { fill: var(--tg-stroke-pink); }
+  .tg-svg .tg-fill-gray-light { fill: color-mix(in srgb, var(--tg-stroke-gray) 18%, transparent); }
+  .tg-svg .tg-fill-red-light { fill: color-mix(in srgb, var(--tg-stroke-red) 18%, transparent); }
+  .tg-svg .tg-fill-orange-light { fill: color-mix(in srgb, var(--tg-stroke-orange) 18%, transparent); }
+  .tg-svg .tg-fill-yellow-light { fill: color-mix(in srgb, var(--tg-stroke-yellow) 18%, transparent); }
+  .tg-svg .tg-fill-green-light { fill: color-mix(in srgb, var(--tg-stroke-green) 18%, transparent); }
+  .tg-svg .tg-fill-teal-light { fill: color-mix(in srgb, var(--tg-stroke-teal) 18%, transparent); }
+  .tg-svg .tg-fill-blue-light { fill: color-mix(in srgb, var(--tg-stroke-blue) 18%, transparent); }
+  .tg-svg .tg-fill-violet-light { fill: color-mix(in srgb, var(--tg-stroke-violet) 18%, transparent); }
+  .tg-svg .tg-fill-pink-light { fill: color-mix(in srgb, var(--tg-stroke-pink) 18%, transparent); }
+  .tg-svg .tg-fill-transparent { fill: transparent; }
+  .tg-svg .tg-fill-none { fill: none; }
+  .tg-svg .tg-halo-stroke { stroke: var(--tg-halo); }
+  .tg-svg .tg-halo-fill { fill: var(--tg-halo); }
+</style>
+<defs><marker id="m-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker></defs>
+<rect x="274.83333333333337" y="24" width="173" height="60" rx="6" ry="6" class="tg-stroke-black tg-fill-blue-light" fill="#a5d8ff" stroke="#1e1e1e" stroke-width="2"/>
+<rect x="61.833333333333336" y="24" width="173" height="60" rx="6" ry="6" class="tg-stroke-black tg-fill-yellow-light" fill="#ffec99" stroke="#1e1e1e" stroke-width="2"/>
+<rect x="95" y="144" width="160" height="60" rx="6" ry="6" class="tg-stroke-black tg-fill-none" fill="none" stroke="#1e1e1e" stroke-width="2"/>
+<ellipse cx="175" cy="308" rx="117.5" ry="44" class="tg-stroke-black tg-fill-green-light" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
+<rect x="95" y="412" width="160" height="69" rx="6" ry="6" class="tg-stroke-black tg-fill-none" fill="none" stroke="#1e1e1e" stroke-width="2"/>
+<ellipse cx="175" cy="585" rx="138.5" ry="44" class="tg-stroke-black tg-fill-green-light" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
+<rect x="244.83333333333334" y="689" width="183" height="69" rx="6" ry="6" class="tg-stroke-black tg-fill-none" fill="none" stroke="#1e1e1e" stroke-width="2"/>
+<ellipse cx="336.33333333333337" cy="862" rx="166.5" ry="44" class="tg-stroke-black tg-fill-green-light" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
+<rect x="322.5" y="1046" width="272" height="92" rx="6" ry="6" class="tg-stroke-black tg-fill-red-light" fill="#ffc9c9" stroke="#1e1e1e" stroke-width="2"/>
+<ellipse cx="458.5" cy="1242" rx="131.5" ry="30" class="tg-stroke-black tg-fill-green-light" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
+<rect x="75.5" y="1053.6666666666667" width="160" height="69" rx="6" ry="6" class="tg-stroke-gray tg-fill-none" fill="none" stroke="#5c5f66" stroke-width="2" stroke-dasharray="8 4"/>
+<ellipse cx="155.5" cy="1242" rx="131.5" ry="44" class="tg-stroke-gray tg-fill-yellow-light" fill="#ffec99" stroke="#5c5f66" stroke-width="2" stroke-dasharray="8 4"/>
+<rect x="378.5" y="1426" width="160" height="60" rx="6" ry="6" class="tg-stroke-black tg-fill-none" fill="none" stroke="#1e1e1e" stroke-width="2"/>
+<ellipse cx="458.5" cy="1576" rx="80" ry="30" class="tg-stroke-black tg-fill-green-light" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
+<rect x="378.5" y="1666" width="160" height="60" rx="6" ry="6" class="tg-stroke-black tg-fill-none" fill="none" stroke="#1e1e1e" stroke-width="2"/>
+<ellipse cx="458.5" cy="1816" rx="103.5" ry="30" class="tg-stroke-black tg-fill-green-light" fill="#b2f2bb" stroke="#1e1e1e" stroke-width="2"/>
+<rect x="378.5" y="1906" width="160" height="69" rx="6" ry="6" class="tg-stroke-black tg-fill-none" fill="none" stroke="#1e1e1e" stroke-width="2"/>
+<path class="tg-stroke-black" d="M 361.33333333333337 84 L 361.33333333333337 94 L 201.66666666666669 94 L 201.66666666666669 144" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 148.33333333333334 84 L 148.33333333333334 144" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 175 204 L 175 264" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 175 352 L 175 412" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 175 481 L 175 541" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 221.16666666666666 629 L 221.16666666666666 639 L 336.33333333333337 639 L 336.33333333333337 689" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 336.33333333333337 758 L 336.33333333333337 818" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 336.33333333333337 906 L 336.33333333333337 926 L 458.5 926 L 458.5 1046" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 458.5 1138 L 458.5 1212" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 253.08333333333334 906 L 253.08333333333334 996 L 182.16666666666669 996 L 182.16666666666669 1053.6666666666667" fill="none" stroke="#1e1e1e" stroke-width="2" stroke-dasharray="8 4" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 128.83333333333331 629 L 128.83333333333334 1053.6666666666667" fill="none" stroke="#1e1e1e" stroke-width="2" stroke-dasharray="8 4" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 155.5 1122.6666666666667 L 155.5 1198" fill="none" stroke="#1e1e1e" stroke-width="2" stroke-dasharray="8 4" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 419.58333333333337 906 L 419.58333333333337 916 L 634.5 916 L 634.5 1376 L 498.5 1376 L 498.5 1426" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 458.5 1272 L 458.5 1426" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 155.5 1286 L 155.5 1376 L 418.5 1376 L 418.5 1426" fill="none" stroke="#1e1e1e" stroke-width="2" stroke-dasharray="8 4" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 458.5 1486 L 458.5 1546" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 458.5 1606 L 458.5 1666" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 458.5 1726 L 458.5 1786" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<path class="tg-stroke-black" d="M 458.5 1846 L 458.5 1906" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#m-arrow)"/>
+<text x="361.33333333333337" y="54" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central">/bulk-triage:fb</text>
+<text x="148.33333333333334" y="54" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central">/bulk-triage:hq</text>
+<text x="175" y="174" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central">Gather</text>
+<text x="175" y="296.75" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central"><tspan x="175" dominant-baseline="central">gather.jsonl</tspan><tspan x="175" dy="22.5" dominant-baseline="central">(rich IssueRow)</tspan></text>
+<text x="175" y="435.25" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central"><tspan x="175" dominant-baseline="central">Classify +</tspan><tspan x="175" dy="22.5" dominant-baseline="central">Enrich</tspan></text>
+<text x="175" y="573.75" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central"><tspan x="175" dominant-baseline="central">classified.jsonl</tspan><tspan x="175" dy="22.5" dominant-baseline="central">(rich + component)</tspan></text>
+<text x="336.33333333333337" y="712.25" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central"><tspan x="336.33333333333337" dominant-baseline="central">Find Related</tspan><tspan x="336.33333333333337" dy="22.5" dominant-baseline="central">(discovery only)</tspan></text>
+<text x="336.33333333333337" y="850.75" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central"><tspan x="336.33333333333337" dominant-baseline="central">related.jsonl</tspan><tspan x="336.33333333333337" dy="22.5" dominant-baseline="central">(1 row/source, nested)</tspan></text>
+<text x="458.5" y="1069.5" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central"><tspan x="458.5" dominant-baseline="central">Promote</tspan><tspan x="458.5" dy="22.5" dominant-baseline="central">(FB only - cluster</tspan><tspan x="458.5" dy="22.5" dominant-baseline="central">unmatched -&gt; new tickets)</tspan></text>
+<text x="458.5" y="1242" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central">promote-ops.jsonl</text>
+<text x="155.5" y="1076.9166666666667" font-size="18" class="tg-text-gray" fill="#5c5f66" text-anchor="middle" dominant-baseline="central"><tspan x="155.5" dominant-baseline="central">Prioritize</tspan><tspan x="155.5" dy="22.5" dominant-baseline="central">(HQ only)</tspan></text>
+<text x="155.5" y="1230.75" font-size="18" class="tg-text-gray" fill="#5c5f66" text-anchor="middle" dominant-baseline="central"><tspan x="155.5" dominant-baseline="central">prioritized.jsonl</tspan><tspan x="155.5" dy="22.5" dominant-baseline="central">(raise-only)</tspan></text>
+<text x="458.5" y="1456" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central">Build Ops</text>
+<text x="458.5" y="1576" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central">ops.jsonl</text>
+<text x="458.5" y="1696" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central">Commit</text>
+<text x="458.5" y="1816" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central">results.jsonl</text>
+<text x="458.5" y="1929.25" font-size="18" class="tg-text-black" fill="#1e1e1e" text-anchor="middle" dominant-baseline="central"><tspan x="458.5" dominant-baseline="central">Report +</tspan><tspan x="458.5" dy="22.5" dominant-baseline="central">Publish</tspan></text>
+<text x="412.5" y="976" font-size="16" fill="#1e1e1e" class="tg-text-black tg-halo-stroke" stroke="white" stroke-width="4" stroke-linejoin="round" paint-order="stroke" text-anchor="middle" dominant-baseline="central">FB: no dup</text>
+<text x="231.08333333333334" y="976" font-size="16" fill="#1e1e1e" class="tg-text-black tg-halo-stroke" stroke="white" stroke-width="4" stroke-linejoin="round" paint-order="stroke" text-anchor="middle" dominant-baseline="central">HQ</text>
+<text x="78.43333333333334" y="862" font-size="16" fill="#1e1e1e" class="tg-text-black tg-halo-stroke" stroke="white" stroke-width="4" stroke-linejoin="round" paint-order="stroke" text-anchor="middle" dominant-baseline="central">HQ: content</text>
+<text x="690.3" y="1082" font-size="16" fill="#1e1e1e" class="tg-text-black tg-halo-stroke" stroke="white" stroke-width="4" stroke-linejoin="round" paint-order="stroke" text-anchor="middle" dominant-baseline="central"><tspan x="690.3" dominant-baseline="central">duplicates +</tspan><tspan x="690.3" dy="20" dominant-baseline="central">relations</tspan></text>
+<text x="408.1" y="1356" font-size="16" fill="#1e1e1e" class="tg-text-black tg-halo-stroke" stroke="white" stroke-width="4" stroke-linejoin="round" paint-order="stroke" text-anchor="middle" dominant-baseline="central">FB: creates</text>
+<text x="100.69999999999999" y="1356" font-size="16" fill="#1e1e1e" class="tg-text-black tg-halo-stroke" stroke="white" stroke-width="4" stroke-linejoin="round" paint-order="stroke" text-anchor="middle" dominant-baseline="central">HQ: priority</text>
+</svg>
