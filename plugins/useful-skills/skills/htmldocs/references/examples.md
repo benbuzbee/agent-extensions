@@ -120,7 +120,7 @@ then to the database. If auth fails, the gateway returns 401.</p>
 </figure>
 ```
 
-For more than ~6 nodes or any non-trivial layout, render with the `tech-diagrams` skill and embed the resulting SVG instead of hand-coding.
+For more than ~6 nodes or any non-trivial layout, use inline Mermaid instead of hand-coding the SVG — see `references/mermaid.md`.
 
 ## Portability
 

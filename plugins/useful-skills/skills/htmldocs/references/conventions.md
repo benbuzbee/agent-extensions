@@ -150,6 +150,10 @@ When inserting raw logs, code snippets, or error traces that contain angle brack
 
 Applies the same way inside `<details><summary>` blocks (the content is still parsed).
 
+### Embedding a diagram
+
+A diagram is a `<figure data-kind="diagram">` wrapping a `<pre class="mermaid">` that holds Mermaid DSL, escaped per the rule above (`<`, `>`, `&` as `&lt; &gt; &amp;`), plus one Mermaid `<script>` per document. Full contract — figure shape, the exact script block, diagram-type table — in [`mermaid.md`](mermaid.md).
+
 ## Detecting existing conventions
 
 Before applying these defaults, scan 1–2 existing docs and grep for the attribute keys actually in use:

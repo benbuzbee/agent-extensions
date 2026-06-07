@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>htmldocs — inline Mermaid proof gallery</title>
+<style>
+  :root {
+    --bg: #fdfdfc;
+    --fg: #1a1a1a;
+    --muted: #6a6a6a;
+    --accent: #2a5d9f;
+    --border: #d8d8d4;
+    --code-bg: #f3f3ef;
+    --aside-bg: #f7f3e9;
+    --aside-border: #d9c98a;
+    --new: #1f7a3a;
+    --new-bg: #e7f5ec;
+  }
+  /* forced dark via the test toggle */
+  :root[data-theme="dark"] {
+    --bg: #0f1115;
+    --fg: #e6e6e6;
+    --muted: #9aa0a6;
+    --accent: #7fb1ff;
+    --border: #2a2e36;
+    --code-bg: #161a21;
+    --aside-bg: #1d1a10;
+    --aside-border: #5a4a16;
+    --new: #6ed18a;
+    --new-bg: #15291c;
+  }
+  /* auto dark (no JS / offline) — only when the toggle hasn't pinned a theme */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+      --bg: #0f1115;
+      --fg: #e6e6e6;
+      --muted: #9aa0a6;
+      --accent: #7fb1ff;
+      --border: #2a2e36;
+      --code-bg: #161a21;
+      --aside-bg: #1d1a10;
+      --aside-border: #5a4a16;
+      --new: #6ed18a;
+      --new-bg: #15291c;
+    }
+  }
+  html { color-scheme: light dark; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 960px;
+    margin: 2rem auto;
+    padding: 0 1.25rem;
+  }
+  h1, h2, h3 { line-height: 1.25; }
+  h1 { font-size: 1.65rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  p.meta { color: var(--muted); font-size: .88rem; margin: .25rem 0 1rem; }
+  nav.toc { border: 1px solid var(--border); border-radius: 6px; padding: .5rem .9rem; margin: 1rem 0 1.5rem; background: var(--code-bg); }
+  nav.toc ol { margin: .25rem 0; padding-left: 1.25rem; column-count: 2; }
+  nav.toc li { margin: .1rem 0; }
+  article { margin: 2rem 0; border: 1px solid var(--border); border-radius: 6px; padding: .9rem 1.1rem; }
+  article header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  article header h2 { border: 0; margin: 0; padding: 0; }
+  figure {
+    margin: .75rem 0 .25rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1rem;
+    overflow: auto;
+    text-align: center;
+  }
+  figure svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  pre.mermaid { color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82rem; text-align: left; white-space: pre-wrap; margin: 0; }
+  figcaption { color: var(--muted); font-size: .9rem; margin-top: .6rem; }
+  p.goodfor { font-size: .9rem; margin: .5rem 0 0; }
+  p.goodfor strong { color: var(--accent); }
+  pre code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  pre:not(.mermaid) { background: var(--code-bg); border: 1px solid var(--border); border-radius: 5px; padding: .65rem .8rem; overflow-x: auto; font-size: .85rem; text-align: left; }
+  :not(pre) > code { background: var(--code-bg); padding: .05rem .3rem; border-radius: 3px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9em; }
+  details { margin: .5rem 0; }
+  details summary { cursor: pointer; color: var(--accent); font-size: .9rem; }
+  aside { background: var(--aside-bg); border-left: 3px solid var(--aside-border); padding: .55rem .85rem; margin: 1.5rem 0; border-radius: 0 4px 4px 0; }
+  .badge { display: inline-block; font-size: .68rem; font-weight: 700; padding: .05rem .35rem; border-radius: 3px; background: var(--new-bg); color: var(--new); margin-left: .4rem; vertical-align: middle; }
+  /* test-only scaffolding — not part of the feature */
+  .theme-toggle { position: fixed; top: 1rem; right: 1rem; z-index: 10; font: inherit; font-size: .82rem; cursor: pointer; background: var(--code-bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: .35rem .7rem; }
+  .theme-toggle:hover { border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle light or dark mode">◐ toggle theme</button>
+
+<h1>htmldocs — inline Mermaid proof gallery</h1>
+<p class="meta" data-updated="2026-06-06">Proof for <a href="./plans/mermaid-integration.html">plans/mermaid-integration.html</a> — each diagram is authored as Mermaid DSL in a <code>&lt;pre class="mermaid"&gt;</code> and rendered by one CDN script at the bottom of this file.</p>
+
+<nav class="toc" aria-label="Table of contents">
+  <strong>Diagrams</strong>
+  <ol>
+    <li><a href="#state">State machine</a></li>
+    <li><a href="#class">Class / UML</a></li>
+    <li><a href="#swimlanes">Swimlanes</a></li>
+    <li><a href="#er">Entity-relationship</a></li>
+    <li><a href="#sequence">Sequence</a></li>
+    <li><a href="#gantt">Gantt</a></li>
+    <li><a href="#gitgraph">Git graph</a></li>
+    <li><a href="#mindmap">Mindmap</a></li>
+    <li><a href="#timeline">Timeline</a></li>
+    <li><a href="#pie">Pie chart</a></li>
+  </ol>
+</nav>
+
+<aside data-kind="about">
+  Every diagram below is authored as Mermaid DSL in a <code>&lt;pre class="mermaid"&gt;</code> and
+  rendered by the single CDN script at the bottom of this file — a proof that inline Mermaid renders
+  across genres in a self-contained htmldocs page. If a diagram shows raw text instead of a picture,
+  the CDN didn't load (offline) — that is the intended fallback, and the same DSL renders in a
+  <code>```mermaid</code> block on GitHub.
+</aside>
+
+<article id="state" data-kind="diagram">
+  <header><h2>State machine</h2></header>
+  <figure>
+    <pre class="mermaid">stateDiagram-v2
+  [*] --&gt; Pending: start
+  Pending --&gt; Running: dequeue
+  Running --&gt; Success: ok
+  Running --&gt; Failed: error
+  Failed --&gt; Retry
+  Retry --&gt; Pending: requeue
+  Success --&gt; [*]
+  classDef good fill:#d4edda,stroke:#28a745,color:#155724
+  classDef bad fill:#f8d7da,stroke:#dc3545,color:#721c24
+  class Success good
+  class Failed bad</pre>
+  </figure>
+  <figcaption>A job lifecycle with a retry loop: Start → Pending → Running → Success/Failed → Retry → requeue. Success and Failed are colored with <code>classDef</code> + <code>class</code>.</figcaption>
+  <p class="goodfor"><strong>Good for:</strong> documenting an entity's lifecycle as discrete states with the events and loops that move it between them. Color specific states with <code>classDef</code> (note: fixed-hex fills don't auto-adapt to light/dark).</p>
+  <details><summary>Mermaid source</summary>
+<pre><code>stateDiagram-v2
+  [*] --&gt; Pending: start
+  Pending --&gt; Running: dequeue
+  Running --&gt; Success: ok
+  Running --&gt; Failed: error
+  Failed --&gt; Retry
+  Retry --&gt; Pending: requeue
+  Success --&gt; [*]
+  classDef good fill:#d4edda,stroke:#28a745,color:#155724
+  classDef bad fill:#f8d7da,stroke:#dc3545,color:#721c24
+  class Success good
+  class Failed bad</code></pre>
+  </details>
+</article>
+
+<article id="class" data-kind="diagram">
+  <header><h2>Class / UML</h2></header>
+  <figure>
+    <pre class="mermaid">classDiagram
+  class Animal {
+    +String name
+    +move() void
+  }
+  class Dog {
+    +String breed
+    +bark() void
+  }
+  class Car {
+    +String model
+    +start() void
+  }
+  class Engine {
+    +int horsepower
+  }
+  class Logger {
+    +log(String msg) void
+  }
+  Animal &lt;|-- Dog : extends
+  Car *-- Engine : composes
+  Team o-- Player : has
+  Service ..&gt; Logger : uses
+  Mediator &lt;--&gt; Worker : talks</pre>
+  </figure>
+  <figcaption>Classes with fields and methods, plus the five UML relationship kinds — inheritance, composition, aggregation, dependency, bidirectional association — each with its own arrowhead. (Note the escaped <code>&amp;lt;|--</code> rendering correctly — rule #1 at work.)</figcaption>
+  <p class="goodfor"><strong>Good for:</strong> specifying object-oriented structure — classes, their fields and methods, and inheritance or association relationships.</p>
+  <details><summary>Mermaid source</summary>
+<pre><code>classDiagram
+  class Animal {
+    +String name
+    +move() void
+  }
+  class Dog {
+    +String breed
+    +bark() void
+  }
+  class Car {
+    +String model
+    +start() void
+  }
+  class Engine {
+    +int horsepower
+  }
+  class Logger {
+    +log(String msg) void
+  }
+  Animal &lt;|-- Dog : extends
+  Car *-- Engine : composes
+  Team o-- Player : has
+  Service ..&gt; Logger : uses
+  Mediator &lt;--&gt; Worker : talks</code></pre>
+  </details>
+</article>
+
+<article id="swimlanes" data-kind="diagram">
+  <header><h2>Swimlanes</h2></header>
+  <figure>
+    <pre class="mermaid">flowchart LR
+  subgraph Client
+    A[Request]
+  end
+  subgraph API
+    B[Validate] --&gt; C[Handle]
+  end
+  subgraph DB
+    D[(Store)]
+  end
+  A --&gt; B
+  C --&gt; D</pre>
+  </figure>
+  <figcaption>Lanes as labelled subgraphs, with edges crossing lane boundaries.</figcaption>
+  <p class="goodfor"><strong>Good for:</strong> showing who does what when a process crosses several actors, roles, or systems.</p>
+  <details><summary>Mermaid source</summary>
+<pre><code>flowchart LR
+  subgraph Client
+    A[Request]
+  end
+  subgraph API
+    B[Validate] --&gt; C[Handle]
+  end
+  subgraph DB
+    D[(Store)]
+  end
+  A --&gt; B
+  C --&gt; D</code></pre>
+  </details>
+</article>
+
+<article id="er" data-kind="diagram">
+  <header><h2>Entity-relationship</h2></header>
+  <figure>
+    <pre class="mermaid">erDiagram
+  CUSTOMER ||--o{ ORDER : places
+  ORDER ||--|{ LINE_ITEM : contains
+  PRODUCT ||--o{ LINE_ITEM : "ordered in"</pre>
+  </figure>
+  <figcaption>Crow's-foot cardinality between entities — the ER genre with native relationship notation.</figcaption>
+  <p class="goodfor"><strong>Good for:</strong> defining a data schema: the entities, their attributes, and the cardinality of relationships between them.</p>
+  <details><summary>Mermaid source</summary>
+<pre><code>erDiagram
+  CUSTOMER ||--o{ ORDER : places
+  ORDER ||--|{ LINE_ITEM : contains
+  PRODUCT ||--o{ LINE_ITEM : "ordered in"</code></pre>
+  </details>
+</article>
+
+<article id="sequence" data-kind="diagram">
+  <header><h2>Sequence</h2></header>
+  <figure>
+    <pre class="mermaid">sequenceDiagram
+  participant W as Ingest worker
+  participant DB as Postgres
+  participant Q as Publish queue
+  W-&gt;&gt;DB: write row
+  DB--&gt;&gt;W: ack
+  W-&gt;&gt;Q: enqueue id</pre>
+  </figure>
+  <figcaption>Lifelines and ordered messages between participants over time.</figcaption>
+  <p class="goodfor"><strong>Good for:</strong> tracing an ordered exchange of messages between participants as it unfolds over time.</p>
+  <details><summary>Mermaid source</summary>
+<pre><code>sequenceDiagram
+  participant W as Ingest worker
+  participant DB as Postgres
+  participant Q as Publish queue
+  W-&gt;&gt;DB: write row
+  DB--&gt;&gt;W: ack
+  W-&gt;&gt;Q: enqueue id</code></pre>
+  </details>
+</article>
+
+<article id="gantt" data-kind="diagram">
+  <header><h2>Gantt</h2></header>
+  <figure>
+    <pre class="mermaid">gantt
+  title Release plan
+  dateFormat YYYY-MM-DD
+  section Build
+  Spike       :a1, 2026-06-01, 3d
+  Implement   :a2, after a1, 5d
+  section Ship
+  Review      :a3, after a2, 2d
+  Release     :milestone, after a3, 0d</pre>
+  </figure>
+  <figcaption>A scheduling view with sections, task dependencies, and a milestone.</figcaption>
+  <p class="goodfor"><strong>Good for:</strong> laying out a schedule of tasks with their durations, dependencies, and milestones.</p>
+  <details><summary>Mermaid source</summary>
+<pre><code>gantt
+  title Release plan
+  dateFormat YYYY-MM-DD
+  section Build
+  Spike       :a1, 2026-06-01, 3d
+  Implement   :a2, after a1, 5d
+  section Ship
+  Review      :a3, after a2, 2d
+  Release     :milestone, after a3, 0d</code></pre>
+  </details>
+</article>
+
+<article id="gitgraph" data-kind="diagram">
+  <header><h2>Git graph</h2></header>
+  <figure>
+    <pre class="mermaid">gitGraph
+    commit id: "init"
+    branch develop
+    checkout develop
+    commit id: "feature"
+    checkout main
+    merge develop tag: "v1.0"
+    commit id: "hotfix"</pre>
+  </figure>
+  <figcaption>A main branch and a develop branch where a feature commit is merged back and tagged v1.0, followed by a hotfix commit on main.</figcaption>
+  <p class="goodfor"><strong>Good for:</strong> showing branch-and-merge history, release flows, and how commits move between branches.</p>
+  <details><summary>Mermaid source</summary>
+<pre><code>gitGraph
+    commit id: "init"
+    branch develop
+    checkout develop
+    commit id: "feature"
+    checkout main
+    merge develop tag: "v1.0"
+    commit id: "hotfix"</code></pre>
+  </details>
+</article>
+
+<article id="mindmap" data-kind="diagram">
+  <header><h2>Mindmap</h2></header>
+  <figure>
+    <pre class="mermaid">mindmap
+  root((Documentation))
+    Guides
+      Quickstart
+      Tutorials
+    Reference
+      API
+      CLI
+    Examples</pre>
+  </figure>
+  <figcaption>A central "Documentation" node fanning out into Guides, Reference, and Examples branches, each with nested leaf topics.</figcaption>
+  <p class="goodfor"><strong>Good for:</strong> breaking a single concept into a hierarchy of sub-topics during brainstorming or content outlining.</p>
+  <details><summary>Mermaid source</summary>
+<pre><code>mindmap
+  root((Documentation))
+    Guides
+      Quickstart
+      Tutorials
+    Reference
+      API
+      CLI
+    Examples</code></pre>
+  </details>
+</article>
+
+<article id="timeline" data-kind="diagram">
+  <header><h2>Timeline</h2></header>
+  <figure>
+    <pre class="mermaid">timeline
+    title Product Roadmap
+    section 2023
+        Q1 : Prototype
+        Q3 : Beta launch
+    section 2024
+        Q1 : GA release
+        Q4 : Mobile app</pre>
+  </figure>
+  <figcaption>A roadmap with events plotted left-to-right and grouped under the 2023 and 2024 period sections.</figcaption>
+  <p class="goodfor"><strong>Good for:</strong> laying out chronological events or milestones grouped into eras, releases, or phases.</p>
+  <details><summary>Mermaid source</summary>
+<pre><code>timeline
+    title Product Roadmap
+    section 2023
+        Q1 : Prototype
+        Q3 : Beta launch
+    section 2024
+        Q1 : GA release
+        Q4 : Mobile app</code></pre>
+  </details>
+</article>
+
+<article id="pie" data-kind="diagram">
+  <header><h2>Pie chart</h2></header>
+  <figure>
+    <pre class="mermaid">pie title Language Share
+    "TypeScript" : 45
+    "Python" : 30
+    "Go" : 15
+    "Other" : 10</pre>
+  </figure>
+  <figcaption>A titled pie chart splitting a whole into four labelled slices sized by their numeric share.</figcaption>
+  <p class="goodfor"><strong>Good for:</strong> showing a proportional breakdown of a whole across a handful of labelled categories.</p>
+  <details><summary>Mermaid source</summary>
+<pre><code>pie title Language Share
+    "TypeScript" : 45
+    "Python" : 30
+    "Go" : 15
+    "Other" : 10</code></pre>
+  </details>
+</article>
+
+<!-- One Mermaid script renders every pre.mermaid — the real feature pattern is the three
+     lines inside applyTheme(): initialize with a prefers-color-scheme-derived theme, then run().
+     The rest (capturing sources, the toggle listener) is TEST-ONLY scaffolding so the whole page
+     can be flipped light/dark without changing the OS setting. Real docs omit the toggle. -->
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const blocks = [...document.querySelectorAll('pre.mermaid')];
+  const sources = blocks.map((b) => b.textContent);     // keep DSL so we can re-theme
+  function applyTheme(mode) {
+    document.documentElement.setAttribute('data-theme', mode);
+    mermaid.initialize({ startOnLoad: false, theme: mode === 'dark' ? 'dark' : 'default' });
+    blocks.forEach((b, i) => { b.textContent = sources[i]; b.removeAttribute('data-processed'); });
+    return mermaid.run({ nodes: blocks });
+  }
+  await applyTheme(matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+</script>
+
+</body>
+</html>

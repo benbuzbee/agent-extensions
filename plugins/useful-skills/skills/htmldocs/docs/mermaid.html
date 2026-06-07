@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>htmldocs — inline Mermaid diagrams</title>
+<style>
+  :root {
+    --bg: #fdfdfc;
+    --fg: #1a1a1a;
+    --muted: #6a6a6a;
+    --accent: #2a5d9f;
+    --border: #d8d8d4;
+    --code-bg: #f3f3ef;
+    --aside-bg: #f7f3e9;
+    --aside-border: #d9c98a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --fg: #e6e6e6;
+      --muted: #9aa0a6;
+      --accent: #7fb1ff;
+      --border: #2a2e36;
+      --code-bg: #161a21;
+      --aside-bg: #1d1a10;
+      --aside-border: #5a4a16;
+    }
+  }
+  html { color-scheme: light dark; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 860px;
+    margin: 2rem auto;
+    padding: 0 1.25rem;
+  }
+  h1, h2, h3 { line-height: 1.25; }
+  h1 { font-size: 1.65rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  h3 { font-size: 1.02rem; margin: 1.25rem 0 .35rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  p.meta { color: var(--muted); font-size: .88rem; margin: .25rem 0 1rem; }
+  nav.toc { border: 1px solid var(--border); border-radius: 6px; padding: .5rem .9rem; margin: 1rem 0 1.5rem; background: var(--code-bg); }
+  nav.toc ol { margin: .25rem 0; padding-left: 1.25rem; }
+  nav.toc li { margin: .1rem 0; }
+  article { margin: 1.5rem 0; }
+  section { margin: .9rem 0; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: .65rem .8rem;
+    overflow-x: auto;
+    font-size: .87rem;
+  }
+  code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+  :not(pre) > code { background: var(--code-bg); padding: .05rem .3rem; border-radius: 3px; }
+  table { border-collapse: collapse; margin: .5rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .3rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  aside {
+    background: var(--aside-bg);
+    border-left: 3px solid var(--aside-border);
+    padding: .55rem .85rem;
+    margin: 1.5rem 0;
+    border-radius: 0 4px 4px 0;
+  }
+  details { margin: .5rem 0; }
+  details summary { cursor: pointer; color: var(--accent); }
+  figure { margin: 1rem 0; }
+  figcaption { color: var(--muted); font-size: .86rem; margin-top: .35rem; }
+  ul.triggers li code { font-size: .92em; }
+</style>
+</head>
+<body>
+
+<h1>htmldocs — inline Mermaid diagrams</h1>
+<p class="meta" data-updated="2026-06-06">Last updated 2026-06-06</p>
+
+<nav class="toc" aria-label="Table of contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#what">What it is</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#related">Related</a></li>
+  </ol>
+</nav>
+
+<article id="what" data-kind="overview">
+  <h2>What it is</h2>
+  <p>
+    Author a diagram by writing <strong>Mermaid DSL</strong> inside a
+    <code>&lt;pre class="mermaid"&gt;</code>, plus one pinned-CDN <code>&lt;script&gt;</code> per
+    document. Open the file anywhere with network — <code>file://</code>, a browser, an HTML preview —
+    and Mermaid renders every block into an inline <code>&lt;svg&gt;</code> on open. No server, no
+    build step, no separate render pass. The DSL stays in the file as the canonical, diffable,
+    agent-fluent source; the SVG is ephemeral.
+  </p>
+  <p>
+    It's the step up from hand-rolled inline <code>&lt;svg&gt;</code> — fine for three boxes, painful
+    past that. Agents are already fluent in Mermaid, so a sequence, state, or flow diagram drops in
+    cheaply with no tool call.
+  </p>
+
+  <figure id="render-path" data-kind="diagram">
+    <pre class="mermaid">flowchart LR
+  A["doc.html&lt;br/&gt;pre.mermaid + script"] --&gt; B["open in&lt;br/&gt;browser"]
+  B --&gt; C["fetch Mermaid&lt;br/&gt;(CDN)"]
+  C --&gt; D["inline &lt;svg&gt;&lt;br/&gt;in the page"]</pre>
+    <figcaption>
+      The render path. This figure is itself a Mermaid diagram — if you're reading the rendered
+      page, the snippet near <code>&lt;/body&gt;</code> drew it on open. Offline, you'd see this
+      block's DSL as text instead.
+    </figcaption>
+  </figure>
+</article>
+
+<article id="how" data-kind="design">
+  <h2>How it works</h2>
+  <p>
+    Two pieces in the file. A <code>&lt;figure data-kind="diagram"&gt;</code> wrapping a
+    <code>&lt;pre class="mermaid"&gt;</code> per diagram (the figure is the addressable unit — it gets
+    an <code>id</code> only when it's a link or comment target), and <em>one</em> Mermaid script per
+    document near <code>&lt;/body&gt;</code>. On open, <code>mermaid.run()</code> finds every
+    <code>pre.mermaid</code> on the page and replaces it with SVG, so one script covers all diagrams.
+  </p>
+  <p>The figure with its DSL, and the proven one-time script copied into each diagram doc:</p>
+<pre><code>&lt;!-- one per diagram --&gt;
+&lt;figure data-kind="diagram"&gt;
+  &lt;pre class="mermaid"&gt;flowchart LR
+  A[Source] --&gt; B[Sink]&lt;/pre&gt;
+&lt;/figure&gt;
+
+&lt;!-- one per document, near &lt;/body&gt; --&gt;
+&lt;script type="module"&gt;
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' });
+  await mermaid.run();
+&lt;/script&gt;</code></pre>
+  <p>
+    Two htmldocs-specific rules (the Mermaid syntax itself the model already knows): escape
+    <code>&lt;</code>, <code>&gt;</code>, <code>&amp;</code> as <code>&amp;lt; &amp;gt; &amp;amp;</code>
+    inside the <code>&lt;pre&gt;</code> — the browser decodes them before Mermaid parses, so a
+    sequence arrow is written <code>W-&amp;gt;&amp;gt;DB</code> and a class inheritance arrow
+    <code>Animal &amp;lt;|-- Dog</code> — and one script per document, not per figure. The full
+    contract (figure shape, diagram-type routing, gotchas) lives in
+    <a href="../references/mermaid.md"><code>references/mermaid.md</code></a>; worked examples per
+    genre are in <a href="./mermaid-gallery.html">the gallery</a>.
+  </p>
+</article>
+
+<aside id="related" data-kind="related">
+  <strong>Related:</strong>
+  <a href="./mermaid-gallery.html">mermaid-gallery.html</a> — worked examples per genre ·
+  <a href="../references/mermaid.md"><code>references/mermaid.md</code></a> — the authoring contract ·
+  <a href="./plans/mermaid-integration.html">the plan</a> — the full decision record.
+</aside>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' });
+  await mermaid.run();
+</script>
+
+</body>
+</html>
