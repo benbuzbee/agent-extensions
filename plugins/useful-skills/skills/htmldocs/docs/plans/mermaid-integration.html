@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan: inline Mermaid diagrams in htmldocs</title>
+<style>
+  :root {
+    --bg: #fdfdfc;
+    --fg: #1a1a1a;
+    --muted: #6a6a6a;
+    --accent: #2a5d9f;
+    --border: #d8d8d4;
+    --code-bg: #f3f3ef;
+    --aside-bg: #f7f3e9;
+    --aside-border: #d9c98a;
+    --risk-bg: #fbeee6;
+    --risk-border: #d99a6b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --fg: #e6e6e6;
+      --muted: #9aa0a6;
+      --accent: #7fb1ff;
+      --border: #2a2e36;
+      --code-bg: #161a21;
+      --aside-bg: #1d1a10;
+      --aside-border: #5a4a16;
+      --risk-bg: #2a1a12;
+      --risk-border: #8a4a20;
+    }
+  }
+  html { color-scheme: light dark; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 860px;
+    margin: 2rem auto;
+    padding: 0 1.25rem;
+  }
+  h1, h2, h3 { line-height: 1.25; }
+  h1 { font-size: 1.65rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  h3 { font-size: 1.02rem; margin: 1.25rem 0 .35rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  p.meta { color: var(--muted); font-size: .88rem; margin: .25rem 0 1rem; }
+  nav.toc { border: 1px solid var(--border); border-radius: 6px; padding: .5rem .9rem; margin: 1rem 0 1.5rem; background: var(--code-bg); }
+  nav.toc ol { margin: .25rem 0; padding-left: 1.25rem; }
+  nav.toc li { margin: .1rem 0; }
+  article { margin: 1.5rem 0; }
+  section { margin: .9rem 0; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: .65rem .8rem;
+    overflow-x: auto;
+    font-size: .87rem;
+  }
+  code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+  :not(pre) > code { background: var(--code-bg); padding: .05rem .3rem; border-radius: 3px; }
+  table { border-collapse: collapse; margin: .5rem 0; font-size: .92rem; width: 100%; }
+  th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.k { white-space: nowrap; font-weight: 600; }
+  aside {
+    background: var(--aside-bg);
+    border-left: 3px solid var(--aside-border);
+    padding: .55rem .85rem;
+    margin: 1.5rem 0;
+    border-radius: 0 4px 4px 0;
+  }
+  aside.risk {
+    background: var(--risk-bg);
+    border-left-color: var(--risk-border);
+  }
+  details { margin: .75rem 0; border: 1px solid var(--border); border-radius: 5px; padding: .35rem .8rem; background: var(--code-bg); }
+  details summary { cursor: pointer; color: var(--accent); font-weight: 500; }
+  details[open] { padding-bottom: .75rem; }
+  figure { margin: 1rem 0; }
+  figcaption { color: var(--muted); font-size: .86rem; margin-top: .35rem; }
+  ul.criteria > li { margin: .35rem 0; }
+  /* plan-local: recommendation accent on decision headings + NEW badge in the boundary table */
+  .rec { color: #1f7a3a; font-weight: 600; }
+  .badge { display: inline-block; font-size: .7rem; font-weight: 700; padding: .05rem .35rem; border-radius: 3px; background: rgba(31,122,58,.15); color: #1f7a3a; margin-right: .35rem; vertical-align: middle; }
+  article[data-decision] { border: 1px solid var(--border); border-radius: 6px; padding: .2rem 1rem 1rem; margin: 1rem 0; }
+  @media (prefers-color-scheme: dark) { .rec, .badge { color: #6ed18a; } .badge { background: rgba(110,209,138,.18); } }
+</style>
+</head>
+<body>
+
+<h1>Plan: inline Mermaid diagrams in htmldocs</h1>
+<p class="meta" data-updated="2026-06-06" data-status="proposed">Last updated 2026-06-06 · proposed</p>
+
+<nav class="toc" aria-label="Table of contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#decision">Core decision &amp; why</a></li>
+    <li><a href="#design">How it works</a></li>
+    <li><a href="#authoring">Authoring contract — what an agent writes</a></li>
+  </ol>
+</nav>
+
+<article id="overview" data-kind="overview">
+  <h2>Overview</h2>
+  <p>
+    Let an article embed a diagram by writing <strong>Mermaid DSL</strong> inside a
+    <code>&lt;pre class="mermaid"&gt;</code>, plus a small <code>&lt;script&gt;</code> that loads
+    Mermaid from a CDN and calls <code>mermaid.run()</code>. The file stays a single standalone
+    document: open it anywhere — <code>file://</code>, a browser, a rendered HTML preview — and the
+    diagram draws itself in the page. No server, no build step, no separate render. The DSL stays
+    in the file as the diffable, agent-fluent source.
+  </p>
+  <p>
+    <strong>Why Mermaid.</strong> It is the lingua franca of diagrams-as-code, and agents are
+    already fluent in it. Two forces make that true. It's a terse, line-oriented plain-text
+    grammar — closer to writing Markdown than to hand-coding SVG — so a model renders an idea in a
+    handful of tokens. And models have <em>seen</em> a great deal of it: GitHub has displayed
+    <code>```mermaid</code> blocks as diagrams natively since 2022, so Mermaid source sits as plain
+    text across millions of READMEs, wikis, and issues that these models train on. The upshot is
+    that an agent can emit a correct sequence, state, or flow diagram from memory, with no tool
+    call — which is exactly what makes "write the diagram inline" cheap.
+  </p>
+  <details>
+    <summary>Why agents are fluent in Mermaid — evidence &amp; caveats</summary>
+    <ul>
+      <li><strong>Training-data saturation.</strong> GitHub rendered Mermaid in Markdown natively
+        starting Feb 2022 (Gists shortly after); GitLab earlier still. Mermaid is among the most
+        popular diagram-as-code tools (tens of thousands of GitHub stars, millions of npm
+        downloads/week), so its plain-text source is widespread in corpora.</li>
+      <li><strong>Text-native, expressive grammar.</strong> Concise, declarative, line-oriented,
+        Markdown-inspired — token-efficient and sequential, which maps to how LLMs generate text
+        far better than verbose SVG XML or heavier PlantUML.</li>
+      <li><strong>Demonstrated capability.</strong> Official AI features exist (Mermaid Chart's AI
+        chat / "repair diagram", a Mermaid GPT, Copilot/Claude integrations) and academic
+        benchmarks (e.g. MermaidSeqBench, MermaidFlow) report high-but-imperfect generation
+        quality.</li>
+      <li><strong>Caveats (represented honestly).</strong> Models still emit syntax errors on
+        complex diagrams (hallucinated keywords, stray parentheses), and syntax drifts across
+        versions — Mermaid v11 made flowchart labels Markdown-by-default, breaking some v10
+        <code>\n</code> usage. This is why we pin a CDN version
+        and why a visible parse-error on open is acceptable feedback.</li>
+    </ul>
+    <p class="meta">
+      Sources gathered via gemini web search (flash-vetted; treat quantified figures as
+      approximate). Load-bearing primary: GitHub's Feb-2022 native-rendering announcement
+      (<a href="https://github.blog/2022-02-14-include-diagrams-markdown-files-mermaid/">github.blog</a>)
+      and the Mermaid docs (<a href="https://mermaid.js.org/intro/">mermaid.js.org</a>). Benchmark
+      papers were not opened — cite only after verifying.
+    </p>
+  </details>
+  <p>
+    Where it fits: today htmldocs only offers hand-rolled inline <code>&lt;svg&gt;</code> for diagrams —
+    fine for three boxes, painful past that. Inline Mermaid gives the agent a lightweight way to drop a
+    richer sequence, state, or flow diagram straight into a doc.
+  </p>
+</article>
+
+<article id="decision" data-kind="decision">
+  <h2>Core decision &amp; why</h2>
+  <p>
+    We want htmldocs files to <strong>stand on their own</strong>, and we want diagrams
+    <strong>always visible</strong> when the file is opened. So when an agent adds a diagram, it
+    injects the lines that load Mermaid and call <code>mermaid.run()</code> directly into the
+    document. The browser renders the diagram on open — no review server, no build step, nothing to
+    run first.
+  </p>
+  <p>
+    htmldocs prefers self-contained docs; inline Mermaid is the first optional feature that trades a
+    little of that on purpose (see <a href="../../SKILL.md">self-contained-files</a>). It adds <em>one</em> external <code>&lt;script&gt;</code> — a
+    pinned CDN import — only in docs that actually contain a diagram, because every alternative that
+    keeps "the diagram always shows" is worse here:
+  </p>
+  <table>
+    <thead><tr><th>Alternative</th><th>Why not (now)</th></tr></thead>
+    <tbody>
+      <tr><td>Build-time bake to static SVG</td><td>Adds a render CLI + DOM dependency and a
+        re-bake-on-edit step; bloats the file with serialized SVG.</td></tr>
+      <tr><td>Serve-time injection (review server)</td><td>Diagrams appear only when viewed through
+        <code>serve.sh</code> — never on a raw <code>file://</code> open. Fails "always visible".</td></tr>
+      <tr><td>Inline Mermaid's full ~MB bundle</td><td>Truly self-contained and offline, but every
+        diagram doc becomes megabytes.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The cost we knowingly accept: a diagram needs <strong>network</strong> to render. Offline, the
+    <code>&lt;pre class="mermaid"&gt;</code> simply shows its DSL as text — a readable fallback, and
+    the form an agent reads best anyway. If a fully-offline, portable artifact is ever needed,
+    build-time bake remains the escape hatch (out of scope here).
+  </p>
+  <aside>
+    <strong>Consequence for the skill.</strong> Instead of a hard "no external JS" rule with a
+    carve-out, htmldocs's self-contained principle is softened to "be mindful of the reading &amp;
+    portability experience" — self-contained by default, with Mermaid the first optional feature that
+    trades a little of it on purpose.
+  </aside>
+</article>
+
+<article id="design" data-kind="design">
+  <h2>How it works</h2>
+  <p>
+    Two pieces in the file: a <code>&lt;pre class="mermaid"&gt;</code> per diagram, and
+    <em>one</em> Mermaid <code>&lt;script&gt;</code> per document (near <code>&lt;/body&gt;</code>).
+    On open, the browser fetches Mermaid from the CDN; <code>mermaid.run()</code> finds every
+    <code>pre.mermaid</code> and replaces it with an inline <code>&lt;svg&gt;</code>.
+  </p>
+
+  <figure id="design-pipeline" data-kind="diagram">
+    <pre class="mermaid">flowchart LR
+  A["doc.html&lt;br/&gt;(pre.mermaid + script)"] --&gt; B["open in&lt;br/&gt;browser"]
+  B --&gt; C["fetch Mermaid&lt;br/&gt;(CDN)"]
+  C --&gt; D["inline SVG node&lt;br/&gt;in the DOM"]</pre>
+    <figcaption>No server, no build. The file carries the DSL and the script; on open the browser
+      fetches Mermaid and <code>mermaid.run()</code> replaces each <code>pre.mermaid</code> with an
+      inline <code>&lt;svg&gt;</code> element in the page DOM. Needs network; offline shows the DSL as
+      text. (This figure is itself a Mermaid diagram.)</figcaption>
+  </figure>
+
+  <section id="design-snippet">
+    <h3>The actual code is tiny</h3>
+    <p>
+      There is no library to build — the entire "implementation" is the snippet below. It lives in
+      <code>references/mermaid.md</code> for the agent to copy, and in the test fixture to prove it
+      renders. Captured here folded:
+    </p>
+    <details>
+      <summary>The reusable snippet — what ships in the prompt and the tests</summary>
+<pre><code>&lt;!-- one per diagram --&gt;
+&lt;figure data-kind="diagram"&gt;
+  &lt;pre class="mermaid"&gt;flowchart LR
+  A[Source] --&gt; B[Sink]&lt;/pre&gt;
+&lt;/figure&gt;
+
+&lt;!-- one per document, near &lt;/body&gt; --&gt;
+&lt;script type="module"&gt;
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' });
+  await mermaid.run();
+&lt;/script&gt;</code></pre>
+    </details>
+  </section>
+
+  <section id="design-theming">
+    <h3>Light/dark theming</h3>
+    <p>
+      Initialize Mermaid with a theme chosen from <code>prefers-color-scheme</code> so diagrams
+      track the doc's light/dark palette like the hand-rolled SVGs already do. The exact init lives
+      in the one-time script snippet — pick <code>theme: 'dark'</code> vs <code>'default'</code>
+      from <code>matchMedia('(prefers-color-scheme: dark)')</code>.
+    </p>
+  </section>
+</article>
+
+<article id="authoring" data-kind="authoring">
+  <h2>Authoring contract — what an agent writes</h2>
+  <p>
+    A diagram is a <code>&lt;figure&gt;</code> wrapping a <code>&lt;pre class="mermaid"&gt;</code>
+    (the figure is the addressable unit — it gets an <code>id</code> when it's a link or comment
+    target). The agent also ensures the document has the one-time Mermaid script, adding it once if
+    absent.
+  </p>
+<pre><code>&lt;figure id="ingest-sequence" data-kind="diagram"&gt;
+  &lt;pre class="mermaid"&gt;sequenceDiagram
+  participant W as Ingest worker
+  participant DB as Postgres
+  W-&gt;&gt;DB: write row
+  DB--&gt;&gt;W: ack&lt;/pre&gt;
+  &lt;figcaption&gt;Ingest path: worker writes before publishing.&lt;/figcaption&gt;
+&lt;/figure&gt;
+
+&lt;!-- once per document, near &lt;/body&gt; --&gt;
+&lt;script type="module"&gt;
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' });
+  await mermaid.run();
+&lt;/script&gt;</code></pre>
+  <p>Two htmldocs-specific rules (the Mermaid syntax itself the model already knows):</p>
+  <ul>
+    <li>
+      <strong>Escape <code>&lt;</code>, <code>&gt;</code>, <code>&amp;</code> inside the
+      <code>&lt;pre&gt;</code>.</strong> Mermaid DSL rarely contains them, but a label like
+      <code>Vec&lt;T&gt;</code> must be escaped as htmldocs already requires inside any
+      <code>&lt;pre&gt;</code> — otherwise the doc DOM breaks below that point. The browser decodes
+      the entities back to text before Mermaid reads them, so the rendered label is correct.
+    </li>
+    <li>
+      <strong>One script per document, not per figure.</strong> <code>mermaid.run()</code>
+      processes every <code>pre.mermaid</code> on the page, so the script block is included once.
+      Multiple diagrams in a doc share it.
+    </li>
+  </ul>
+</article>
+
+<aside id="related" data-kind="related">
+  <strong>Related:</strong>
+  <a href="../../SKILL.md">htmldocs/SKILL.md</a> — self-contained-files principle this plan adds one exception to ·
+  <a href="../../src/comments/serve.ts">src/comments/serve.ts</a> — review server (unchanged; renders no Mermaid).
+</aside>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' });
+  await mermaid.run();
+</script>
+
+</body>
+</html>

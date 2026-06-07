@@ -77,7 +77,7 @@
 <body>
 
 <h1>htmldocs skill — overview</h1>
-<p class="meta" data-updated="2026-05-23">Last updated 2026-05-23</p>
+<p class="meta" data-updated="2026-06-06">Last updated 2026-06-06</p>
 
 <nav class="toc" aria-label="Table of contents">
   <strong>Contents</strong>
@@ -131,11 +131,12 @@
     <li><a href="../SKILL.md"><code>SKILL.md</code></a> — triggers, workflow, and the principles (including <em>link, don't restate</em>, which justifies the shape of this page).</li>
     <li><a href="../references/conventions.md"><code>references/conventions.md</code></a> — default <code>data-*</code> vocabularies, ID naming, document-type schemas, doc-level meta convention, escape rule.</li>
     <li><a href="../references/examples.md"><code>references/examples.md</code></a> — bad/good pairs per principle.</li>
+    <li><a href="../references/mermaid.md"><code>references/mermaid.md</code></a> — the inline-Mermaid contract (snippet, shape, escape rule, settled decisions); see also the feature write-up <a href="./mermaid.html">mermaid.html</a> and live <a href="./mermaid-gallery.html">mermaid-gallery.html</a>.</li>
   </ul>
 </article>
 
 <aside id="related" data-kind="related">
-  <strong>Related:</strong> the <a href="../../tech-diagrams/SKILL.md"><code>tech-diagrams</code></a> skill for any diagram that exceeds a few inline SVG shapes — embed the resulting SVG here instead of hand-coding it.
+  <strong>Related:</strong> hand-rolled inline <code>&lt;svg&gt;</code> stays for trivial shapes (3 boxes and arrows). For anything richer, the preferred path is <strong>inline Mermaid</strong> — DSL in <code>&lt;pre class="mermaid"&gt;</code>, rendered in-browser, diffable in the file: see <a href="./mermaid.html">mermaid.html</a>, the contract in <a href="../references/mermaid.md"><code>references/mermaid.md</code></a>, and examples in <a href="./mermaid-gallery.html">mermaid-gallery.html</a>.
 </aside>
 
 </body>

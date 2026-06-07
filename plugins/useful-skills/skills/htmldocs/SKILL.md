@@ -66,11 +66,11 @@ Inside `<pre><code>` (folded or not), escape `<`, `>`, `&` as `&lt;`, `&gt;`, `&
 
 ### Tables and inline SVG for visualization
 
-Matrices, comparisons, decision tables — native `<table>`. Architecture, flowcharts, state machines — inline `<svg>` in the document. Keep SVG simple (rectangles, arrows, labels). For anything more elaborate, use the `tech-diagrams` skill and embed the result.
+Matrices, comparisons, decision tables — native `<table>`. Architecture, flowcharts, state machines — inline `<svg>` in the document. Keep SVG simple (rectangles, arrows, labels). For diagrams beyond a few (three or so) simple shapes, htmldocs supports inline rendering of Mermaid diagrams — see `references/mermaid.md`.
 
 ### Self-contained files
 
-Every doc is portable: one `<style>` block in `<head>`, no external CSS, JS, or fonts. Style for both light and dark mode via `prefers-color-scheme`. If existing repo docs already establish a style, copy theirs verbatim — consistency outweighs polish.
+Default to portable: one `<style>` block in `<head>`, no external CSS, JS, or fonts. Style for both light and dark mode via `prefers-color-scheme`. If existing repo docs already establish a style, copy theirs verbatim — consistency outweighs polish. The goal is to be mindful of the reading and portability experience, not to forbid every dependency.
 
 ## Review mode (optional)
 
@@ -81,7 +81,4 @@ If User wants to leave inline comments on a doc — or several related docs in t
 - `references/conventions.md` — default `data-*` vocabularies, ID naming, document-type schemas, escaping rules.
 - `references/examples.md` — bad/good pairs for each principle.
 - `references/comments.md` — review-mode recipe: enable on a doc, run `serve.sh`, sidecar shape, reading comments back.
-
-## Related
-
-- `tech-diagrams` — when an architecture or state diagram needs more than a few inline SVG shapes, render via that skill and embed the result.
+- `references/mermaid.md` — use inline Mermaid to generate diagrams; read it for complex diagrams or if rendering issues come up.
