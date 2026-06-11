@@ -1,6 +1,6 @@
 // serve.ts — multi-doc review-mode HTTP server.
 //
-// CLI runtime entry (via `node dist/serve.mjs`, normally exec'd from serve.sh).
+// CLI runtime entry: `node dist/serve.mjs <file-or-dir> [--port] [--sidecar-dir]`.
 // Also exports `createServer` and `startReviewServer` for in-process callers
 // — the Playwright specs use these directly so the test boundary stops being
 // "spawn a child + parse stdout" and starts being "call a function."
@@ -414,9 +414,8 @@ async function parseCliArgs(): Promise<CliArgs> {
   const argv = await yargs(hideBin(process.argv))
     .scriptName('serve.mjs')
     // Default command so a bare positional (the file/dir to serve) is legal
-    // under .strict(). This is the file→dir+basename split that used to live
-    // in serve.sh — folded in so node is the self-sufficient entry point and
-    // the shell wrapper is optional.
+    // under .strict(). The CLI resolves a file target to its parent dir plus
+    // a basename for the URL deep-link; a dir target serves the dir root.
     .command('$0 [target]', 'Serve an HTML file or directory in review mode', (y) =>
       y.positional('target', {
         type: 'string',
@@ -479,8 +478,7 @@ async function main(): Promise<void> {
     port: cli.port,
   });
   // Two-line stdout contract, in order: URL: (hand to User) then SIDECAR_DIR:
-  // (where comments land — caller reads them back from here). Both printed
-  // here now that node is the entry point and serve.sh is a thin passthrough.
+  // (where comments land — caller reads them back from here).
   console.log(`URL: ${handle.url}/${cli.basename}`);
   console.log(`SIDECAR_DIR: ${handle.sidecarDir}`);
   const shutdown = () => {

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Smoke test for ../../serve.sh: boots it against the clean fixture, asserts
-# the URL:/SIDECAR_DIR: stdout contract, exercises both the dir-arg and
-# file-arg URL shapes, and drives a PUT round-trip through the bundled
-# server to verify a real CommentsModel lands at the mirrored path under
-# SIDECAR_DIR.
+# Smoke test for the review server (dist/serve.mjs): boots it against the
+# clean fixture, asserts the URL:/SIDECAR_DIR: stdout contract, exercises
+# both the dir-arg and file-arg URL shapes, and drives a PUT round-trip
+# through the bundled server to verify a real CommentsModel lands at the
+# mirrored path under SIDECAR_DIR.
 #
 # Bash + curl only — kept off the Playwright runner so this stays a fast
 # pre-flight check on the bundle-as-shipped. Playwright specs cover the
-# server logic in-process; this smoke is the one thing that exercises
-# serve.sh + dist/serve.mjs as a unit.
+# server logic in-process; this smoke is the one thing that exercises the
+# shipped dist/serve.mjs CLI end to end (arg parsing, port bind, stdout).
 
 set -euo pipefail
 
@@ -30,7 +30,7 @@ cleanup() {
 }
 trap 'cleanup' EXIT
 
-# Each phase: boot `serve.sh $arg`, capture both stdout lines, assert the
+# Each phase: boot `node dist/serve.mjs $arg`, capture both stdout lines, assert the
 # URL matches the shape regex, and confirm any status-code expectations
 # the caller listed as <path>:<status> pairs.
 run_phase() {
@@ -39,7 +39,7 @@ run_phase() {
   local out_file="$tmp_dir/${label}.out"
   local err_file="$tmp_dir/${label}.err"
 
-  bash serve.sh "$arg" >"$out_file" 2>"$err_file" &
+  node dist/serve.mjs "$arg" >"$out_file" 2>"$err_file" &
   server_pid=$!
 
   local url="" sidecar_dir=""
@@ -113,9 +113,9 @@ run_phase "dir" "test/fixtures/clean/" '/$' \
   "index.html:200" \
   "does-not-exist.html:404"
 
-# Phase 2: file arg → URL ends in `/index.html`. Re-checks that serve.sh's
-# basename-derivation still works (was deleted-then-restored coverage that
-# the in-process Playwright specs cannot cover, since they bypass serve.sh).
+# Phase 2: file arg → URL ends in `/index.html`. Re-checks that the CLI's
+# basename-derivation still works (coverage the in-process Playwright specs
+# cannot give, since they call startReviewServer and bypass arg parsing).
 run_phase "file" "test/fixtures/clean/index.html" '/index\.html$' \
   ":200"
 
@@ -134,7 +134,7 @@ put_sidecar_dir="$(cat "$tmp_dir/dir.sidecar_dir" 2>/dev/null || true)"
 # at EXIT).
 out_file="$tmp_dir/put.out"
 err_file="$tmp_dir/put.err"
-bash serve.sh "test/fixtures/clean/" >"$out_file" 2>"$err_file" &
+node dist/serve.mjs "test/fixtures/clean/" >"$out_file" 2>"$err_file" &
 server_pid=$!
 for _ in $(seq 1 50); do
   if grep -q '^URL: ' "$out_file" && grep -q '^SIDECAR_DIR: ' "$out_file"; then break; fi
@@ -184,5 +184,5 @@ kill "$server_pid" 2>/dev/null || true
 wait "$server_pid" 2>/dev/null || true
 server_pid=""
 
-echo "PASS: serve.sh smoke"
+echo "PASS: review-server smoke"
 exit_rc=0
