@@ -74,11 +74,11 @@ Default to portable: one `<style>` block in `<head>`, no external CSS, JS, or fo
 
 ## Review mode (optional)
 
-If User wants to leave inline comments on a doc — or several related docs in the same folder — run `node <htmldocs-skill>/dist/serve.mjs path/to/doc.html` via `Bash` with `run_in_background=true` (`<htmldocs-skill>` = this skill's root on disk). No shell wrapper needed — node is the entry point, so this works the same on macOS, Linux, WSL, and native Windows. The server emits two stdout lines: `URL: …` (hand to User) and `SIDECAR_DIR: …` (where you'll read comments back from when User signals done). Requires `node` on PATH. Full recipe in `references/comments.md`.
+If User wants to leave inline comments on a doc — or several related docs in the same folder — run `node <htmldocs-skill>/dist/serve.mjs path/to/doc.html` via `Bash` with `run_in_background=true` (`<htmldocs-skill>` = this skill's root on disk). Runs anywhere `node` is on PATH. The server emits two stdout lines: `URL: …` (hand to User) and `SIDECAR_DIR: …` (where you'll read comments back from when User signals done). Requires `node` on PATH. Full recipe in `references/comments.md`.
 
 ## References
 
 - `references/conventions.md` — default `data-*` vocabularies, ID naming, document-type schemas, escaping rules.
 - `references/examples.md` — bad/good pairs for each principle.
-- `references/comments.md` — review-mode recipe: enable on a doc, run `serve.sh`, sidecar shape, reading comments back.
+- `references/comments.md` — review-mode recipe: enable on a doc, run the review server, sidecar shape, reading comments back.
 - `references/mermaid.md` — use inline Mermaid to generate diagrams; read it for complex diagrams or if rendering issues come up.

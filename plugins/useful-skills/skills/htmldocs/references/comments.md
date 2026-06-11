@@ -13,7 +13,7 @@ node <htmldocs-skill>/dist/serve.mjs path/to/doc.html        # one doc
 # or: node <htmldocs-skill>/dist/serve.mjs path/to/docs/     # serve a folder; every .html under it is reviewable
 ```
 
-- node is the entry point — no shell wrapper, so the same command runs on macOS, Linux, WSL, and native Windows wherever `node` is on PATH. (`bash <htmldocs-skill>/serve.sh …` still works as a passthrough, but prefer the node form.)
+- Runs anywhere `node` is on PATH.
 - Run via `Bash` with `run_in_background=true` so the server keeps serving for the session.
 - Two stdout lines on bind. Capture both:
   - `URL: http://127.0.0.1:<port>/<basename>` — hand to User verbatim.
@@ -25,7 +25,7 @@ node <htmldocs-skill>/dist/serve.mjs path/to/doc.html        # one doc
 
 ## What User sees
 
-User opens the URL and starts commenting — selecting text surfaces a "Comment" button, clicking opens a composer, submitting writes to the sidecar. A margin gutter shows existing comments anchored inline. Comments persist across reloads: the server reads the sidecar from disk on each HTML response, so a fresh page always reflects the latest on-disk state. Opening the doc directly off disk (`file://…`) just renders a vanilla page — no widget, no error UI. Always route User to the `serve.sh` URL.
+User opens the URL and starts commenting — selecting text surfaces a "Comment" button, clicking opens a composer, submitting writes to the sidecar. A margin gutter shows existing comments anchored inline. Comments persist across reloads: the server reads the sidecar from disk on each HTML response, so a fresh page always reflects the latest on-disk state. Opening the doc directly off disk (`file://…`) just renders a vanilla page — no widget, no error UI. Always route User to the server's `http://127.0.0.1` URL.
 
 Two tabs against the same doc collapse to last-writer-wins — concurrent saves don't merge, but the losing tab picks up the latest on reload. Rare in practice; surface to User if it happens.
 
