@@ -74,7 +74,7 @@ Default to portable: one `<style>` block in `<head>`, no external CSS, JS, or fo
 
 ## Review mode (optional)
 
-If User wants to leave inline comments on a doc — or several related docs in the same folder — run `bash <htmldocs-skill>/serve.sh path/to/doc.html` via `Bash` with `run_in_background=true` (`<htmldocs-skill>` = this skill's root on disk). The server emits two stdout lines: `URL: …` (hand to User) and `SIDECAR_DIR: …` (where you'll read comments back from when User signals done). Requires `node` on PATH. Full recipe in `references/comments.md`.
+If User wants to leave inline comments on a doc — or several related docs in the same folder — run `node <htmldocs-skill>/dist/serve.mjs path/to/doc.html` via `Bash` with `run_in_background=true` (`<htmldocs-skill>` = this skill's root on disk). No shell wrapper needed — node is the entry point, so this works the same on macOS, Linux, WSL, and native Windows. The server emits two stdout lines: `URL: …` (hand to User) and `SIDECAR_DIR: …` (where you'll read comments back from when User signals done). Requires `node` on PATH. Full recipe in `references/comments.md`.
 
 ## References
 

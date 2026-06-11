@@ -4,15 +4,16 @@ Optional capability: mount a comments widget into htmldocs pages so User can sel
 
 See `SKILL.md` § Review mode for the one-liner entry point; this file is the recipe.
 
-`<htmldocs-skill>` below denotes the on-disk path of this skill's root directory (the folder containing `SKILL.md` and `serve.sh`). Resolve it from the absolute path of this `comments.md` — strip the trailing `references/comments.md`.
+`<htmldocs-skill>` below denotes the on-disk path of this skill's root directory (the folder containing `SKILL.md` and `dist/serve.mjs`). Resolve it from the absolute path of this `comments.md` — strip the trailing `references/comments.md`.
 
 ## Open the doc(s) in review mode
 
 ```
-bash <htmldocs-skill>/serve.sh path/to/doc.html        # one doc
-# or: bash <htmldocs-skill>/serve.sh path/to/docs/     # serve a folder; every .html under it is reviewable
+node <htmldocs-skill>/dist/serve.mjs path/to/doc.html        # one doc
+# or: node <htmldocs-skill>/dist/serve.mjs path/to/docs/     # serve a folder; every .html under it is reviewable
 ```
 
+- node is the entry point — no shell wrapper, so the same command runs on macOS, Linux, WSL, and native Windows wherever `node` is on PATH. (`bash <htmldocs-skill>/serve.sh …` still works as a passthrough, but prefer the node form.)
 - Run via `Bash` with `run_in_background=true` so the server keeps serving for the session.
 - Two stdout lines on bind. Capture both:
   - `URL: http://127.0.0.1:<port>/<basename>` — hand to User verbatim.
@@ -20,7 +21,7 @@ bash <htmldocs-skill>/serve.sh path/to/doc.html        # one doc
 - The URL uses `127.0.0.1`, not `localhost`. On macOS `localhost` resolves to `::1` first, which can route the browser to an unrelated IPv6 listener (e.g. Docker) on the same port. Always hand User the 127.0.0.1 form.
 - File arg points the URL at that file; directory arg points it at `/`. Either way, every `.html` under the served folder is reviewable.
 - Sidecar dir defaults to a fresh auto-tmp directory the server creates on startup (disposable; lives until the OS cleans it). To resume comments across sessions, pass `--sidecar-dir <path>` — re-running with the same dir re-serves the prior comments.
-- Requires `node` on PATH. `serve.sh` exits with an error message if it's missing; surface that to User.
+- Requires `node` on PATH (it's the runtime). If `node` is missing the command fails to launch — surface that to User.
 
 ## What User sees
 

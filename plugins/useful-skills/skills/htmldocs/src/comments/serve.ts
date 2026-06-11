@@ -404,30 +404,40 @@ export async function startReviewServer(opts: StartReviewServerOpts): Promise<Re
 interface CliArgs {
   port: number;
   root: string;
+  // Basename of the served file when the target is a file (''  for a dir
+  // target). Only used to build the URL line so it deep-links the doc.
+  basename: string;
   sidecarDir: string | null;
 }
 
 async function parseCliArgs(): Promise<CliArgs> {
   const argv = await yargs(hideBin(process.argv))
     .scriptName('serve.mjs')
-    .strict()
+    // Default command so a bare positional (the file/dir to serve) is legal
+    // under .strict(). This is the file→dir+basename split that used to live
+    // in serve.sh — folded in so node is the self-sufficient entry point and
+    // the shell wrapper is optional.
+    .command('$0 [target]', 'Serve an HTML file or directory in review mode', (y) =>
+      y.positional('target', {
+        type: 'string',
+        default: '.',
+        describe: 'HTML file or directory to serve (default: cwd)',
+      }))
     .option('port', {
       type: 'number',
-      demandOption: true,
-      describe: 'TCP port to bind on 127.0.0.1 (1..65535)',
-    })
-    .option('root', {
-      type: 'string',
-      demandOption: true,
-      describe: 'Directory to serve static files from',
+      default: 0,
+      describe: 'TCP port to bind on 127.0.0.1 (0 = OS-assigned, the default)',
     })
     .option('sidecar-dir', {
       type: 'string',
       describe: 'Directory for sidecar JSON; auto-tmp if omitted',
     })
+    .strict()
     .check((args) => {
-      if (!Number.isInteger(args.port) || args.port < 1 || args.port > 65535) {
-        throw new Error('--port must be an integer in 1..65535');
+      // 0 = let the OS assign a free ephemeral port (the normal path); an
+      // explicit 1..65535 pins it. Anything else is a typo.
+      if (!Number.isInteger(args.port) || args.port < 0 || args.port > 65535) {
+        throw new Error('--port must be an integer in 0..65535 (0 = OS-assigned)');
       }
       // Catch `--sidecar-dir ''` (shell-quoted empty value) and the `=`
       // form `--sidecar-dir=`. Use strict equality to '' so a literal
@@ -441,9 +451,22 @@ async function parseCliArgs(): Promise<CliArgs> {
     .help(false)
     .version(false)
     .parseAsync();
+
+  // A target after `--` (the canonical way to pass a path beginning with
+  // `-`) lands in argv._, not argv.target. Prefer it so `serve.mjs -- doc`
+  // and dash-prefixed paths work instead of silently falling back to cwd.
+  if (argv._.length > 1) {
+    throw new Error(`expected a single target, got ${argv._.length}`);
+  }
+  const rawTarget = argv._.length ? String(argv._[0]) : String(argv.target ?? '.');
+  const target = path.resolve(rawTarget);
+  const stat = fsSync.statSync(target, { throwIfNoEntry: false });
+  if (!stat) throw new Error(`not found: ${target}`);
+  const isDir = stat.isDirectory();
   return {
     port: argv.port,
-    root: path.resolve(argv.root),
+    root: isDir ? target : path.dirname(target),
+    basename: isDir ? '' : path.basename(target),
     sidecarDir: argv['sidecar-dir'] ? path.resolve(argv['sidecar-dir']) : null,
   };
 }
@@ -455,8 +478,10 @@ async function main(): Promise<void> {
     sidecarDir: cli.sidecarDir,
     port: cli.port,
   });
-  // serve.sh already printed URL:; serve.mjs prints the matching
-  // SIDECAR_DIR: so the caller (test, agent, smoke) can locate sidecars.
+  // Two-line stdout contract, in order: URL: (hand to User) then SIDECAR_DIR:
+  // (where comments land — caller reads them back from here). Both printed
+  // here now that node is the entry point and serve.sh is a thin passthrough.
+  console.log(`URL: ${handle.url}/${cli.basename}`);
   console.log(`SIDECAR_DIR: ${handle.sidecarDir}`);
   const shutdown = () => {
     const s = handle.server as unknown as { closeAllConnections?: () => void };

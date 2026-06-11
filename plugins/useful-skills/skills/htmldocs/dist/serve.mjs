@@ -5736,29 +5736,38 @@ async function startReviewServer(opts) {
   return { server, url: `http://${addr.address}:${addr.port}`, sidecarDir, close };
 }
 async function parseCliArgs() {
-  const argv = await yargs_default(hideBin(process.argv)).scriptName("serve.mjs").strict().option("port", {
-    type: "number",
-    demandOption: true,
-    describe: "TCP port to bind on 127.0.0.1 (1..65535)"
-  }).option("root", {
+  const argv = await yargs_default(hideBin(process.argv)).scriptName("serve.mjs").command("$0 [target]", "Serve an HTML file or directory in review mode", (y) => y.positional("target", {
     type: "string",
-    demandOption: true,
-    describe: "Directory to serve static files from"
+    default: ".",
+    describe: "HTML file or directory to serve (default: cwd)"
+  })).option("port", {
+    type: "number",
+    default: 0,
+    describe: "TCP port to bind on 127.0.0.1 (0 = OS-assigned, the default)"
   }).option("sidecar-dir", {
     type: "string",
     describe: "Directory for sidecar JSON; auto-tmp if omitted"
-  }).check((args) => {
-    if (!Number.isInteger(args.port) || args.port < 1 || args.port > 65535) {
-      throw new Error("--port must be an integer in 1..65535");
+  }).strict().check((args) => {
+    if (!Number.isInteger(args.port) || args.port < 0 || args.port > 65535) {
+      throw new Error("--port must be an integer in 0..65535 (0 = OS-assigned)");
     }
     if (args["sidecar-dir"] === "") {
       throw new Error("--sidecar-dir requires a non-empty path argument");
     }
     return true;
   }).help(false).version(false).parseAsync();
+  if (argv._.length > 1) {
+    throw new Error(`expected a single target, got ${argv._.length}`);
+  }
+  const rawTarget = argv._.length ? String(argv._[0]) : String(argv.target ?? ".");
+  const target = path.resolve(rawTarget);
+  const stat2 = fsSync.statSync(target, { throwIfNoEntry: false });
+  if (!stat2) throw new Error(`not found: ${target}`);
+  const isDir = stat2.isDirectory();
   return {
     port: argv.port,
-    root: path.resolve(argv.root),
+    root: isDir ? target : path.dirname(target),
+    basename: isDir ? "" : path.basename(target),
     sidecarDir: argv["sidecar-dir"] ? path.resolve(argv["sidecar-dir"]) : null
   };
 }
@@ -5769,6 +5778,7 @@ async function main() {
     sidecarDir: cli.sidecarDir,
     port: cli.port
   });
+  console.log(`URL: ${handle.url}/${cli.basename}`);
   console.log(`SIDECAR_DIR: ${handle.sidecarDir}`);
   const shutdown = () => {
     const s = handle.server;
