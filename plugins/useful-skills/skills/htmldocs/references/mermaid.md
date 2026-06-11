@@ -26,6 +26,9 @@ Add the one-time script **once per document** (near `</body>`) if the doc doesn'
   mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' });
   await mermaid.run();
 </script>
+<noscript>
+  <p>Diagrams on this page render with JavaScript — enable it to see the visuals. Otherwise each diagram is shown above as its Mermaid source.</p>
+</noscript>
 ```
 
 ## Picking the diagram type
