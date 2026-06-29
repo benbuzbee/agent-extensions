@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@logtape/logtape": "^2.2.1",
     "arctic": "^3"
   },
   "devDependencies": {

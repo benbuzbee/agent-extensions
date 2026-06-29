@@ -3,7 +3,11 @@ import { beginLogin, completeLogin } from "../core/oauth";
 import { fetchDoc } from "../core/docsource";
 import { readCookie, SESSION_COOKIE } from "../core/cookies";
 import type { Config } from "../core/config";
+import { getLogger } from "@logtape/logtape";
 import { KvSessionStore } from "./kv-store";
+import { initWorkerLogging } from "./logging";
+
+const log = getLogger(["htmldoc-review", "worker"]);
 
 export interface Env {
   SESSIONS: KVNamespace;
@@ -37,6 +41,7 @@ function loginRedirect(url: URL): Response {
 
 export default {
   async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+    await initWorkerLogging();
     const url = new URL(req.url);
     const cfg = configOf(env);
     const store = new KvSessionStore(env.SESSIONS);
@@ -64,6 +69,11 @@ export default {
       const fresh = await getValidAccessToken(cfg, store, sid, true);
       if (!fresh) return loginRedirect(url);
       res = await fetchDoc(cfg, fresh, path);
+    }
+    if (res.status === 200) {
+      log.info("doc served", { path, repo: `${cfg.docOwner}/${cfg.docRepo}`, branch: cfg.docBranch });
+    } else {
+      log.info("doc denied", { path, status: res.status });
     }
     return res;
   },

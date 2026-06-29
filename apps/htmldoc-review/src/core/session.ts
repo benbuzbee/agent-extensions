@@ -2,6 +2,9 @@ import type { Config } from "./config";
 import type { SessionData, SessionStore } from "./store";
 import { refresh } from "./oauth";
 import * as arctic from "arctic";
+import { getLogger } from "@logtape/logtape";
+
+const log = getLogger(["htmldoc-review", "session"]);
 
 export type { SessionData } from "./store";
 
@@ -50,6 +53,12 @@ async function doRefresh(
       e instanceof arctic.UnexpectedResponseError ||
       e instanceof arctic.UnexpectedErrorResponseBodyError
     ) {
+      // Dead refresh token: session purged, user must re-login. Log the session
+      // id and error class only -- never the refresh token itself.
+      log.error("session refresh failed; purging session", {
+        sessionId: id,
+        error: e.constructor.name,
+      });
       await store.delete(id);
       return null;
     }

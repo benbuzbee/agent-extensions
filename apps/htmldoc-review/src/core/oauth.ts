@@ -3,6 +3,9 @@ import type { Config } from "./config";
 import type { SessionStore } from "./store";
 import { createSession } from "./session";
 import { readCookie, SESSION_COOKIE, STATE_COOKIE } from "./cookies";
+import { getLogger } from "@logtape/logtape";
+
+const log = getLogger(["htmldoc-review", "oauth"]);
 
 function gh(cfg: Config): arctic.GitHub {
   return new arctic.GitHub(
@@ -43,6 +46,10 @@ function burnState(): string {
 }
 
 function rejectAndBurn(status: number, body: string): Response {
+  // Single choke point for all OAuth callback rejections (bad/missing state,
+  // signature mismatch, authorization failed). `body` is a fixed, non-sensitive
+  // reason string -- it carries no token/code/secret.
+  log.error("OAuth callback rejected", { status, reason: body });
   const headers = new Headers({ "Content-Type": "text/plain; charset=utf-8" });
   headers.append("Set-Cookie", burnState());
   return new Response(body, { status, headers });
@@ -50,6 +57,7 @@ function rejectAndBurn(status: number, body: string): Response {
 
 export async function beginLogin(req: Request, cfg: Config): Promise<Response> {
   const url = new URL(req.url);
+  log.info("login begun");
   const nonce = crypto.randomUUID();
   const sig = await hmac(cfg.stateSigningKey, nonce);
   const authUrl = gh(cfg).createAuthorizationURL(nonce, []);
@@ -137,6 +145,8 @@ export async function completeLogin(
     ret.startsWith("/") && !ret.startsWith("//") && !ret.startsWith("/\\")
       ? ret
       : "/";
+  log.info("login completed", { sessionId: sid, return: safeRet });
+
   const dest = new URL(safeRet, url.origin);
   const headers = new Headers({ Location: dest.toString() });
   headers.append(
