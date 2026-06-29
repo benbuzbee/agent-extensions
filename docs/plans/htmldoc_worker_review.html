@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan: org-wide htmldoc review via a Cloudflare Worker</title>
+<style>
+  :root {
+    --bg: #fdfdfc;
+    --fg: #1a1a1a;
+    --muted: #6a6a6a;
+    --accent: #2a5d9f;
+    --border: #d8d8d4;
+    --code-bg: #f3f3ef;
+    --aside-bg: #f7f3e9;
+    --aside-border: #d9c98a;
+    --risk-bg: #fbeee6;
+    --risk-border: #d99a6b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --fg: #e6e6e6;
+      --muted: #9aa0a6;
+      --accent: #7fb1ff;
+      --border: #2a2e36;
+      --code-bg: #161a21;
+      --aside-bg: #1d1a10;
+      --aside-border: #5a4a16;
+      --risk-bg: #2a1a12;
+      --risk-border: #8a4a20;
+    }
+  }
+  html { color-scheme: light dark; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 860px;
+    margin: 2rem auto;
+    padding: 0 1.25rem;
+  }
+  h1, h2, h3 { line-height: 1.25; }
+  h1 { font-size: 1.65rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  h3 { font-size: 1.02rem; margin: 1.25rem 0 .35rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  p.meta { color: var(--muted); font-size: .88rem; margin: .25rem 0 1rem; }
+  nav.toc { border: 1px solid var(--border); border-radius: 6px; padding: .5rem .9rem; margin: 1rem 0 1.5rem; background: var(--code-bg); }
+  nav.toc ol { margin: .25rem 0; padding-left: 1.25rem; }
+  nav.toc li { margin: .1rem 0; }
+  article { margin: 1.5rem 0; }
+  section { margin: .9rem 0; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: .65rem .8rem;
+    overflow-x: auto;
+    font-size: .87rem;
+  }
+  code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+  :not(pre) > code { background: var(--code-bg); padding: .05rem .3rem; border-radius: 3px; }
+  table { border-collapse: collapse; margin: .5rem 0; font-size: .92rem; width: 100%; }
+  th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.k { white-space: nowrap; font-weight: 600; }
+  aside {
+    background: var(--aside-bg);
+    border-left: 3px solid var(--aside-border);
+    padding: .55rem .85rem;
+    margin: 1.5rem 0;
+    border-radius: 0 4px 4px 0;
+  }
+  aside.risk {
+    background: var(--risk-bg);
+    border-left-color: var(--risk-border);
+  }
+  details { margin: .75rem 0; border: 1px solid var(--border); border-radius: 5px; padding: .35rem .8rem; background: var(--code-bg); }
+  details summary { cursor: pointer; color: var(--accent); font-weight: 500; }
+  details[open] { padding-bottom: .75rem; }
+  figure { margin: 1rem 0; }
+  figcaption { color: var(--muted); font-size: .86rem; margin-top: .35rem; }
+  ul.criteria > li { margin: .35rem 0; }
+  /* plan-local: recommendation accent + confirmed/uncertain badges */
+  .rec { color: #1f7a3a; font-weight: 600; }
+  .badge { display: inline-block; font-size: .7rem; font-weight: 700; padding: .05rem .35rem; border-radius: 3px; margin-right: .35rem; vertical-align: middle; }
+  .badge.ok { background: rgba(31,122,58,.15); color: #1f7a3a; }
+  .badge.warn { background: rgba(217,154,107,.22); color: #b3631f; }
+  article[data-decision] { border: 1px solid var(--border); border-radius: 6px; padding: .2rem 1rem 1rem; margin: 1rem 0; }
+  @media (prefers-color-scheme: dark) {
+    .rec { color: #6ed18a; }
+    .badge.ok { color: #6ed18a; background: rgba(110,209,138,.18); }
+    .badge.warn { color: #e0a36b; background: rgba(224,163,107,.18); }
+  }
+</style>
+</head>
+<body>
+
+<h1>Plan: org-wide htmldoc review via a Cloudflare Worker</h1>
+<p class="meta" data-updated="2026-06-29" data-status="proposed">Last updated 2026-06-29 · proposed · author benbu</p>
+
+<nav class="toc" aria-label="Table of contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#overview">Overview &amp; goal</a></li>
+    <li><a href="#decision">Core decision: a Worker, not Pages</a></li>
+    <li><a href="#architecture">Architecture at a glance</a></li>
+    <li><a href="#abstractions">Abstractions &amp; responsibilities</a></li>
+    <li><a href="#deliverable-1">Deliverable 1 — proxy + auth</a></li>
+    <li><a href="#deliverable-2">Deliverable 2 — review mode</a></li>
+    <li><a href="#setup">Setting this up for an org</a></li>
+    <li><a href="#facts">Confirmed facts &amp; assumptions</a></li>
+    <li><a href="#spikes">De-risking spikes</a></li>
+    <li><a href="#followups">Follow-ups (post-V1)</a></li>
+    <li><a href="#questions">Decisions &amp; open questions</a></li>
+  </ol>
+</nav>
+
+<aside class="risk" data-kind="reminder" data-status="open">
+  <strong>Reminder to verify before relying on it:</strong> we are proceeding on the assumption that Cloudflare
+  Access hands the origin only its <em>own</em> identity claims (email/JWT), <strong>not</strong> the upstream
+  GitHub OAuth access token — which is the reason the Worker must run its own GitHub OAuth (see
+  <a href="#deliverable-1-auth">D1 · Auth</a>). Confident enough to start building, but confirm with a grounded
+  check before this is load-bearing in production.
+</aside>
+
+<article id="overview" data-kind="overview">
+  <h2>Overview &amp; goal</h2>
+  <p>
+    <a href="../../plugins/useful-skills/skills/htmldocs/SKILL.md">htmldocs</a> produces self-contained
+    <code>.html</code> files committed under <code>docs/</code> across an organization's repos. The goal here is
+    <strong>team reviewability</strong>: any teammate should be able to open a doc <em>from any branch or PR</em>
+    in a browser, read it rendered, and leave inline review comments — but only for repos they can already see on
+    GitHub. No clone, no checkout, no build step.
+  </p>
+  <p>
+    The design is a single <strong>Cloudflare Worker</strong> that fronts the whole org. On request it (1) logs the
+    viewer in via GitHub, (2) fetches the requested doc from GitHub <em>using that viewer's own credentials</em>,
+    (3) injects the review-mode UI into the HTML, and (4) serves it. Authorization is not a separate system — because
+    the fetch uses the viewer's credentials, <strong>GitHub itself is the authorization engine</strong>: a repo the
+    viewer can't access simply returns <code>404</code>, which also avoids leaking that the repo exists.
+  </p>
+  <p>
+    <strong>Design stance: source-agnostic.</strong> GitHub is the first implementation, not a hardcoded assumption.
+    The Worker is built around three seams — <code>OAuthProvider</code>, <code>DocSource</code>,
+    <code>ReviewStore</code> (see <a href="#abstractions">Abstractions</a>) — so a future GitLab/Bitbucket/raw-S3
+    source slots in without rewriting the Worker.
+  </p>
+  <p>
+    <strong>Two deliverables.</strong> <a href="#deliverable-1">D1</a> is the proxy with auth working as we expect —
+    log in, fetch any branch as the user, render. <a href="#deliverable-2">D2</a> adds the review pieces (inject UI +
+    comment store). D1 is the de-risking milestone; D2 builds on a proven D1.
+  </p>
+  <p>
+    The review half is the hosted, org-wide equivalent of the skill's existing local review server
+    (<a href="../../plugins/useful-skills/skills/htmldocs/SKILL.md">serve.sh / review mode</a>), which already injects a
+    comment UI into a doc served on <code>localhost</code>. See also the design notes in
+    <a href="../../plugins/useful-skills/skills/htmldocs/docs/review_system.html">review_system.html</a>.
+  </p>
+</article>
+
+<article id="decision" data-decision data-kind="decision" data-date="2026-06-29">
+  <h2>Core decision: a Worker, not Pages</h2>
+  <p>
+    The original framing was "put Cloudflare Pages in front of the repos." <span class="rec">We are not using Pages.</span>
+    Cloudflare Pages serves <em>pre-built static</em> files frozen from a branch at build time — it cannot make a
+    per-request decision like "fetch this as <em>this</em> user, then decide whether to show it." That dynamic,
+    per-request behavior is exactly what a <strong>Worker</strong> is for. A Pages <em>Function</em> is itself just a
+    Worker bolted onto a Pages project, so "Worker" is the honest name for what we build.
+  </p>
+  <table>
+    <thead><tr><th>Pages-based approach</th><th>Why it doesn't fit</th></tr></thead>
+    <tbody>
+      <tr><td>One Pages project per repo, branch previews</td><td>~100 projects/account soft limit; an org has more repos. Build minutes consumed per branch. No per-user authorization — Access only gates <em>who logs in</em>, not which repo they may see.</td></tr>
+      <tr><td>Cloudflare Access in front of <code>*.pages.dev</code></td><td>Access (GitHub IdP) conveys identity + org/team membership only — <strong>never per-repo permission</strong>. A user in the org could view a repo they have no access to.</td></tr>
+      <tr><td>"Any branch" rendering</td><td>Pages previews are tied to deployments, not arbitrary refs. A Worker reads <code>?ref={branch}</code> directly — "any branch" comes for free.</td></tr>
+    </tbody>
+  </table>
+  <aside>
+    <strong>The key insight.</strong> Fetching the doc with the <em>viewer's</em> GitHub token collapses
+    authentication and authorization into one step. We never ask "can Alice see repo X?" — we just try to fetch it as
+    Alice and let GitHub answer. This removes an entire class of problems: no permission cache to keep fresh, no stale
+    access after a permission is revoked, no risk of the gate disagreeing with GitHub.
+  </aside>
+</article>
+
+<article id="architecture" data-kind="architecture">
+  <h2>Architecture at a glance</h2>
+  <figure id="architecture-flow" data-kind="diagram">
+    <pre class="mermaid">sequenceDiagram
+  participant B as Browser
+  participant W as Worker
+  participant G as GitHub
+  participant S as Store (DO + D1)
+  B-&gt;&gt;W: GET /{owner}/{repo}/{branch}/{path}
+  alt no session
+    W-&gt;&gt;B: redirect to GitHub OAuth
+    B-&gt;&gt;G: authorize app
+    G-&gt;&gt;W: ?code=...
+    W-&gt;&gt;G: exchange code -&gt; user token
+    W-&gt;&gt;S: store session (token, refresh)
+  end
+  W-&gt;&gt;G: GET contents?ref=branch (as the USER)
+  alt user lacks access
+    G--&gt;&gt;W: 404
+    W--&gt;&gt;B: "not found or no access"
+  else allowed
+    G--&gt;&gt;W: 200 + HTML
+    W-&gt;&gt;S: load comments for this doc
+    W-&gt;&gt;W: HTMLRewriter injects review UI + data
+    W--&gt;&gt;B: rendered doc with review mode
+  end</pre>
+    <figcaption>One Worker fronts the whole org. The contents fetch runs as the logged-in user, so GitHub's
+      <code>404</code> <em>is</em> the access-control answer. Review state lives in Cloudflare storage, not GitHub.</figcaption>
+  </figure>
+  <p>
+    Three GitHub-side pieces of plumbing make this work, all owned by one <strong>GitHub App</strong> (an identity, not
+    a server): the OAuth flow that logs the viewer in, the <em>user-to-server</em> token used for the fetch, and an
+    optional installation token used only to post a review summary back to a PR. Those three map onto the three
+    abstractions below.
+  </p>
+</article>
+
+<article id="abstractions" data-kind="abstractions">
+  <h2>Abstractions &amp; responsibilities</h2>
+  <p>
+    The Worker depends on three interfaces, never on GitHub directly. GitHub is one adapter that implements all three.
+    This keeps the request pipeline (auth → fetch → inject → store) generic and makes a second source a matter of
+    writing one adapter, not touching the Worker.
+  </p>
+  <p>
+    <strong>Why <code>OAuthProvider</code>, not a generic <code>AuthProvider</code>.</strong> The interface bakes in
+    the OAuth authorization-code flow on purpose. The whole design rests on the Worker <em>holding the user's delegated
+    token</em> to fetch as them — a non-token scheme (SAML, header-proxy) would authenticate the user but hand us
+    nothing to call the source with, breaking the model. So OAuth is load-bearing, not incidental; and every realistic
+    second source (GitLab, Bitbucket, Google) is OAuth too, so the specific name costs nothing.
+  </p>
+
+  <figure id="abstractions-classes" data-kind="diagram">
+    <pre class="mermaid">classDiagram
+  class OAuthProvider {
+    +beginLogin() url_and_state
+    +completeLogin(code, state) Credential
+    +refresh(cred) Credential
+    +identify(cred) UserId
+  }
+  class DocSource {
+    +fetchDoc(ref, cred) Bytes_or_NotFound
+    +resolveCommit(ref, cred) Sha
+  }
+  class ReviewStore {
+    +listComments(docKey) Comment[]
+    +createComment(docKey, body, anchor)
+    +resolveComment(id)
+  }
+  class Worker {
+    routes, pipeline
+  }
+  class GitHubAdapter
+  Worker --> OAuthProvider : one configured
+  Worker --> DocSource : matched to provider
+  Worker --> ReviewStore : D1 / DO backed
+  GitHubAdapter ..|> OAuthProvider
+  GitHubAdapter ..|> DocSource
+  GitHubAdapter ..|> ReviewStore : optional reflector</pre>
+    <figcaption>Three seams; GitHub implements all three for V1. <code>OAuthProvider</code> and <code>DocSource</code>
+      are coupled by credential type — the GitHub source consumes the GitHub user token the provider mints — so "configure
+      one provider" means "one provider + its matching source family." <code>ReviewStore</code> is greyed conceptually:
+      out of scope for Deliverable 1 and provisional until <a href="#deliverable-2">D2</a> is designed.</figcaption>
+  </figure>
+
+  <table>
+    <thead><tr><th>Abstraction</th><th>Responsibility</th><th>GitHub implementation (V1)</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="k">OAuthProvider</td>
+        <td>Run the OAuth login; mint &amp; verify the CSRF <code>state</code>; produce &amp; refresh a credential; say who the user is. Declares its own redirect target(s); the Worker mounts them.</td>
+        <td>GitHub App OAuth (user-to-server token, 8h + refresh). <code>beginLogin</code> → {authorize URL, state}; <code>completeLogin</code> → token.</td>
+      </tr>
+      <tr>
+        <td class="k">DocSource</td>
+        <td>Fetch a doc at <code>(repo, ref, path)</code> using the viewer's credential. <code>NotFound</code> <em>is</em> the authz answer. Optionally resolve a ref to a commit SHA.</td>
+        <td>Contents API <code>?ref={branch}</code> as the user; 404 = no-access-or-missing (non-leaking).</td>
+      </tr>
+      <tr>
+        <td class="k">ReviewStore</td>
+        <td>List/create/resolve comments keyed by a doc identity. <span class="badge warn">out of scope for D1</span> — the interface below is provisional and likely to change as <a href="#deliverable-2">Deliverable 2</a> is designed; shown only so D1 doesn't foreclose it.</td>
+        <td>D1 + a Durable Object per doc. Optional later reflector that posts as the user to GitHub reviews.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <section id="abstractions-coupling">
+    <h3>How <code>OAuthProvider</code> and <code>DocSource</code> relate</h3>
+    <p>
+      The two interfaces are coupled by the <code>Credential</code>, not by identity: the provider <em>produces</em> a
+      credential and the source <em>consumes</em> one. They line up only when the credential the login mints is the same
+      token the source needs to fetch — which is exactly the GitHub case (a GitHub user token <em>is</em> what the
+      Contents API wants). <strong>That alignment is the whole source of the free-authz property</strong>: "fetch as the
+      user" works precisely because the auth token and the fetch token are one and the same, so GitHub's <code>404</code>
+      becomes the authorization answer.
+    </p>
+    <table>
+      <thead><tr><th>Pattern</th><th>Credential</th><th>Authorization</th></tr></thead>
+      <tbody>
+        <tr><td class="k">A — Unified <span class="badge ok">V1</span></td><td>One credential, shared. Auth token = fetch token (GitHub→GitHub).</td><td>Implicit — the source answers "may they?" by returning <code>404</code>. No ACL to maintain.</td></tr>
+        <tr><td class="k">B — Split</td><td>Login credential (e.g. Google) grants no source access; the source needs its <em>own</em> service credential.</td><td>Explicit — must re-introduce a permission check (ACL / group lookup), the machinery Pattern A lets us delete.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      <span class="rec">Decision (V1): one adapter implements both interfaces.</span> <code>GitHubAdapter</code> realizes
+      <code>OAuthProvider</code> <em>and</em> <code>DocSource</code> (and optionally <code>ReviewStore</code>) as a single
+      cohesive unit sharing one credential internally — the honest expression of "in this case they're the same thing."
+      The interfaces stay <em>separate</em> so a future split case (Pattern B) <em>can</em> implement them as different
+      objects, but we don't pay any abstraction tax to model the common case.
+    </p>
+    <p>
+      Two cheap guardrails keep this from foreclosing Pattern B: the Worker treats <code>Credential</code> as
+      <strong>opaque</strong> (carries it provider → session → source, never inspects it), and the credential is
+      <strong>audience-tagged</strong> (e.g. <code>audience: "github.com"</code>) so a <code>DocSource</code> can reject a
+      credential it doesn't accept — turning a miswire into a typed error rather than a confusing 401. <code>DocSource</code>'s
+      real contract is therefore "<em>given a credential, may this doc be read — and if so, return it</em>": Pattern A answers
+      both halves in one fetch; Pattern B would answer the "may?" half explicitly. Authorization lives <em>inside</em> the
+      source either way, which is honest — authz is a property of the source, not of the login.
+    </p>
+  </section>
+
+  <aside data-kind="seam-note">
+    <strong>Deployer configures one provider.</strong> A deployment selects a single <code>OAuthProvider</code> (GitHub
+    for V1) and the matching <code>DocSource</code> — in practice the same <code>GitHubAdapter</code> instance. Whether
+    more than one provider can coexist, and full Pattern-B support, are <a href="#questions">open questions</a>; V1
+    assumes exactly one unified integration.
+  </aside>
+</article>
+
+<article id="deliverable-1" data-kind="deliverable" data-status="proposed">
+  <h2>Deliverable 1 — proxy + auth</h2>
+  <p>
+    <span class="rec">Goal: the proxy with auth works as we expect.</span> A reviewer hits a doc URL, logs in via
+    GitHub once, and the Worker renders any branch's doc <em>as that user</em> — with GitHub's <code>404</code> acting
+    as the access gate. No review UI yet; the rendered doc is the vanilla htmldocs file. This is the milestone that
+    de-risks the whole idea: it proves auth, the intersection-based authz, and "any branch" rendering end to end.
+  </p>
+
+  <section id="deliverable-1-auth">
+    <h3>A. Auth — <code>OAuthProvider</code> (GitHub OAuth + session)</h3>
+    <ul>
+      <li>If no valid session cookie: <code>OAuthProvider.beginLogin</code> returns the GitHub authorize URL plus a freshly minted, single-use <code>state</code> — the OAuth CSRF nonce. The Worker stashes <code>state</code> in a short-lived cookie and redirects. On return, <code>/auth/callback</code> calls <code>completeLogin(code, state)</code>, which verifies <code>state</code> matches and exchanges <code>code</code> + client secret for a <strong>user-to-server token</strong>.</li>
+      <li><strong>Token storage (decided):</strong> keep the GitHub token + refresh token <em>server-side</em> in the session record (DO/D1), keyed by an opaque session id. The <strong>cookie carries only that id</strong> — <code>HttpOnly; Secure; SameSite=Lax</code>. This gives revocation (delete the record) and keeps the token out of the browser.</li>
+      <li>With token expiration enabled, <code>refresh</code> swaps the 8h token using the 6-month refresh token transparently; on refresh failure, re-login.</li>
+      <li>The provider <strong>declares its own redirect target(s)</strong> (e.g. <code>/auth/callback</code>); the Worker mounts whatever the configured provider exposes rather than hardcoding GitHub's routes.</li>
+      <li>App-JWT signing (RS256 via Web Crypto) is <em>not</em> needed for D1 — it's only for installation-level calls (PR write-back), which is a follow-up. <span class="badge warn">gotcha when we get there</span> GitHub's key is PKCS#1; <code>importKey</code> wants PKCS#8 (<code>openssl pkcs8 -topk8 -nocrypt</code>).</li>
+    </ul>
+  </section>
+
+  <section id="deliverable-1-proxy">
+    <h3>B. Proxy fetch — <code>DocSource</code> (render any branch, as the user)</h3>
+    <p>
+      Parse the URL into <code>(repo, branch, path)</code> — <code>owner</code> comes from deployment config, see
+      <a href="#deliverable-1-routes">routing</a> — and <code>DocSource.fetchDoc</code> fetches with the viewer's token:
+    </p>
+<pre><code>GET /repos/{owner}/{repo}/contents/{path}?ref={branch}
+Authorization: Bearer &lt;user-to-server token&gt;
+Accept: application/vnd.github.raw+json</code></pre>
+    <ul>
+      <li><code>200</code> → stream the HTML onward. <code>404</code> → neutral "not found or no access" page. <strong>Do not</strong> distinguish 404-missing from 404-forbidden — that's the non-leaking behavior we want.</li>
+      <li><code>?ref={branch}</code> delivers "any branch" with no per-branch infrastructure. <code>ref</code> also accepts a tag or commit SHA.</li>
+      <li>Contents API returns raw bytes up to ~100 MB with the raw <code>Accept</code> header; htmldocs files are tiny.</li>
+    </ul>
+  </section>
+
+  <section id="deliverable-1-routes">
+    <h3>C. Routing &amp; the <code>owner</code> question</h3>
+    <p>
+      <strong>(Your question — owner is per-deployment.)</strong> <code>owner</code> is deployment config, not part of
+      every URL. A deployment configures one owner (or a small allow-list), so the public URL is just
+      <code>docs.your-org.dev/{repo}/{branch}/{path}</code>. Supporting multiple owners is a config list, not a
+      code change.
+    </p>
+    <ul>
+      <li><code>GET /{repo}/{branch}/{path...}</code> — render a doc (auth → fetch). Owner injected from config.</li>
+      <li><code>GET /auth/login</code>, <code>GET /auth/callback</code> — provider-declared OAuth routes.</li>
+      <li>Optional <code>GET /{repo}</code> — generated index of renderable docs (discovery; can slip to D2).</li>
+    </ul>
+  </section>
+
+  <aside data-kind="exit-criteria">
+    <strong>D1 done when:</strong> a logged-in user renders a doc from a branch in a repo they can access (200), gets
+    the neutral page for a repo they can't (404), and the same URL works across arbitrary branches — all with the
+    token held server-side and refreshed transparently.
+  </aside>
+</article>
+
+<article id="deliverable-2" data-kind="deliverable" data-status="proposed" data-depends-on="deliverable-1">
+  <h2>Deliverable 2 — review mode</h2>
+  <p>
+    Builds on a proven D1. Adds the two review pieces: inject the comment UI into the served HTML, and persist comments
+    via the <code>ReviewStore</code>. This is where the hosted experience reaches parity with the local
+    <code>serve.sh</code> review mode.
+  </p>
+
+  <section id="deliverable-2-inject">
+    <h3>A. Inject — review UI via HTMLRewriter</h3>
+    <p>
+      <code>HTMLRewriter</code> is a streaming, zero-copy HTML transformer built into the Workers runtime — the hosted
+      analogue of what <code>serve.sh</code> does locally. Append the review-mode script + inline CSS to
+      <code>body</code>, passing <code>{ html: true }</code> so the string is parsed as markup:
+    </p>
+<pre><code>new HTMLRewriter()
+  .on('body', { element(el) { el.append(REVIEW_UI_HTML, { html: true }); } })
+  .transform(upstreamResponse)</code></pre>
+    <p>
+      The injected script renders comment threads, lets the user anchor a comment to an element, and calls the Worker's
+      comment API. Seed it with existing comments — inlined as a <code>&lt;script type="application/json"&gt;</code> blob
+      during rewrite, or fetched on load.
+    </p>
+  </section>
+
+  <section id="deliverable-2-store">
+    <h3>B. Store — <code>ReviewStore</code></h3>
+    <p>
+      The GitHub App has no storage; the Worker provides it. Recommended:
+      <span class="rec">a Durable Object per document for coordination, backed by D1 for queryable comment data.</span>
+    </p>
+    <table>
+      <thead><tr><th>Option</th><th>Role</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Durable Object</td><td>One per doc path; serializes writes to that doc's threads</td><td>Strongly consistent, single-threaded → race-free concurrent comments. SQLite-backed DOs run on the free plan.</td></tr>
+        <tr><td class="k">D1 (SQLite)</td><td>Comments table queried by doc id / author / status</td><td>Relational queries, GA. Index on doc id to keep rows-read (the billing unit) low.</td></tr>
+        <tr><td class="k">KV</td><td>—</td><td><span class="badge warn">avoid</span> Eventually consistent (~60s); comments would appear late.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      <code>POST /api/comments</code> and <code>GET /api/comments?doc=…</code> back the injected UI. Comments are keyed
+      by a doc identity <code>(source, repo, ref, path)</code> so the store stays source-agnostic.
+    </p>
+  </section>
+
+  <aside data-kind="exit-criteria">
+    <strong>D2 done when:</strong> a reviewer on a rendered doc can leave an anchored comment, another reviewer sees it,
+    and threads persist across reloads — matching local review mode, but org-wide and access-gated.
+  </aside>
+</article>
+
+<article id="setup" data-kind="setup">
+  <h2>Setting this up for an org</h2>
+  <p>
+    A one-time setup by an org admin. After this, every repo in the org is reviewable through the Worker with no
+    per-repo configuration.
+  </p>
+
+  <aside data-kind="ergonomics">
+    <strong>Goal: agent-driven install.</strong> Steps 1–3 should be scriptable so an agent can do them on the user's
+    behalf. The lever is GitHub's <strong>App Manifest flow</strong>: we generate a manifest with all
+    permissions/callbacks pre-filled, hand the user a single click-through link, and GitHub creates the App
+    <em>and returns the credentials</em> — which a helper script then writes straight into Worker secrets. Plan to ship
+    an install prompt + helper script alongside the Worker.
+  </aside>
+
+  <section id="setup-app">
+    <h3>1. Create a GitHub App (owned by the org)</h3>
+    <p>A GitHub App is the identity the Worker uses to talk to GitHub. Created via the manifest flow with:</p>
+    <table>
+      <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Callback URL</td><td><code>https://docs.your-org.dev/auth/callback</code> (the provider-declared route)</td></tr>
+        <tr><td class="k">Request user authorization (OAuth) during installation</td><td>Enabled — the user-to-server flow</td></tr>
+        <tr><td class="k">Expire user authorization tokens</td><td><span class="badge ok">recommended</span> Enabled — 8h token + 6-month refresh token</td></tr>
+        <tr><td class="k">Webhook</td><td>Optional; enable later for proactive session invalidation</td></tr>
+        <tr><td class="k">Repository permission: Contents</td><td><strong>Read-only</strong> — to fetch doc files (all D1 needs)</td></tr>
+        <tr><td class="k">Repository permission: Pull requests</td><td><strong>Read &amp; write</strong> <span class="badge warn">follow-up only</span> if mirroring reviews to PRs</td></tr>
+      </tbody>
+    </table>
+    <p>
+      GitHub issues a <strong>Client ID</strong>, <strong>Client Secret</strong>, and a downloadable
+      <strong>private key</strong>. Keep the permission set minimal — <code>Contents: read-only</code> is enough for
+      D1; everything else is opt-in.
+    </p>
+  </section>
+
+  <section id="setup-install">
+    <h3>2. Install the App across the org</h3>
+    <p>
+      Install on the org and choose <strong>All repositories</strong> (or a selected set). Installation defines the
+      <em>ceiling</em> of what the Worker can ever touch; the per-user token then narrows that to what each viewer can
+      personally see (the intersection — see <a href="#facts-intersection">confirmed facts</a>). "All repos" is what
+      makes the system org-wide with zero per-repo work.
+    </p>
+  </section>
+
+  <section id="setup-deploy">
+    <h3>3. Deploy the Worker &amp; point a hostname at it</h3>
+    <p>
+      <strong>(Your question — where the Worker lives.)</strong> The Worker is a deployable app, not skill content, so
+      it lives in its own top-level directory: <code>apps/htmldoc-review/</code> (its own <code>wrangler.toml</code>).
+      Deploy it and bind a route such as <code>docs.your-org.dev/*</code>. Store the App credentials as Worker secrets —
+      never in source or <code>wrangler.toml</code> (the helper script does this):
+    </p>
+<pre><code>wrangler secret put GITHUB_APP_CLIENT_ID
+wrangler secret put GITHUB_APP_CLIENT_SECRET
+wrangler secret put GITHUB_APP_PRIVATE_KEY      # only when PR write-back lands; PKCS#8
+wrangler secret put SESSION_SIGNING_KEY         # for signing session cookies
+# config (not secret): DOC_OWNER=your-org      # the per-deployment owner</code></pre>
+    <p>
+      Provision storage bindings (Durable Object namespace + D1) in <code>wrangler.toml</code> — D1 needs them; the
+      sessions table is shared with D2's comments store. That's the whole install: one App, one Worker, one hostname.
+    </p>
+  </section>
+
+  <section id="setup-use">
+    <h3>4. How a reviewer uses it</h3>
+    <p>
+      A reviewer visits <code>https://docs.your-org.dev/{repo}/{branch}/{path-to-doc}.html</code> — e.g. a link dropped
+      in a PR. First visit sends them through GitHub login once; after that, any doc in any repo they can access renders
+      instantly. Repos they can't access return a neutral "not found or no access" page. (Review UI arrives with D2.)
+    </p>
+  </section>
+</article>
+
+<article id="facts" data-kind="facts">
+  <h2>Confirmed facts &amp; assumptions</h2>
+  <p>From web-grounded research (2026-06-29); items below are doc-confirmed unless flagged.</p>
+  <table>
+    <thead><tr><th>Claim</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr id="facts-intersection">
+        <td><strong>Intersection semantics</strong> — a user-to-server token grants access to the <em>intersection</em> of (App's installed permissions) ∩ (the user's own GitHub permissions). An org-wide <code>Contents:read</code> App fetched with Alice's token returns only the repos Alice can personally see; others return 404. <em>This is the linchpin of the whole design.</em></td>
+        <td><span class="badge ok">confirmed</span> by GitHub docs. Worth a 30-min live sanity check (Spike&nbsp;1).</td>
+      </tr>
+      <tr>
+        <td>GitHub App user-to-server tokens expire in <strong>8h</strong> with a <strong>6-month refresh token</strong>, when token expiration is enabled (configurable).</td>
+        <td><span class="badge ok">confirmed</span></td>
+      </tr>
+      <tr>
+        <td><code>HTMLRewriter</code> can inject a <code>&lt;script&gt;</code>/CSS into upstream HTML via <code>append</code>/<code>prepend</code> with <code>{ html: true }</code>; streaming, zero-copy.</td>
+        <td><span class="badge ok">confirmed</span>. Exact streaming-content signature (Response/ReadableStream as content) <span class="badge warn">verify</span>.</td>
+      </tr>
+      <tr>
+        <td>Durable Objects: strongly consistent, single-threaded per object; SQLite-backed DOs available on the free plan. D1 is GA.</td>
+        <td><span class="badge ok">confirmed</span>. Exact per-object storage limits &amp; pricing <span class="badge warn">verify</span> (they drift).</td>
+      </tr>
+      <tr>
+        <td>Contents API <code>?ref=</code> selects any branch/tag/SHA; raw bytes to ~100 MB with raw <code>Accept</code> header.</td>
+        <td><span class="badge ok">confirmed</span></td>
+      </tr>
+      <tr>
+        <td>Rate limits: user tokens 5,000/hr (15,000 on Enterprise Cloud); installation tokens scale to ~12,500/hr.</td>
+        <td><span class="badge ok">confirmed</span>. Caching the proxied HTML at the edge keeps us well under.</td>
+      </tr>
+      <tr>
+        <td>Worker private-key signing (RS256) needs PKCS#8; GitHub ships PKCS#1.</td>
+        <td><span class="badge ok">confirmed</span> (community-corroborated). One-time <code>openssl</code> conversion.</td>
+      </tr>
+    </tbody>
+  </table>
+</article>
+
+<article id="spikes" data-kind="spikes">
+  <h2>De-risking spikes</h2>
+  <p>The first two are the path to <a href="#deliverable-1">Deliverable 1</a>; the third belongs to D2.</p>
+  <ol>
+    <li><strong>Intersection sanity check (~30 min).</strong> Install the App on two repos; get a user token for someone with access to repo A but not B; confirm the Contents API returns 200 for A and 404 for B. Confirms the linchpin live. <span class="badge warn">do first</span></li>
+    <li><strong>D1 end-to-end spike (~½ day).</strong> OAuth dance → server-side session → authenticated Contents fetch by <code>?ref</code> → serve the raw doc. Proves auth + intersection authz + any-branch in one shot. <em>No injection yet.</em></li>
+    <li><strong>D2 comment store spike.</strong> One Durable Object per doc path: write/read a thread with a resolved/open flag through the <code>ReviewStore</code> interface. Decide D1 vs DO-only for the comment data.</li>
+  </ol>
+</article>
+
+<article id="followups" data-kind="followups">
+  <h2>Follow-ups (post-V1)</h2>
+  <p>Deliberately out of scope for D1/D2, but designed-for so we don't paint ourselves in. Tracked, not forgotten.</p>
+  <ul class="criteria">
+    <li><strong>GitHub-native reviews, as the user.</strong> Because we hold the viewer's token, the <code>ReviewStore</code> could post/reply to GitHub reviews <em>as that user</em> (not a bot). Shape: D1 stays the source of truth, with a GitHub <em>reflector</em> behind the same <code>ReviewStore</code> interface. Interesting and feasible; <span class="badge warn">post-V1</span>. (Recall the constraints in <a href="#deliverable-2-store">D2 store</a> — commit comments can't thread/resolve; PR review comments need an open PR.)</li>
+    <li><strong>Generic review client.</strong> Extract the local <code>serve.sh</code> review UI into a shared client usable by both local serve and the Worker, rather than maintaining two. Sequence <em>after</em> the D2 basics work.</li>
+    <li><strong>PR summary mirroring.</strong> Write a resolved-thread summary back to the PR. Drives whether the App needs <code>Pull requests: write</code> and the App-JWT signing path. Hold, don't forget.</li>
+    <li><strong>Second <code>DocSource</code>.</strong> GitLab / Bitbucket / raw bucket — the reason the abstractions exist. No work now; the seam is the deliverable.</li>
+  </ul>
+</article>
+
+<article id="questions" data-kind="decisions">
+  <h2>Decisions &amp; open questions</h2>
+  <p>What's settled vs. what still needs a call. <span class="badge ok">decided</span> items are agreed and reflected in the plan above; <span class="badge warn">open</span> items still need resolution (most are safely deferred past V1).</p>
+
+  <section id="questions-decided">
+    <h3>Decided</h3>
+    <ul class="criteria">
+      <li data-status="resolved"><span class="badge ok">decided</span> <strong>Skip Cloudflare Access.</strong> The Worker runs its own OAuth so it directly holds the user token the proxy fetch needs; Access would convey identity only. <span class="badge warn">caveat</span> still verify before production that Access truly can't forward the IdP token (see the <a href="#overview">reminder banner</a>) — confident enough to start without it.</li>
+      <li data-status="resolved"><span class="badge ok">decided</span> <strong>Token storage.</strong> GitHub token + refresh token live server-side in the session record; the cookie holds only an opaque session id (<code>HttpOnly; Secure; SameSite=Lax</code>). Settled in <a href="#deliverable-1-auth">D1 · Auth</a>.</li>
+      <li data-status="resolved"><span class="badge ok">decided</span> <strong>One adapter implements both <code>OAuthProvider</code> + <code>DocSource</code></strong> over a shared, audience-tagged credential (Pattern A). Recorded in <a href="#abstractions-coupling">Abstractions · coupling</a>.</li>
+      <li data-status="resolved"><span class="badge ok">decided</span> <strong>Two deliverables.</strong> D1 = proxy + auth; D2 = review mode. <code>ReviewStore</code> is out of scope for D1 and provisional until D2.</li>
+      <li data-status="resolved"><span class="badge ok">decided</span> <strong><code>owner</code> is per-deployment config</strong>, not in the URL — see <a href="#deliverable-1-routes">routing</a>. Worker lives in <code>apps/htmldoc-review/</code>.</li>
+      <li data-status="resolved"><span class="badge ok">decided</span> <strong>Edge caching out of scope for V1.</strong> Live fetch is safest given revocation; only revisit if <code>resolveCommit</code> makes a SHA-keyed cache a near-free one-liner.</li>
+    </ul>
+  </section>
+
+  <section id="questions-open">
+    <h3>Still open</h3>
+    <ul class="criteria">
+      <li data-status="open"><span class="badge warn">open</span> <strong>One auth provider, or several?</strong> V1 assumes exactly one <code>OAuthProvider</code> per deployment. Whether multiple can coexist (and how the Worker routes between them) is undecided — defer until a second provider is real.</li>
+      <li data-status="open"><span class="badge warn">open</span> <strong>Full Pattern-B (split auth/source) support.</strong> Structurally left open by the separate interfaces, but it re-introduces an explicit authz step we don't build for GitHub — design only when a real split case appears.</li>
+      <li data-status="open"><span class="badge warn">open (D2)</span> <strong>Comment anchoring.</strong> Element <code>id</code> (stable; htmldocs gives articles ids) vs text/DOM-range offset. The existing review mode has an answer — settle it when the generic review-client work happens.</li>
+    </ul>
+  </section>
+</article>
+
+<aside id="related" data-kind="related">
+  <strong>Related:</strong>
+  <a href="../../plugins/useful-skills/skills/htmldocs/SKILL.md">htmldocs/SKILL.md</a> — the doc format being served ·
+  <a href="../../plugins/useful-skills/skills/htmldocs/docs/review_system.html">review_system.html</a> — existing local review-mode design to reuse ·
+  <a href="../../plugins/useful-skills/skills/htmldocs/serve.sh">serve.sh</a> — local equivalent of the Worker's inject step.
+</aside>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' });
+  await mermaid.run();
+</script>
+
+</body>
+</html>
