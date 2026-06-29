@@ -1,0 +1,21 @@
+{
+  "name": "htmldoc-review",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "arctic": "^3"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.71",
+    "@cloudflare/workers-types": "^4",
+    "typescript": "^5",
+    "vitest": "~3.2.0",
+    "wrangler": "^3"
+  }
+}
