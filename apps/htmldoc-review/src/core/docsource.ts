@@ -1,4 +1,4 @@
-import type { Env } from "./index";
+import type { Config } from "./config";
 
 function neutral(): Response {
   return new Response("Not found or no access", {
@@ -22,7 +22,7 @@ function safeRepoPath(path: string): string | null {
 }
 
 export async function fetchDoc(
-  env: Env,
+  cfg: Config,
   token: string,
   path: string
 ): Promise<Response> {
@@ -33,8 +33,8 @@ export async function fetchDoc(
   }
 
   const url =
-    `https://api.github.com/repos/${env.DOC_OWNER}/${env.DOC_REPO}/contents/${safePath}` +
-    `?ref=${encodeURIComponent(env.DOC_BRANCH)}`;
+    `https://api.github.com/repos/${cfg.docOwner}/${cfg.docRepo}/contents/${safePath}` +
+    `?ref=${encodeURIComponent(cfg.docBranch)}`;
 
   const r = await fetch(url, {
     headers: {

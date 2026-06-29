@@ -18,7 +18,7 @@ import {
   waitOnExecutionContext,
 } from "cloudflare:test";
 import { beforeAll, afterEach, describe, it, expect } from "vitest";
-import worker, { type Env } from "../src/index";
+import worker, { type Env } from "../../src/worker/index";
 
 // Register the Worker's Env as the provided test env so env.SESSIONS / env.DOC_* are typed.
 declare module "cloudflare:test" {

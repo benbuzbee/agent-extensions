@@ -1,13 +1,14 @@
 import * as arctic from "arctic";
-import type { Env } from "./index";
+import type { Config } from "./config";
+import type { SessionStore } from "./store";
 import { createSession } from "./session";
 import { readCookie, SESSION_COOKIE, STATE_COOKIE } from "./cookies";
 
-function gh(env: Env): arctic.GitHub {
+function gh(cfg: Config): arctic.GitHub {
   return new arctic.GitHub(
-    env.GITHUB_CLIENT_ID,
-    env.GITHUB_CLIENT_SECRET,
-    env.CALLBACK_URL
+    cfg.githubClientId,
+    cfg.githubClientSecret,
+    cfg.callbackUrl
   );
 }
 
@@ -47,11 +48,11 @@ function rejectAndBurn(status: number, body: string): Response {
   return new Response(body, { status, headers });
 }
 
-export async function beginLogin(req: Request, env: Env): Promise<Response> {
+export async function beginLogin(req: Request, cfg: Config): Promise<Response> {
   const url = new URL(req.url);
   const nonce = crypto.randomUUID();
-  const sig = await hmac(env.STATE_SIGNING_KEY, nonce);
-  const authUrl = gh(env).createAuthorizationURL(nonce, []);
+  const sig = await hmac(cfg.stateSigningKey, nonce);
+  const authUrl = gh(cfg).createAuthorizationURL(nonce, []);
 
   const ret = url.searchParams.get("return");
   if (ret) {
@@ -69,7 +70,11 @@ export async function beginLogin(req: Request, env: Env): Promise<Response> {
   return new Response(null, { status: 302, headers });
 }
 
-export async function completeLogin(req: Request, env: Env): Promise<Response> {
+export async function completeLogin(
+  req: Request,
+  cfg: Config,
+  store: SessionStore
+): Promise<Response> {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const stateParam = url.searchParams.get("state");
@@ -88,7 +93,7 @@ export async function completeLogin(req: Request, env: Env): Promise<Response> {
   if (dot === -1) return rejectAndBurn(400, "Invalid OAuth state");
   const nonce = cookie.slice(0, dot);
   const sig = cookie.slice(dot + 1);
-  const expected = await hmac(env.STATE_SIGNING_KEY, nonce);
+  const expected = await hmac(cfg.stateSigningKey, nonce);
 
   if (stateNonce !== nonce || !timingSafeEqual(expected, sig)) {
     return rejectAndBurn(400, "Invalid OAuth state");
@@ -96,7 +101,7 @@ export async function completeLogin(req: Request, env: Env): Promise<Response> {
 
   let tokens: arctic.OAuth2Tokens;
   try {
-    tokens = await gh(env).validateAuthorizationCode(code);
+    tokens = await gh(cfg).validateAuthorizationCode(code);
   } catch (e) {
     // Network failure -> let it surface as 5xx (do not pretend it was a bad code).
     if (e instanceof arctic.ArcticFetchError) throw e;
@@ -117,7 +122,7 @@ export async function completeLogin(req: Request, env: Env): Promise<Response> {
     (tokens.data as Record<string, unknown>).refresh_token_expires_in
   );
   const sid = await createSession(
-    env,
+    store,
     {
       access_token: tokens.accessToken(),
       refresh_token: tokens.refreshToken(),
@@ -143,8 +148,8 @@ export async function completeLogin(req: Request, env: Env): Promise<Response> {
 }
 
 export function refresh(
-  env: Env,
+  cfg: Config,
   refreshToken: string
 ): Promise<arctic.OAuth2Tokens> {
-  return gh(env).refreshAccessToken(refreshToken);
+  return gh(cfg).refreshAccessToken(refreshToken);
 }

@@ -1,56 +1,42 @@
-import type { Env } from "./index";
+import type { Config } from "./config";
+import type { SessionData, SessionStore } from "./store";
 import { refresh } from "./oauth";
 import * as arctic from "arctic";
 
-export interface SessionData {
-  access_token: string;
-  refresh_token: string;
-  expires_at: number;
-}
+export type { SessionData } from "./store";
 
-const key = (id: string) => `sess:${id}`;
-
-const MIN_TTL = 60;
 const DEFAULT_TTL = 60 * 60 * 24 * 180;
 const SKEW_MS = 30_000;
 
-function ttlOf(seconds: number | undefined): number {
-  if (typeof seconds === "number" && Number.isFinite(seconds) && seconds >= MIN_TTL) {
-    return Math.floor(seconds);
-  }
-  return DEFAULT_TTL;
+function refreshTtlOf(tokens: arctic.OAuth2Tokens): number {
+  const t = Number((tokens.data as Record<string, unknown>).refresh_token_expires_in);
+  return Number.isFinite(t) ? t : DEFAULT_TTL;
 }
 
 export async function createSession(
-  env: Env,
+  store: SessionStore,
   data: SessionData,
-  refreshTtlSeconds?: number
+  refreshTtlSeconds = DEFAULT_TTL
 ): Promise<string> {
   const id = crypto.randomUUID() + crypto.randomUUID();
-  await env.SESSIONS.put(key(id), JSON.stringify(data), {
-    expirationTtl: ttlOf(refreshTtlSeconds),
-  });
+  await store.put(id, data, refreshTtlSeconds);
   return id;
 }
 
 async function doRefresh(
-  env: Env,
+  cfg: Config,
+  store: SessionStore,
   id: string,
   refreshToken: string
 ): Promise<string | null> {
   try {
-    const tokens = await refresh(env, refreshToken);
+    const tokens = await refresh(cfg, refreshToken);
     const next: SessionData = {
       access_token: tokens.accessToken(),
       refresh_token: tokens.refreshToken(),
       expires_at: tokens.accessTokenExpiresAt().getTime(),
     };
-    const refreshTtl = Number(
-      (tokens.data as Record<string, unknown>).refresh_token_expires_in
-    );
-    await env.SESSIONS.put(key(id), JSON.stringify(next), {
-      expirationTtl: ttlOf(Number.isFinite(refreshTtl) ? refreshTtl : undefined),
-    });
+    await store.put(id, next, refreshTtlOf(tokens));
     return next.access_token;
   } catch (e) {
     // A network failure must NOT nuke the session -- let it surface as 5xx.
@@ -64,7 +50,7 @@ async function doRefresh(
       e instanceof arctic.UnexpectedResponseError ||
       e instanceof arctic.UnexpectedErrorResponseBodyError
     ) {
-      await deleteSession(env, id);
+      await store.delete(id);
       return null;
     }
     throw e;
@@ -72,21 +58,21 @@ async function doRefresh(
 }
 
 export async function getValidAccessToken(
-  env: Env,
+  cfg: Config,
+  store: SessionStore,
   id: string,
-  _ctx: ExecutionContext,
   forceRefresh = false
 ): Promise<string | null> {
-  const s = await env.SESSIONS.get<SessionData>(key(id), "json");
+  const s = await store.get(id);
   if (!s) return null;
 
   if (!forceRefresh && Date.now() < s.expires_at - SKEW_MS) {
     return s.access_token;
   }
 
-  return doRefresh(env, id, s.refresh_token);
+  return doRefresh(cfg, store, id, s.refresh_token);
 }
 
-export async function deleteSession(env: Env, id: string): Promise<void> {
-  await env.SESSIONS.delete(key(id));
+export async function deleteSession(store: SessionStore, id: string): Promise<void> {
+  await store.delete(id);
 }
