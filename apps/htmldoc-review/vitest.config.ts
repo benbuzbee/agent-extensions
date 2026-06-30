@@ -1,14 +1,13 @@
-import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+// Root config: the TEST SPLIT lives here as two Vitest projects so `vitest run`
+// drives both with one command.
+//   - "core"   : plain Node-env unit tests for the portable src/core/ logic.
+//   - "worker" : @cloudflare/vitest-pool-workers integration tests (KV + the
+//                fetch handler) running inside the Workers runtime (Miniflare).
+// `projects` is the Vitest 4 replacement for the old `workspace` field.
+import { defineConfig } from "vitest/config";
 
-export default defineWorkersConfig({
+export default defineConfig({
   test: {
-    poolOptions: {
-      workers: {
-        // inherit the SAME bindings the Worker runs with (KV SESSIONS, DOC_OWNER, ...)
-        wrangler: { configPath: "./wrangler.toml" },
-        // isolatedStorage defaults true -> local KV resets between tests automatically
-      },
-    },
+    projects: ["./test/core/vitest.config.ts", "./test/worker/vitest.config.ts"],
   },
 });
-// 0.8.x API. If you ever move to vitest 4 / pool 0.16, this becomes the cloudflareTest() plugin instead.

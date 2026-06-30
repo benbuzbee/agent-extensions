@@ -19,9 +19,9 @@
 //   3) Print client_id + client_secret to stdout for setup.sh to capture. These are
 //      returned exactly ONCE by GitHub and cannot be re-fetched.
 //
-// Usage:
-//   node create-app.mjs --org my-org            # GitHub organization
-//   node create-app.mjs --org my-user --personal # personal account
+// Usage (paths relative to apps/htmldoc-review):
+//   node scripts/setup/create-worker-app.mjs --org my-org             # GitHub organization
+//   node scripts/setup/create-worker-app.mjs --org my-user --personal # personal account
 // Env overrides: ORG, ACCOUNT_TYPE=org|personal, PORT, MANIFEST_FILE, NO_OPEN=1
 
 import { createServer } from "node:http";
@@ -48,9 +48,12 @@ const args = parseArgs(process.argv.slice(2));
 const ORG = args.org ?? process.env.ORG;
 const PERSONAL = args.personal || process.env.ACCOUNT_TYPE === "personal";
 const PORT = args.port ?? Number(process.env.PORT ?? 0); // 0 -> OS-assigned free port
+// This script lives in scripts/setup/; app-manifest.json lives at the app root
+// (two levels up). Resolve the default relative to the app root, not __dirname.
+const APP_ROOT = resolve(__dirname, "..", "..");
 const MANIFEST_FILE = process.env.MANIFEST_FILE
   ? resolve(process.env.MANIFEST_FILE)
-  : resolve(__dirname, "app-manifest.json");
+  : resolve(APP_ROOT, "app-manifest.json");
 
 if (!ORG) {
   console.error("error: missing ORG. Use --org <name> (or set ORG env).");

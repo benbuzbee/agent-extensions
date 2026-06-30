@@ -1,3 +1,4 @@
+/// <reference types="@cloudflare/vitest-pool-workers/types" />
 // vitest-pool-workers suite for the htmldoc-review Worker (Deliverable 1: proxy + auth).
 //
 // Everything outbound to GitHub is MOCKED via fetchMock -- the suite never touches
@@ -8,17 +9,21 @@
 // Binding/secret/var names are taken verbatim from the LOCKED spec:
 //   KV binding   SESSIONS  (key `sess:${id}`, value {access_token, refresh_token, expires_at})
 //   session cookie  sid    (HttpOnly; Secure; SameSite=Lax; opaque id only)
-//   vars  DOC_OWNER / DOC_REPO / DOC_BRANCH / GITHUB_CLIENT_ID / CALLBACK_URL
+//   vars  DOC_OWNER / GITHUB_CLIENT_ID / CALLBACK_URL  (org-scoped: NO repo/branch)
 //   routes /auth/login, /auth/callback, /auth/logout, catch-all doc path
+//   doc URL  /{repo}/{...docPath}[?ref=branch|tag|sha]  (repo = first path segment)
 import {
   env,
   SELF,
-  fetchMock,
   createExecutionContext,
   waitOnExecutionContext,
 } from "cloudflare:test";
-import { beforeAll, afterEach, describe, it, expect } from "vitest";
+import { afterAll, beforeAll, afterEach, describe, it, expect } from "vitest";
 import worker, { type Env } from "../../src/worker/index";
+// fetchMock used to come from "cloudflare:test" but was removed in
+// vitest-pool-workers 0.13. This is a local globalThis.fetch shim with the
+// same API + guarantees (see fetch-mock.ts).
+import { fetchMock } from "./fetch-mock";
 
 // Register the Worker's Env as the provided test env so env.SESSIONS / env.DOC_* are typed.
 declare module "cloudflare:test" {
@@ -37,12 +42,20 @@ afterEach(() => {
   // call) makes the suite fail here.
   fetchMock.assertNoPendingInterceptors();
 });
+afterAll(() => {
+  // Restore the real globalThis.fetch the shim replaced.
+  fetchMock.deactivate();
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 const ORIGIN = "https://docs.my-org.dev";
+// Repo is now the FIRST URL path segment; the doc path is the remainder.
+const REPO = "app-ios";
 const DOC_PATH = "guide.html";
+// What a browser actually requests: /{repo}/{...docPath}.
+const DOC_URL = `${REPO}/${DOC_PATH}`;
 const KNOWN_TOKEN = "gho_canned_access_token";
 
 const sessKey = (id: string) => `sess:${id}`;
@@ -70,13 +83,29 @@ async function seedSession(
   return id;
 }
 
-/** Queue a single-use mock for the GitHub Contents API call. */
-function mockContents(status: number, body = "", contentType = "text/html") {
+/**
+ * Queue a single-use mock for the GitHub Contents API call.
+ *
+ * The interceptor path encodes the org-scoped routing contract: owner from env,
+ * repo from the URL's first segment, then the doc path. `opts.ref` mirrors the
+ * `?ref=` behaviour — when omitted, NO `?ref` is appended (GitHub serves the
+ * default branch); when present it is percent-encoded so slashed branches work.
+ */
+function mockContents(
+  status: number,
+  body = "",
+  opts: { contentType?: string; repo?: string; path?: string; ref?: string } = {},
+) {
+  const repo = opts.repo ?? REPO;
+  const path = opts.path ?? DOC_PATH;
+  const contentType = opts.contentType ?? "text/html";
+  const query =
+    opts.ref !== undefined ? `?ref=${encodeURIComponent(opts.ref)}` : "";
   fetchMock
     .get("https://api.github.com")
     .intercept({
       method: "GET",
-      path: `/repos/${env.DOC_OWNER}/${env.DOC_REPO}/contents/${DOC_PATH}?ref=${env.DOC_BRANCH}`,
+      path: `/repos/${env.DOC_OWNER}/${repo}/contents/${path}${query}`,
     })
     .reply(status, body, { headers: { "content-type": contentType } });
 }
@@ -140,7 +169,7 @@ describe("doc route: 200 serves raw HTML", () => {
     await seedSession("sess-200");
     mockContents(200, "<h1>hi</h1>");
 
-    const res = await SELF.fetch(`${ORIGIN}/${DOC_PATH}`, {
+    const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       headers: { cookie: "sid=sess-200" },
     });
 
@@ -152,6 +181,65 @@ describe("doc route: 200 serves raw HTML", () => {
 });
 
 // ===========================================================================
+// Org-scoped routing: repo = first URL segment, doc path = remainder, ?ref=.
+// ===========================================================================
+describe("doc route: org-scoped repo + ?ref routing", () => {
+  it("repo comes from the first path segment; any repo in the org is reachable", async () => {
+    await seedSession("sess-repo");
+    // A DIFFERENT repo than the default fixture, with a nested doc path.
+    mockContents(200, "<h1>other</h1>", {
+      repo: "app-android",
+      path: "docs/setup.html",
+    });
+
+    const res = await SELF.fetch(`${ORIGIN}/app-android/docs/setup.html`, {
+      headers: { cookie: "sid=sess-repo" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.clone().text()).toBe("<h1>other</h1>");
+  });
+
+  it("omitting ?ref sends NO ref param (GitHub serves the default branch)", async () => {
+    await seedSession("sess-noref");
+    // No `ref` in the mock -> interceptor path has no `?ref`. If the Worker
+    // appended a ref, this interceptor would not match and the call would fail.
+    mockContents(200, "<h1>default</h1>");
+
+    const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
+      headers: { cookie: "sid=sess-noref" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.clone().text()).toBe("<h1>default</h1>");
+  });
+
+  it("?ref with a slashed branch is percent-encoded for the Contents API", async () => {
+    await seedSession("sess-ref");
+    // Slashed branch must survive as feature%2Fa%2Fb in the upstream call.
+    mockContents(200, "<h1>branch</h1>", { ref: "feature/a/b" });
+
+    const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}?ref=feature/a/b`, {
+      headers: { cookie: "sid=sess-ref" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.clone().text()).toBe("<h1>branch</h1>");
+  });
+
+  it("a bare repo with no doc path -> neutral 404 (never calls Contents API)", async () => {
+    await seedSession("sess-barerepo");
+    // No interceptor queued: if the Worker hit GitHub, net-connect/afterEach fails.
+    const res = await SELF.fetch(`${ORIGIN}/app-ios`, {
+      headers: { cookie: "sid=sess-barerepo" },
+    });
+
+    expect(res.status).toBe(404);
+    expect(await res.text()).toMatch(/not found or no access/i);
+  });
+});
+
+// ===========================================================================
 // 404 / 403 neutral: missing and forbidden are indistinguishable
 // ===========================================================================
 describe("doc route: 404/403 collapse to one neutral response", () => {
@@ -159,7 +247,7 @@ describe("doc route: 404/403 collapse to one neutral response", () => {
     await seedSession("sess-404");
     mockContents(404, JSON.stringify({ message: "Not Found" }));
 
-    const res = await SELF.fetch(`${ORIGIN}/${DOC_PATH}`, {
+    const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       headers: { cookie: "sid=sess-404" },
     });
 
@@ -171,7 +259,7 @@ describe("doc route: 404/403 collapse to one neutral response", () => {
     await seedSession("sess-403");
     mockContents(403, JSON.stringify({ message: "Forbidden" }));
 
-    const res = await SELF.fetch(`${ORIGIN}/${DOC_PATH}`, {
+    const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       headers: { cookie: "sid=sess-403" },
     });
 
@@ -184,14 +272,14 @@ describe("doc route: 404/403 collapse to one neutral response", () => {
   it("missing (404) and forbidden (403) are byte-for-byte identical", async () => {
     await seedSession("sess-cmp-a");
     mockContents(404, JSON.stringify({ message: "Not Found" }));
-    const missing = await SELF.fetch(`${ORIGIN}/${DOC_PATH}`, {
+    const missing = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       headers: { cookie: "sid=sess-cmp-a" },
     });
     const missingBody = await missing.text();
 
     await seedSession("sess-cmp-b");
     mockContents(403, JSON.stringify({ message: "Forbidden" }));
-    const forbidden = await SELF.fetch(`${ORIGIN}/${DOC_PATH}`, {
+    const forbidden = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       headers: { cookie: "sid=sess-cmp-b" },
     });
     const forbiddenBody = await forbidden.text();
@@ -208,7 +296,7 @@ describe("doc route: unauthenticated", () => {
   it("no cookie -> 302 to /auth/login and never calls Contents API", async () => {
     // Intentionally queue NO interceptor. If the handler hit GitHub, the
     // disabled net connect would throw; afterEach also asserts nothing pending.
-    const res = await SELF.fetch(`${ORIGIN}/${DOC_PATH}`, {
+    const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       redirect: "manual",
     });
 
@@ -217,7 +305,7 @@ describe("doc route: unauthenticated", () => {
   });
 
   it("preserves a return-to pointing back at the requested path", async () => {
-    const res = await SELF.fetch(`${ORIGIN}/${DOC_PATH}`, {
+    const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       redirect: "manual",
     });
     expect(res.status).toBe(302);
@@ -227,7 +315,7 @@ describe("doc route: unauthenticated", () => {
   });
 
   it("a session id with no KV row -> 302 to login (treated as no session)", async () => {
-    const res = await SELF.fetch(`${ORIGIN}/${DOC_PATH}`, {
+    const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       redirect: "manual",
       headers: { cookie: "sid=does-not-exist" },
     });
@@ -263,7 +351,7 @@ describe("silent refresh (tier 1)", () => {
     mockContents(200, "<h1>refreshed</h1>");
 
     // Use worker.fetch + waitOnExecutionContext so a ctx.waitUntil write-back flushes.
-    const res = await fetchWorker(`${ORIGIN}/${DOC_PATH}`, {
+    const res = await fetchWorker(`${ORIGIN}/${DOC_URL}`, {
       headers: { cookie: "sid=sess-refresh" },
     });
 
@@ -305,7 +393,7 @@ describe("re-login (tier 2)", () => {
       error_description: "The refresh token passed is incorrect or expired.",
     });
 
-    const res = await fetchWorker(`${ORIGIN}/${DOC_PATH}`, {
+    const res = await fetchWorker(`${ORIGIN}/${DOC_URL}`, {
       headers: { cookie: "sid=sess-dead" },
     });
 

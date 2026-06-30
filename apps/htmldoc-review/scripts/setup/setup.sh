@@ -5,30 +5,33 @@ set -euo pipefail
 # No D1, no Durable Objects. Session storage is Workers KV with native per-key TTL.
 #
 # Order:
-#   0) obtain GitHub App OAuth creds via the manifest flow (create-app.mjs)
+#   0) obtain GitHub App OAuth creds via the manifest flow (create-worker-app.mjs)
 #   1) create KV namespace SESSIONS, parse the 32-hex id, sed it into wrangler.toml
 #   2) preflight build/config validation (dry-run)
 #   3) first real deploy (creates the live Worker + KV binding; must exist before secret put)
 #   4) push secrets via piped stdin (printf %s -> no trailing newline; each redeploys)
 #   5) remind admin to confirm 'User-to-server token expiration' is ON
 #
-# Run from the app directory (apps/htmldoc-review) so wrangler.toml is in cwd.
+# This script lives in scripts/setup/ but operates on the app root (apps/htmldoc-review),
+# where wrangler.toml lives. We cd to the app root (two levels up) so wrangler.toml is in cwd.
 
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$APP_ROOT"
 
 # ---------------------------------------------------------------------------
 # 0) GitHub App manifest flow -> client_id / client_secret (returned ONCE)
 # ---------------------------------------------------------------------------
-# create-app.mjs renders app-manifest.json (ORG substituted), serves the
+# create-worker-app.mjs renders app-manifest.json (ORG substituted), serves the
 # auto-submitting form, captures ?code=&state= on /manifest/callback, POSTs
 # /app-manifests/{code}/conversions, and prints the creds to stdout.
 echo "==> Creating the GitHub App via the manifest flow (browser will open)..."
-APP_OUT="$(node create-app.mjs)"
+APP_OUT="$(node "$SCRIPT_DIR/create-worker-app.mjs")"
 echo "$APP_OUT"
 GITHUB_CLIENT_ID="$(printf '%s\n' "$APP_OUT" | grep -E '^GITHUB_CLIENT_ID=' | head -n1 | cut -d= -f2-)"
 GITHUB_CLIENT_SECRET="$(printf '%s\n' "$APP_OUT" | grep -E '^GITHUB_CLIENT_SECRET=' | head -n1 | cut -d= -f2-)"
-[ -n "$GITHUB_CLIENT_ID" ] || { echo "ERROR: could not parse client_id from create-app.mjs"; exit 1; }
-[ -n "$GITHUB_CLIENT_SECRET" ] || { echo "ERROR: could not parse client_secret from create-app.mjs"; exit 1; }
+[ -n "$GITHUB_CLIENT_ID" ] || { echo "ERROR: could not parse client_id from create-worker-app.mjs"; exit 1; }
+[ -n "$GITHUB_CLIENT_SECRET" ] || { echo "ERROR: could not parse client_secret from create-worker-app.mjs"; exit 1; }
 
 # Wire the (non-secret) client id into wrangler.toml [vars].
 sed -i.bak "s|GITHUB_CLIENT_ID = \".*\"|GITHUB_CLIENT_ID = \"$GITHUB_CLIENT_ID\"|" wrangler.toml && rm -f wrangler.toml.bak

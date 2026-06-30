@@ -109,13 +109,13 @@ pattern = "docs.my-org.dev"
 custom_domain = true
 ```
 
-The `id` under `[[kv_namespaces]]` is left as `REPLACE_WITH_KV_NAMESPACE_ID`; `setup.sh`
-fills it.
+The `id` under `[[kv_namespaces]]` is left as `REPLACE_WITH_KV_NAMESPACE_ID`;
+`scripts/setup/setup.sh` fills it.
 
 ### 2. Create the GitHub App via the App Manifest flow
 
-You do **not** click through GitHub's App UI by hand — `setup.sh` runs the manifest
-flow for you (`create-app.mjs`):
+You do **not** click through GitHub's App UI by hand — `scripts/setup/setup.sh` runs the
+manifest flow for you (`scripts/setup/create-worker-app.mjs`):
 
 1. It generates a CSRF `state` nonce and renders `app-manifest.json` with your org
    substituted, then opens an auto-submitting form that POSTs the manifest to
@@ -141,10 +141,10 @@ and OAuth authorization happen together.
 > the silent-refresh logic depends on it. If it is off, refresh tokens are never issued
 > and viewers will be forced to re-login every 8 hours.
 
-### 4. Run `setup.sh`
+### 4. Run the setup script
 
 ```sh
-./setup.sh
+./scripts/setup/setup.sh
 ```
 
 It performs, in order:
@@ -207,5 +207,6 @@ GitHub and any unused mock fails loudly.
 
 Some things cannot be verified by the unattended test suite (e.g. a live GitHub
 intersection returning a real `200`/`404`, and confirming GitHub actually returns `404`
-rather than `403` for no-access). See [SPIKES.md](./SPIKES.md) for the manual checklist
-to run before relying on this in production.
+rather than `403` for no-access). See
+[d1-spikes.md](../../docs/plans/d1-spikes.md) for the manual checklist to run before
+relying on this in production.

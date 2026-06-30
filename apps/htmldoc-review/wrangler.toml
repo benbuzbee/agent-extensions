@@ -10,10 +10,11 @@ binding = "SESSIONS"
 id = "REPLACE_WITH_KV_NAMESPACE_ID"   # setup.sh fills from: wrangler kv namespace create SESSIONS
 
 # Non-secret config ONLY (committed plaintext). Secrets go via `wrangler secret put`.
+# This Worker is scoped to ONE GitHub org via DOC_OWNER. The repo + doc path come
+# from the request URL (/{repo}/{...docPath}) and the optional branch/tag/SHA from
+# ?ref= — so there is intentionally no DOC_REPO / DOC_BRANCH here.
 [vars]
 DOC_OWNER = "my-org"
-DOC_REPO = "private-docs"
-DOC_BRANCH = "main"
 GITHUB_CLIENT_ID = "Iv1.REPLACE"                 # GitHub App client id is NOT secret
 CALLBACK_URL = "https://docs.my-org.dev/auth/callback"
 

@@ -6,7 +6,9 @@ export interface Config {
   githubClientSecret: string;
   callbackUrl: string;
   stateSigningKey: string;
+  // The GitHub org/owner this Worker is scoped to. One Worker == one org.
+  // The repo and doc path are NOT configured here — they come from the request
+  // URL (`/{repo}/{...docPath}`), and the optional branch/tag/SHA comes from
+  // `?ref=`. See core/docsource.ts.
   docOwner: string;
-  docRepo: string;
-  docBranch: string;
 }
