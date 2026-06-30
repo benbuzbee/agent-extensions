@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Helper for the GitHub App Manifest flow: creates the org's GitHub App, captures
 // the credentials GitHub returns, and wires them into the Worker setup (printed to
-// stdout for setup.sh to capture). Run by setup.sh.
+// stdout for deploy.sh to capture). Run by deploy.sh.
 //
 // What it does (within GitHub's 1-hour, single-use code window):
 //   1) Read ORG (and optional account type); mint a random CSRF `state` nonce.
@@ -18,7 +18,7 @@
 //                                      X-GitHub-Api-Version pinned, NO auth).
 //                                     On 201 extract ONLY client_id + client_secret
 //                                     (id/pem/webhook_secret are discarded -- unused in D1).
-//   3) Print client_id + client_secret to stdout for setup.sh to capture. These are
+//   3) Print client_id + client_secret to stdout for deploy.sh to capture. These are
 //      returned exactly ONCE by GitHub and cannot be re-fetched.
 //
 // Usage (paths relative to apps/htmldoc-review):
@@ -197,9 +197,9 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(callbackPage("GitHub App created. Credentials captured in the terminal."));
 
-      // stdout carries ONLY the machine-readable credentials for setup.sh to capture;
+      // stdout carries ONLY the machine-readable credentials for deploy.sh to capture;
       // every human/status message goes to stderr (console.error) so the two streams
-      // never mix and setup.sh can parse stdout cleanly. These values are returned ONCE
+      // never mix and deploy.sh can parse stdout cleanly. These values are returned ONCE
       // by GitHub and are unrecoverable.
       process.stdout.write(`GITHUB_CLIENT_ID=${clientId}\n`);
       process.stdout.write(`GITHUB_CLIENT_SECRET=${clientSecret}\n`);

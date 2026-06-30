@@ -1,32 +1,38 @@
 name = "htmldoc-review"
 main = "src/worker/index.ts"
 compatibility_date = "2025-06-01"
-workers_dev = false
+# Quick start: deploy to the free *.workers.dev subdomain (no DNS / domain needed).
+# Your Worker is served at https://htmldoc-review.<your-subdomain>.workers.dev.
+# To promote to a custom domain later, flip this to false and uncomment the
+# [[routes]] block below (see the README "Promote to a custom domain" section).
+workers_dev = true
 
 # Server-side session store: { session_id -> {access_token, refresh_token, expires_at} }.
 # Native per-key TTL via put(key,val,{expirationTtl}) is the ENTIRE cleanup story. No DO/D1/cron.
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"   # setup.sh fills from: wrangler kv namespace create SESSIONS
+id = "REPLACE_WITH_KV_NAMESPACE_ID"   # deploy.sh fills from: wrangler kv namespace create SESSIONS
 
 # Non-secret config ONLY (committed plaintext). Secrets go via `wrangler secret put`.
-# This Worker is scoped to ONE GitHub org via DOC_OWNER. The repo + doc path come
-# from the request URL (/{repo}/{...docPath}) and the optional branch/tag/SHA from
-# ?ref= — so there is intentionally no DOC_REPO / DOC_BRANCH here.
-# These are deliberately invalid placeholders: they parse as TOML but will NOT
-# work until you edit them. Replace each REPLACE_ME_* before deploying for real.
+# This Worker is scoped to ONE GitHub account (org or individual) via DOC_OWNER. The
+# repo + doc path come from the request URL (/{repo}/{...docPath}) and the optional
+# branch/tag/SHA from ?ref= — so there is intentionally no DOC_REPO / DOC_BRANCH here.
+# These are deliberately invalid placeholders: they parse as TOML but will NOT work
+# until you edit them. Replace each REPLACE_ME_* before deploying for real.
 [vars]
 DOC_OWNER = "REPLACE_ME_GITHUB_ORG_SLUG"          # e.g. "my-org"
-GITHUB_CLIENT_ID = "REPLACE_ME_GITHUB_APP_CLIENT_ID"  # GitHub App client id is NOT secret (e.g. "Iv1.abc123…")
-CALLBACK_URL = "https://REPLACE_ME_DOMAIN/auth/callback"  # e.g. "https://htmldocs.mydomain.ai/auth/callback"
+GITHUB_CLIENT_ID = "REPLACE_ME_GITHUB_APP_CLIENT_ID"  # GitHub App client id is NOT secret (e.g. "Iv1.abc123…"); deploy.sh fills this
+# Your deployment origin + /auth/callback. On the workers.dev quick start this is
+# https://htmldoc-review.<your-subdomain>.workers.dev/auth/callback — deploy once to
+# learn your subdomain, set it here, then redeploy. Must match the GitHub App callback.
+CALLBACK_URL = "https://REPLACE_ME_DOMAIN/auth/callback"
 
-# Custom domain (Cloudflare provisions DNS + TLS). Bare host, NO /* with custom_domain.
-# The pattern below is an invalid placeholder host (the ".invalid" TLD is reserved by
-# RFC 2606 and can never resolve) so a deploy can't silently grab a real domain.
-# Replace with your real bare host, e.g. "htmldocs.mydomain.ai".
-[[routes]]
-pattern = "REPLACE-ME-DOMAIN.invalid"
-custom_domain = true
+# Custom domain (the production path; NOT needed for the workers.dev quick start).
+# Uncomment + set this AND flip workers_dev=false above to promote. Bare host, NO /*
+# with custom_domain. Cloudflare provisions DNS + TLS. e.g. "htmldocs.mydomain.ai".
+# [[routes]]
+# pattern = "htmldocs.mydomain.ai"
+# custom_domain = true
 
 # DO NOT ADD: compatibility_flags/nodejs_compat (arctic+fetch are Workers-native),
 # [[d1_databases]], [durable_objects], [site], usage_model, type, webpack_config.

@@ -24,7 +24,7 @@ anyone's secret.
 | ↳ portable core (no CF deps) | `apps/htmldoc-review/src/core/` — `oauth.ts`, `session.ts`, `docsource.ts`, `cookies.ts`, `responses.ts`, `config.ts`, `store.ts` |
 | ↳ Cloudflare-specific | `apps/htmldoc-review/src/worker/` — `index.ts` (entry/composition root), `kv-store.ts`, `logging.ts` |
 | ↳ tests | `test/core/` (vanilla vitest, node) + `test/worker/` (vitest-pool-workers + `fetch-mock.ts`) |
-| ↳ setup | `apps/htmldoc-review/scripts/setup/` — `create-worker-app.mjs`, `setup.sh`; `app-manifest.json`; `wrangler.toml` |
+| ↳ setup | `apps/htmldoc-review/scripts/setup/` — `vendor.sh` (copy into an org's infra repo), `deploy.sh` (idempotent per-org deploy), `create-worker-app.mjs`; `app-manifest.json`; `wrangler.toml` |
 | **Manual live checks** | `docs/plans/worker/d1-spikes.md` — the spikes that need a real GitHub App (NOT yet run) |
 | **Workflow scripts (history)** | all under `docs/plans/worker/`: `d1-build-workflow.js` (built D1), `d1-review-fixes-v2.js` (review fixes round 1). `d1-review-fixes-workflow.js` is the superseded v1. |
 
@@ -66,7 +66,9 @@ anyone's secret.
 1. **Ben finishes reviewing PR #9 replies** and resolves threads / leaves follow-ups.
 2. **Run the live spikes** (`docs/plans/worker/d1-spikes.md`) — needs a real GitHub App + two test users. The load-bearing one:
    confirm GitHub returns **404 (not 403)** for a no-access private file (design collapses both to neutral 404 anyway).
-   This requires: create App via manifest → install on a test org → `scripts/setup/setup.sh` → deploy → run spikes.
+   This requires: `vendor.sh` into an infra repo → create App via manifest → install on a test org →
+   `scripts/setup/deploy.sh` → run spikes. First live test: vendor to `~/infrastructure/htmldocs-app/` for Boop on
+   workers.dev.
    Needs a human (GitHub UI clicks + `wrangler login`).
 3. **Merge order:** PR #8 first, then #9 (or GitHub auto-retargets #9 to `main` once #8 merges).
 4. **Then Deliverable 2** (review mode: HTMLRewriter injection + comment store, incl. a branch *picker* UI — branch
