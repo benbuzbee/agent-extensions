@@ -1,0 +1,24 @@
+{
+  "name": "htmldoc-review",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "@logtape/logtape": "^2.2.1",
+    "arctic": "^3.7.0",
+    "cookie": "^2.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.16.20",
+    "open": "^10.2.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9",
+    "wrangler": "^4.105.0"
+  }
+}
