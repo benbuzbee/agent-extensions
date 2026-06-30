@@ -1,4 +1,8 @@
-.dev.vars*
+# Ignore real local secrets, but KEEP the committed .dev.vars.example template
+# (deploy.sh seeds .dev.vars from it on a fresh copy).
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 .env*
 dist/
 node_modules/

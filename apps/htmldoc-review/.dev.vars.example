@@ -1,0 +1,7 @@
+# FAKE local values only. These are never deployed: the REAL secrets are pushed to
+# Cloudflare by deploy.sh via `wrangler secret put` (minted in the manifest flow /
+# openssl). This file exists so local dev/tests run and so `wrangler types` emits
+# these keys into the Env type — only the KEYS matter here, not the values.
+GITHUB_CLIENT_SECRET="local-fake-secret"
+STATE_SIGNING_KEY="local-fake-hmac-key"
+# copy to .dev.vars (gitignored). GITHUB_CLIENT_ID / DOC_* live in wrangler.toml [vars].
