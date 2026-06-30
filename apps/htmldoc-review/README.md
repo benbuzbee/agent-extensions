@@ -39,7 +39,10 @@ Idempotent and safe to re-run. It installs deps, logs you into Cloudflare if nee
 
 ### 4. Install the App on your org
 
-From the new App's GitHub page, install it (all repos or a subset). OAuth-on-install means install and authorization happen together.
+**Required** — creating the App does *not* grant repo access. Install it at
+`https://github.com/apps/htmldoc-review-<your-org>/installations/new` (all repos or a subset);
+`deploy.sh` prints this exact URL at the end. OAuth-on-install means install and authorization
+happen together. Until you install it, every doc returns a neutral `404`.
 
 > Confirm **"User-to-server token expiration" is ON** under the App's *Optional features* — silent refresh depends on it.
 

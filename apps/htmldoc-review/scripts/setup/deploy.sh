@@ -190,9 +190,20 @@ echo "==> Final deploy (with real CALLBACK_URL + client id)..."
 npx wrangler deploy
 
 # ---------------------------------------------------------------------------
-# 8) remind admin about the user-token expiration toggle (arctic refresh depends on it)
+# 8) REQUIRED next step: install the App on the org. Deploying + creating the
+#    App is NOT enough -- a user-to-server token only grants access to repos
+#    where the App is INSTALLED, and GitHub has no API to install on your
+#    behalf. Skipping this is the #1 setup trap: every doc returns a neutral
+#    404 with no hint why. So we end on the install URL, not a bare "Done".
 # ---------------------------------------------------------------------------
+INSTALL_URL="https://github.com/apps/htmldoc-review-${REPO_ORG}/installations/new"
 echo ""
-echo "Done. KV id=$KV_ID. Worker callback: $CALLBACK_URL"
-echo "IMPORTANT: open the GitHub App settings and confirm 'User-to-server token expiration'"
-echo "is ON under Optional features -- arctic's silent refresh depends on it."
+echo "Deployed. KV id=$KV_ID. Worker callback: $CALLBACK_URL"
+echo ""
+echo "ONE REQUIRED STEP LEFT -- install the GitHub App on your org/account:"
+echo "  $INSTALL_URL"
+echo "Pick 'All repositories' (or just the ones with docs). Until you install it,"
+echo "every doc returns a neutral 404 -- creating the App does NOT grant repo access."
+echo ""
+echo "Also confirm 'User-to-server token expiration' is ON under the App's Optional"
+echo "features -- arctic's silent refresh depends on it."
