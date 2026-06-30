@@ -1,7 +1,7 @@
 import { getValidAccessToken, deleteSession } from "../core/session";
 import { beginLogin, completeLogin } from "../core/oauth";
 import { fetchDoc, parseDocRequest, InvalidPathError } from "../core/docsource";
-import { neutral } from "../core/responses";
+import { neutral, setupComplete } from "../core/responses";
 import {
   readCookie,
   clearCookieString,
@@ -106,8 +106,22 @@ export default {
       switch (url.pathname) {
         case ROUTES.login:
           return await beginLogin(req, cfg);
-        case ROUTES.callback:
+        case ROUTES.callback: {
+          // Post-install redirect, not a login. With `request_oauth_on_install`
+          // GitHub sends the browser here after the admin installs the App,
+          // carrying `setup_action`/`installation_id` but with NO state cookie
+          // (our /auth/login never ran). That would trip the CSRF guard in
+          // completeLogin and show a scary "Invalid OAuth state" to someone who
+          // did nothing wrong, so intercept it and show a friendly confirmation.
+          // The real login 302 dance runs invisibly the first time they open a doc.
+          if (url.searchParams.has("setup_action")) {
+            log.info("post-install callback", {
+              setup_action: url.searchParams.get("setup_action"),
+            });
+            return setupComplete();
+          }
           return await completeLogin(req, cfg, store);
+        }
         case ROUTES.logout: {
           const sidCookie = readCookie(req, SESSION_COOKIE);
           if (sidCookie) await deleteSession(store, asSessionId(sidCookie));

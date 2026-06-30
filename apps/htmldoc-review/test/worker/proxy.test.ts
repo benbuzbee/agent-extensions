@@ -553,6 +553,27 @@ describe("/auth/callback CSRF state mint+verify+burn", () => {
 });
 
 // ===========================================================================
+// Post-install redirect: with request_oauth_on_install GitHub sends the admin
+// to /auth/callback?setup_action=install&installation_id=... with NO state
+// cookie. That must NOT hit the CSRF guard ("Invalid OAuth state"); it shows a
+// friendly 200 confirmation and exchanges no code.
+// ===========================================================================
+describe("/auth/callback post-install redirect", () => {
+  it("setup_action present + no state -> friendly 200 (not the CSRF 4xx)", async () => {
+    const res = await SELF.fetch(
+      `${ORIGIN}/auth/callback?code=abc&installation_id=143610512&setup_action=install`,
+      { redirect: "manual" },
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toMatch(/text\/html/);
+    const body = await res.text();
+    expect(body).toMatch(/installed/i);
+    expect(body).not.toMatch(/Invalid OAuth state/i);
+    // No token endpoint mock queued -> proves no code exchange was attempted.
+  });
+});
+
+// ===========================================================================
 // Session cookie shape + server-side token storage after a successful callback.
 // ===========================================================================
 describe("session cookie shape + KV storage after callback", () => {
