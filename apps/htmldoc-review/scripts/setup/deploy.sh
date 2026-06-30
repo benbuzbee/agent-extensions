@@ -13,6 +13,7 @@ set -euo pipefail
 # duplicate KV namespace, or rotating STATE_SIGNING_KEY (which would log everyone out).
 #
 # Steps (each guarded):
+#   pre) ensure deps installed + wrangler authenticated (logs in if needed)
 #   0) GitHub App via the manifest flow -> client_id/secret  (skipped if id already set)
 #   1) create KV namespace SESSIONS, wire its id into wrangler.toml (skipped if set)
 #   2) preflight build/config validation (dry-run)
@@ -26,6 +27,30 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$APP_ROOT"
+
+# ---------------------------------------------------------------------------
+# pre) Tooling + auth: make sure wrangler is available and you're logged in,
+# failing fast (and interactively) here rather than partway through a deploy.
+# ---------------------------------------------------------------------------
+# wrangler is a devDependency; on a fresh vendored copy node_modules may be empty,
+# in which case `npx wrangler` would try to fetch it. Install first if missing.
+if [ ! -x node_modules/.bin/wrangler ]; then
+  echo "==> Installing dependencies (wrangler not found in node_modules)..."
+  npm install
+fi
+
+# NB: `wrangler whoami` exits 0 even when logged OUT (it just prints "You are not
+# authenticated"), so we must match its OUTPUT, not its exit code. If logged out,
+# run the interactive browser login (the one step that genuinely needs a human).
+echo "==> Checking Cloudflare auth..."
+if npx wrangler whoami 2>&1 | grep -qi "not authenticated"; then
+  echo "    Not logged in to Cloudflare -- launching 'wrangler login' (opens a browser)..."
+  npx wrangler login
+  if npx wrangler whoami 2>&1 | grep -qi "not authenticated"; then
+    echo "ERROR: still not authenticated after 'wrangler login'."; exit 1
+  fi
+fi
+echo "    Authenticated."
 
 # ---------------------------------------------------------------------------
 # 0) GitHub App manifest flow -> client_id / client_secret (returned ONCE)
