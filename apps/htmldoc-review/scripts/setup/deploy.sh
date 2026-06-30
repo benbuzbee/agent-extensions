@@ -118,7 +118,9 @@ if [[ "$CURRENT_CALLBACK" == *REPLACE_ME* || -z "$CURRENT_CALLBACK" ]]; then
   CALLBACK_URL="${WORKER_URL}/auth/callback"
   echo "==> Discovered Worker URL: $WORKER_URL"
   echo "==> Setting CALLBACK_URL=$CALLBACK_URL"
-  sed -i.bak "s|CALLBACK_URL = \".*\"|CALLBACK_URL = \"$CALLBACK_URL\"|" wrangler.toml && rm -f wrangler.toml.bak
+  # Match only the quoted value ("[^"]*"), NOT greedy ".*" — the line has a comment
+  # that may itself contain quotes, and .* would swallow through them and corrupt it.
+  sed -i.bak "s|^CALLBACK_URL = \"[^\"]*\"|CALLBACK_URL = \"$CALLBACK_URL\"|" wrangler.toml && rm -f wrangler.toml.bak
 else
   CALLBACK_URL="$CURRENT_CALLBACK"
   echo "==> CALLBACK_URL already set ($CALLBACK_URL) -- skipping discovery deploy."
@@ -145,8 +147,10 @@ if [[ "$CURRENT_CLIENT_ID" == REPLACE_ME_* || -z "$CURRENT_CLIENT_ID" ]]; then
   GITHUB_CLIENT_SECRET="$(printf '%s\n' "$APP_OUT" | grep -E '^GITHUB_CLIENT_SECRET=' | head -n1 | cut -d= -f2-)"
   [ -n "$GITHUB_CLIENT_ID" ] || { echo "ERROR: could not parse client_id from create-worker-app.mjs"; exit 1; }
   [ -n "$GITHUB_CLIENT_SECRET" ] || { echo "ERROR: could not parse client_secret from create-worker-app.mjs"; exit 1; }
-  # Wire the (non-secret) client id into wrangler.toml [vars].
-  sed -i.bak "s|GITHUB_CLIENT_ID = \".*\"|GITHUB_CLIENT_ID = \"$GITHUB_CLIENT_ID\"|" wrangler.toml && rm -f wrangler.toml.bak
+  # Wire the (non-secret) client id into wrangler.toml [vars]. Match only the quoted
+  # value ("[^"]*"), NOT greedy ".*": the comment on this line contains quotes and a
+  # greedy match would swallow through them and corrupt the TOML.
+  sed -i.bak "s|^GITHUB_CLIENT_ID = \"[^\"]*\"|GITHUB_CLIENT_ID = \"$GITHUB_CLIENT_ID\"|" wrangler.toml && rm -f wrangler.toml.bak
 else
   echo "==> GitHub App client id already set ($CURRENT_CLIENT_ID) -- skipping manifest flow."
 fi
