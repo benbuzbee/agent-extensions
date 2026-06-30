@@ -19,10 +19,11 @@ set -euo pipefail
 #   npm install
 #   ./scripts/setup/deploy.sh
 #
-# What it copies: the whole app EXCEPT build artifacts, deps, and local secrets
-# (node_modules/, dist/, .dev.vars*, generated types). The app's own .gitignore is
-# copied too, so those stay ignored in your repo. A PROVENANCE.md is written
-# recording the exact upstream commit so updates are a known re-copy.
+# What it copies: the whole app EXCEPT build artifacts, deps, local secrets, and
+# wrangler's local state (node_modules/, dist/, .dev.vars*, generated types,
+# .wrangler/). The app's own .gitignore is copied too, so those stay ignored in
+# your repo. A PROVENANCE.md is written recording the exact upstream commit so
+# updates are a known re-copy.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -57,7 +58,7 @@ echo "==> Vendoring htmldoc-review -> $DEST"
 echo "    from $SRC_REMOTE @ $SRC_SHORT$SRC_DIRTY"
 
 # rsync if available (clean excludes); else fall back to tar with the same excludes.
-EXCLUDES=(node_modules dist .dev.vars .dev.vars.* worker-configuration.d.ts .git)
+EXCLUDES=(node_modules dist .dev.vars .dev.vars.* worker-configuration.d.ts .wrangler .git)
 if command -v rsync >/dev/null 2>&1; then
   RSYNC_ARGS=(-a --delete)
   for e in "${EXCLUDES[@]}"; do RSYNC_ARGS+=(--exclude "$e"); done
