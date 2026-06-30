@@ -15,7 +15,7 @@ set -euo pipefail
 #
 # Then:
 #   cd <dest-dir>
-#   # set DOC_OWNER (+ CALLBACK_URL once you know your workers.dev subdomain) in wrangler.toml
+#   # set REPO_ORG in wrangler.toml (deploy.sh fills CALLBACK_URL after first deploy)
 #   npm install
 #   ./scripts/setup/deploy.sh
 #
@@ -25,7 +25,7 @@ set -euo pipefail
 # your repo. A PROVENANCE.md is written recording the exact upstream commit so
 # updates are a known re-copy.
 #
-# wrangler.toml is special: it is the ONE file you own (DOC_OWNER, CALLBACK_URL,
+# wrangler.toml is special: it is the ONE file you own (REPO_ORG, CALLBACK_URL,
 # and the client id + KV id deploy.sh writes in). On a FIRST vendor we copy the
 # template. On a RE-vendor we never overwrite yours — instead we drop the fresh
 # template beside it as wrangler.toml.upstream (gitignored) so you can diff/merge
@@ -124,9 +124,7 @@ else
   echo ""
   echo "Next:"
   echo "  cd $DEST"
-  echo "  # edit wrangler.toml: set DOC_OWNER (your org/user slug)."
-  echo "  npm install"
-  echo "  ./scripts/setup/deploy.sh        # mints the GitHub App, creates KV, deploys, pushes secrets"
-  echo "  # after the first deploy prints your workers.dev URL, set CALLBACK_URL to"
-  echo "  # https://htmldoc-review.<your-subdomain>.workers.dev/auth/callback and re-run deploy.sh"
+  echo "  # edit wrangler.toml: set REPO_ORG (your org/user slug) -- the only value you set by hand"
+  echo "  ./scripts/setup/deploy.sh   # installs deps, deploys to discover the URL, creates the"
+  echo "                              # GitHub App with that callback, pushes secrets, redeploys"
 fi

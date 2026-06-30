@@ -9,7 +9,7 @@
 // Binding/secret/var names are taken verbatim from the LOCKED spec:
 //   KV binding   SESSIONS  (key `sess:${id}`, value {access_token, refresh_token, expires_at})
 //   session cookie  sid    (HttpOnly; Secure; SameSite=Lax; opaque id only)
-//   vars  DOC_OWNER / GITHUB_CLIENT_ID / CALLBACK_URL  (org-scoped: NO repo/branch)
+//   vars  REPO_ORG / GITHUB_CLIENT_ID / CALLBACK_URL  (org-scoped: NO repo/branch)
 //   routes /auth/login, /auth/callback, /auth/logout, catch-all doc path
 //   doc URL  /{repo}/{...docPath}[?ref=branch|tag|sha]  (repo = first path segment)
 import {
@@ -105,7 +105,7 @@ function mockContents(
     .get("https://api.github.com")
     .intercept({
       method: "GET",
-      path: `/repos/${env.DOC_OWNER}/${repo}/contents/${path}${query}`,
+      path: `/repos/${env.REPO_ORG}/${repo}/contents/${path}${query}`,
     })
     .reply(status, body, { headers: { "content-type": contentType } });
 }

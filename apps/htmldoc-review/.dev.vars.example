@@ -4,4 +4,4 @@
 # these keys into the Env type — only the KEYS matter here, not the values.
 GITHUB_CLIENT_SECRET="local-fake-secret"
 STATE_SIGNING_KEY="local-fake-hmac-key"
-# copy to .dev.vars (gitignored). GITHUB_CLIENT_ID / DOC_* live in wrangler.toml [vars].
+# copy to .dev.vars (gitignored). GITHUB_CLIENT_ID / REPO_ORG live in wrangler.toml [vars].

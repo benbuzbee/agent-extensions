@@ -26,7 +26,7 @@ const ROUTES = {
 
 /**
  * Runtime bindings for this Worker (the composition-root inputs). One Worker
- * serves one GitHub account (org or individual) via `DOC_OWNER`. The repo is
+ * serves one GitHub account (org or individual) via `REPO_ORG`. The repo is
  * the first URL path segment and the doc path is the remainder (e.g.
  * `/app-ios/docs/foo.html`); the optional branch/tag/SHA is the `?ref=` query
  * param.
@@ -36,7 +36,7 @@ const ROUTES = {
  * - `GITHUB_CLIENT_SECRET` GitHub App client secret (via `wrangler secret put`).
  * - `STATE_SIGNING_KEY`  HMAC key for the signed OAuth `state` cookie (secret).
  * - `CALLBACK_URL`       Absolute OAuth callback URL for this deployment.
- * - `DOC_OWNER`          The GitHub org/owner this Worker proxies docs for.
+ * - `REPO_ORG`           The GitHub org/owner this Worker proxies docs for.
  */
 export interface Env {
   SESSIONS: KVNamespace;
@@ -44,7 +44,7 @@ export interface Env {
   GITHUB_CLIENT_SECRET: string;
   STATE_SIGNING_KEY: string;
   CALLBACK_URL: string;
-  DOC_OWNER: string;
+  REPO_ORG: string;
 }
 
 // Composition root: turn Worker bindings into the portable Config the core sees.
@@ -54,7 +54,7 @@ function configOf(env: Env): Config {
     githubClientSecret: env.GITHUB_CLIENT_SECRET,
     callbackUrl: env.CALLBACK_URL,
     stateSigningKey: env.STATE_SIGNING_KEY,
-    repoOrg: env.DOC_OWNER,
+    repoOrg: env.REPO_ORG,
   };
 }
 

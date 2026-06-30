@@ -13,7 +13,7 @@ import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 export default defineConfig({
   plugins: [
     cloudflareTest({
-      // Inherit the SAME bindings the Worker runs with (KV SESSIONS, DOC_OWNER, ...).
+      // Inherit the SAME bindings the Worker runs with (KV SESSIONS, REPO_ORG, ...).
       wrangler: { configPath: "../../wrangler.toml" },
       // isolatedStorage defaults true -> local KV resets between tests automatically.
     }),

@@ -24,7 +24,7 @@ anyone's secret.
 | ↳ portable core (no CF deps) | `apps/htmldoc-review/src/core/` — `oauth.ts`, `session.ts`, `docsource.ts`, `cookies.ts`, `responses.ts`, `config.ts`, `store.ts` |
 | ↳ Cloudflare-specific | `apps/htmldoc-review/src/worker/` — `index.ts` (entry/composition root), `kv-store.ts`, `logging.ts` |
 | ↳ tests | `test/core/` (vanilla vitest, node) + `test/worker/` (vitest-pool-workers + `fetch-mock.ts`) |
-| ↳ setup | `apps/htmldoc-review/scripts/setup/` — `vendor.sh` (copy into an org's infra repo), `deploy.sh` (idempotent per-org deploy), `create-worker-app.mjs`; `app-manifest.json`; `wrangler.toml` |
+| ↳ setup | `apps/htmldoc-review/scripts/setup/` — `vendor.sh` (copy into an org's infra repo), `deploy.sh` (idempotent, deploy-first), `create-worker-app.mjs` (builds the GitHub App manifest inline); `wrangler.toml` |
 | **Manual live checks** | `docs/plans/worker/d1-spikes.md` — the spikes that need a real GitHub App (NOT yet run) |
 | **Workflow scripts (history)** | all under `docs/plans/worker/`: `d1-build-workflow.js` (built D1), `d1-review-fixes-v2.js` (review fixes round 1). `d1-review-fixes-workflow.js` is the superseded v1. |
 

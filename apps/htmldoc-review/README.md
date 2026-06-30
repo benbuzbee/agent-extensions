@@ -2,7 +2,7 @@
 
 A self-hosted, per-org Cloudflare Worker that gates private HTML docs in a GitHub org behind a GitHub App OAuth login. It serves each doc by fetching it from the GitHub Contents API **as the logged-in user**, so GitHub itself is the authorization engine — a file you can't see returns a neutral `404`, indistinguishable from one that doesn't exist.
 
-The owner is fixed per Worker via `DOC_OWNER` and is never in the URL. After login, request a doc at `GET /{repo}/{path}?ref=<branch|tag|sha>`: the first path segment is the repo, the rest is the doc path. Omit `?ref=` for the repo's default branch.
+The owner is fixed per Worker via `REPO_ORG` and is never in the URL. After login, request a doc at `GET /{repo}/{path}?ref=<branch|tag|sha>`: the first path segment is the repo, the rest is the doc path. Omit `?ref=` for the repo's default branch.
 
 ## Setup: vendor, then deploy
 
@@ -24,11 +24,10 @@ This copies the app (excluding `node_modules`/`dist`/secrets) into your repo and
 
 ```sh
 cd ~/infrastructure/htmldocs-app
-# set DOC_OWNER (your org or individual GitHub account slug) in wrangler.toml
-npm install
+# set REPO_ORG (your org or individual GitHub account slug) in wrangler.toml
 ```
 
-The quick start uses the free `*.workers.dev` subdomain — no custom domain or DNS needed. Once you know your subdomain, set `CALLBACK_URL` to `https://htmldoc-review.<your-subdomain>.workers.dev/auth/callback` (deploy once to discover the subdomain, set it, then redeploy).
+`REPO_ORG` is the only value you set by hand. The quick start uses the free `*.workers.dev` subdomain — no custom domain or DNS needed — and `deploy.sh` fills in `GITHUB_CLIENT_ID` and `CALLBACK_URL` for you (it deploys first to discover your workers.dev URL, then bakes that into the GitHub App).
 
 ### 3. Deploy
 
@@ -36,7 +35,7 @@ The quick start uses the free `*.workers.dev` subdomain — no custom domain or 
 ./scripts/setup/deploy.sh
 ```
 
-Idempotent and safe to re-run. It drives the whole install: the GitHub App Manifest flow (mints `client_id`/`secret`), creates the `SESSIONS` KV namespace, a dry-run preflight, the deploy, and pushing secrets. See the script for exact ordering.
+Idempotent and safe to re-run. It installs deps, logs you into Cloudflare if needed, creates the `SESSIONS` KV namespace, deploys to discover your workers.dev URL, runs the GitHub App Manifest flow (a browser opens — click **Create GitHub App**) with that URL as the App's callback, pushes secrets, and redeploys. See the script for exact ordering.
 
 ### 4. Install the App on your org
 
@@ -50,9 +49,20 @@ Browse to `https://htmldoc-review.<your-subdomain>.workers.dev/{repo}/{path}` (o
 
 ### Promote to a custom domain
 
-- Set `workers_dev = false` and uncomment the `[[routes]]` custom-domain block in `wrangler.toml`.
-- Update `CALLBACK_URL` and the GitHub App's callback URL to the custom host.
-- Redeploy.
+The `workers.dev` URL is a fine production path on its own. To move to a custom domain,
+follow this order so login never breaks mid-switch (the GitHub App allows up to 10
+callback URLs, so old and new can coexist during the cutover):
+
+1. **Add the new callback to the GitHub App first.** In the App's settings, add
+   `https://<your-host>/auth/callback` to **Callback URL** and make it the *first* one
+   listed — with `request_oauth_on_install` the install flow always uses the first URL.
+   (There is no API for this; it's a settings-UI edit.) Leave the old workers.dev one
+   for now.
+2. **Point Cloudflare at the host.** In `wrangler.toml` set `workers_dev = false`,
+   uncomment the `[[routes]]` custom-domain block and set your bare host, and update
+   `CALLBACK_URL` to `https://<your-host>/auth/callback`. Redeploy (`./scripts/setup/deploy.sh`).
+3. **Verify** you can log in and load a doc on the custom domain.
+4. **Remove** the old workers.dev callback URL from the GitHub App.
 
 ## Config reference
 
@@ -60,7 +70,7 @@ Do not rename these:
 
 | Kind | Name | Notes |
 | --- | --- | --- |
-| Var | `DOC_OWNER` | GitHub org/owner this Worker is scoped to |
+| Var | `REPO_ORG` | GitHub org/owner this Worker is scoped to |
 | Var | `GITHUB_CLIENT_ID` | GitHub App client id (non-secret; `deploy.sh` fills it) |
 | Var | `CALLBACK_URL` | `https://<your-host>/auth/callback` |
 | Secret | `GITHUB_CLIENT_SECRET` | GitHub App client secret (`wrangler secret put`) |

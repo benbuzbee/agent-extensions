@@ -14,18 +14,17 @@ binding = "SESSIONS"
 id = "REPLACE_WITH_KV_NAMESPACE_ID"   # deploy.sh fills from: wrangler kv namespace create SESSIONS
 
 # Non-secret config ONLY (committed plaintext). Secrets go via `wrangler secret put`.
-# This Worker is scoped to ONE GitHub account (org or individual) via DOC_OWNER. The
+# This Worker is scoped to ONE GitHub account (org or individual) via REPO_ORG. The
 # repo + doc path come from the request URL (/{repo}/{...docPath}) and the optional
-# branch/tag/SHA from ?ref= — so there is intentionally no DOC_REPO / DOC_BRANCH here.
-# These are deliberately invalid placeholders: they parse as TOML but will NOT work
-# until you edit them. Replace each REPLACE_ME_* before deploying for real.
+# branch/tag/SHA from ?ref= — so there is intentionally no REPO / BRANCH var here.
+# Set REPO_ORG before deploying; deploy.sh fills GITHUB_CLIENT_ID and CALLBACK_URL.
 [vars]
-DOC_OWNER = "REPLACE_ME_GITHUB_ORG_SLUG"          # e.g. "my-org"
+REPO_ORG = "REPLACE_ME_GITHUB_ORG_SLUG"          # e.g. "my-org"; set this yourself before deploy
 GITHUB_CLIENT_ID = "REPLACE_ME_GITHUB_APP_CLIENT_ID"  # GitHub App client id is NOT secret (e.g. "Iv1.abc123…"); deploy.sh fills this
-# Your deployment origin + /auth/callback. On the workers.dev quick start this is
-# https://htmldoc-review.<your-subdomain>.workers.dev/auth/callback — deploy once to
-# learn your subdomain, set it here, then redeploy. Must match the GitHub App callback.
-CALLBACK_URL = "https://REPLACE_ME_DOMAIN/auth/callback"
+# Your deployment origin + /auth/callback. deploy.sh fills this after the first deploy
+# (workers.dev URL). MUST exactly match a Callback URL registered on the GitHub App —
+# GitHub rejects login otherwise. On a domain change, update BOTH this and the App.
+CALLBACK_URL = "https://REPLACE_ME_DOMAIN/auth/callback"  # deploy.sh fills this
 
 # Custom domain (the production path; NOT needed for the workers.dev quick start).
 # Uncomment + set this AND flip workers_dev=false above to promote. Bare host, NO /*

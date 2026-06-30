@@ -1,45 +1,48 @@
 #!/usr/bin/env node
 // Helper for the GitHub App Manifest flow: creates the org's GitHub App, captures
 // the credentials GitHub returns, and wires them into the Worker setup (printed to
-// stdout for deploy.sh to capture). Run by deploy.sh.
+// stdout for deploy.sh to capture). Run by deploy.sh AFTER the first deploy, so the
+// Worker's real callback URL is known and can be baked into the App at creation.
 //
 // What it does (within GitHub's 1-hour, single-use code window):
-//   1) Read ORG (and optional account type); mint a random CSRF `state` nonce.
-//      Render the manifest from app-manifest.json with the ORG placeholder substituted.
+//   1) Read --org and --callback-url; mint a random CSRF `state` nonce. Build the
+//      App manifest object inline (no static template file): it carries two URLs
+//      that are easy to confuse, so they're set explicitly and cross-referenced:
+//        - redirect_url : SETUP-ONLY. Where GitHub sends the one-time ?code= right
+//                         after creation. We point it at THIS script's own localhost
+//                         server (known only once it's listening -> built in listen()).
+//                         It has no runtime role and is irrelevant once the App exists.
+//        - callback_urls: RUNTIME OAuth login callback. MUST equal CALLBACK_URL in
+//                         wrangler.toml (the Worker builds its redirect from that, and
+//                         GitHub rejects login unless it matches a registered URL).
 //   2) Start an ephemeral localhost http server with two endpoints:
-//        GET /                     -> an HTML page with an auto-submitting <form method=post>
-//                                     whose action is GitHub's "new app from manifest" URL
-//                                     (?state=NONCE) and which carries a single hidden field
-//                                     literally named `manifest` = JSON.stringify(manifest).
+//        GET /                     -> an auto-submitting <form method=post> to GitHub's
+//                                     "new app from manifest" URL (?state=NONCE) carrying
+//                                     a single hidden field named `manifest`.
 //        GET /manifest/callback?code=&state=
-//                                  -> verify state === NONCE, then immediately
-//                                     POST https://api.github.com/app-manifests/{code}/conversions
-//                                     (Accept: application/vnd.github+json,
-//                                      X-GitHub-Api-Version pinned, NO auth).
-//                                     On 201 extract ONLY client_id + client_secret
-//                                     (id/pem/webhook_secret are discarded -- unused in D1).
-//   3) Print client_id + client_secret to stdout for deploy.sh to capture. These are
-//      returned exactly ONCE by GitHub and cannot be re-fetched.
+//                                  -> verify state === NONCE, then POST
+//                                     https://api.github.com/app-manifests/{code}/conversions
+//                                     (Accept: application/vnd.github+json, version pinned,
+//                                     NO auth). On 201 keep ONLY client_id + client_secret
+//                                     (id/pem/webhook_secret discarded -- unused in D1).
+//   3) Print client_id + client_secret to stdout for deploy.sh to capture. Returned
+//      exactly ONCE by GitHub and cannot be re-fetched.
 //
 // Usage (paths relative to apps/htmldoc-review):
-//   node scripts/setup/create-worker-app.mjs --org my-org             # GitHub organization
-//   node scripts/setup/create-worker-app.mjs --org my-user --personal # personal account
-// Env overrides: ORG, ACCOUNT_TYPE=org|personal, PORT, MANIFEST_FILE, NO_OPEN=1
+//   node scripts/setup/create-worker-app.mjs --org my-org --callback-url https://x.workers.dev/auth/callback
+//   node scripts/setup/create-worker-app.mjs --org my-user --personal --callback-url ...
+// Env overrides: ORG, ACCOUNT_TYPE=org|personal, PORT, NO_OPEN=1
 
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
 import open from "open";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function parseArgs(argv) {
   const out = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--org") out.org = argv[++i];
+    else if (a === "--callback-url") out.callbackUrl = argv[++i];
     else if (a === "--personal") out.personal = true;
     else if (a === "--port") out.port = Number(argv[++i]);
   }
@@ -48,30 +51,18 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2));
 const ORG = args.org ?? process.env.ORG;
+const CALLBACK_URL = args.callbackUrl ?? process.env.CALLBACK_URL;
 const PERSONAL = args.personal || process.env.ACCOUNT_TYPE === "personal";
 const PORT = args.port ?? Number(process.env.PORT ?? 0); // 0 -> OS-assigned free port
-// This script lives in scripts/setup/; app-manifest.json lives at the app root
-// (two levels up). Resolve the default relative to the app root, not __dirname.
-const APP_ROOT = resolve(__dirname, "..", "..");
-const MANIFEST_FILE = process.env.MANIFEST_FILE
-  ? resolve(process.env.MANIFEST_FILE)
-  : resolve(APP_ROOT, "app-manifest.json");
 
 if (!ORG) {
   console.error("error: missing ORG. Use --org <name> (or set ORG env).");
   process.exit(2);
 }
-
-// 1) Load + render the manifest template (substitute the ORG placeholder everywhere).
-const template = await readFile(MANIFEST_FILE, "utf8");
-const manifest = (() => {
-  try {
-    return JSON.parse(template.replaceAll("ORG", ORG));
-  } catch (e) {
-    console.error(`error: ${MANIFEST_FILE} is not valid JSON after ORG substitution: ${e.message}`);
-    process.exit(1);
-  }
-})();
+if (!CALLBACK_URL) {
+  console.error("error: missing --callback-url (the Worker's /auth/callback URL).");
+  process.exit(2);
+}
 
 const nonce = randomUUID();
 
@@ -79,6 +70,26 @@ const nonce = randomUUID();
 const newAppUrl = PERSONAL
   ? `https://github.com/settings/apps/new?state=${encodeURIComponent(nonce)}`
   : `https://github.com/organizations/${encodeURIComponent(ORG)}/settings/apps/new?state=${encodeURIComponent(nonce)}`;
+
+// Build the App manifest. `redirect_url` is filled in once the server is listening
+// (it must point at our own localhost port); everything else is known now.
+//   public:false                  -> single-org App, not listed.
+//   request_oauth_on_install:true -> install + user-authorize happen together.
+//   default_permissions.contents:read -> the only scope we need to fetch docs.
+//   callback_urls                 -> RUNTIME OAuth callback; MUST match CALLBACK_URL
+//                                    in wrangler.toml (kept in lockstep by deploy.sh).
+const callbackOrigin = new URL(CALLBACK_URL).origin;
+function buildManifest(redirectUrl) {
+  return {
+    name: `htmldoc-review-${ORG}`,
+    url: callbackOrigin,
+    redirect_url: redirectUrl,
+    callback_urls: [CALLBACK_URL],
+    public: false,
+    request_oauth_on_install: true,
+    default_permissions: { contents: "read" },
+  };
+}
 
 function escapeHtmlAttr(s) {
   return s
@@ -89,7 +100,8 @@ function escapeHtmlAttr(s) {
 }
 
 // The form field MUST be named exactly `manifest`; value is JSON.stringify(manifest).
-const formPage = `<!doctype html>
+function buildFormPage(manifest) {
+  return `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Create GitHub App: ${escapeHtmlAttr(ORG)}</title></head>
 <body>
@@ -102,12 +114,17 @@ const formPage = `<!doctype html>
   <script>document.getElementById("f").submit();</script>
 </body>
 </html>`;
+}
 
 function callbackPage(message) {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Done</title></head>
 <body><p>${escapeHtmlAttr(message)}</p><p>You can close this tab and return to the terminal.</p></body></html>`;
 }
+
+// The form page embeds the manifest, whose redirect_url needs the listening port,
+// so it's built in listen() (below) and stored here for the "/" route to serve.
+let formPage = "";
 
 let settled = false;
 function closeAndExit(server, code) {
@@ -226,11 +243,13 @@ server.listen(PORT, "127.0.0.1", async () => {
   const addr = server.address();
   const localUrl = `http://127.0.0.1:${addr.port}/`;
 
-  // NOTE: the manifest's redirect_url is https://docs.ORG.dev/manifest/callback.
-  // For this local flow GitHub redirects there; the admin must be able to reach the
-  // callback locally. Easiest: temporarily point the manifest redirect_url at this
-  // localhost during setup, OR run this on the box that serves docs.ORG.dev. We print
-  // the local URL so the admin can drive the browser flow.
+  // Now that we know our own port, point the manifest's SETUP-ONLY redirect_url at
+  // this localhost server's /manifest/callback so GitHub hands the one-time ?code=
+  // back to us. (This is unrelated to the App's runtime callback_urls, which point at
+  // the deployed Worker.) Build the form page that embeds the finished manifest.
+  const redirectUrl = `${localUrl}manifest/callback`; // localUrl ends in "/"
+  formPage = buildFormPage(buildManifest(redirectUrl));
+
   console.error(`create-app: open ${localUrl} in your browser to create the GitHub App for "${ORG}".`);
   console.error(`create-app: GitHub will redirect to ${PERSONAL ? "your personal account's" : "the org's"} new-app page, then back to /manifest/callback.`);
 
