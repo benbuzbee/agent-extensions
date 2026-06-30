@@ -73,8 +73,16 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 2) preflight: bundle + config validation, no upload, no creds needed
+# 2) preflight: generate types, then bundle + config validation (no upload/creds)
 # ---------------------------------------------------------------------------
+# `wrangler types` reads .dev.vars to emit the secret keys into the Env type, so
+# .dev.vars must exist BEFORE typegen or tsc/tests fail on a missing Env field.
+# These are FAKE local values (real secrets are pushed in step 4); see
+# .dev.vars.example. On a fresh vendored copy .dev.vars won't exist yet.
+[ -f .dev.vars ] || { [ -f .dev.vars.example ] && cp .dev.vars.example .dev.vars; }
+echo "==> Generating Worker types (wrangler types)..."
+npx wrangler types
+
 echo "==> Preflight (dry-run) build/config check..."
 npx wrangler deploy --dry-run --outdir dist
 

@@ -70,7 +70,8 @@ Do not rename these:
 ## Running tests
 
 ```sh
-cp .dev.vars.example .dev.vars   # one-time: fake local secrets
+cp .dev.vars.example .dev.vars   # one-time: fake local secrets (must exist before typegen)
+npm run cf-typegen                # generate worker-configuration.d.ts (reads .dev.vars for Env)
 npm test                          # full proxy + auth suite
 npm run typecheck                 # tsc --noEmit
 ```

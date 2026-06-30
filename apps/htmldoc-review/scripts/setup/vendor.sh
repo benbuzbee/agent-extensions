@@ -65,9 +65,11 @@ echo "    from $SRC_REMOTE @ $SRC_SHORT$SRC_DIRTY"
 
 # wrangler.toml is operator-owned, so it's excluded from the bulk copy and handled
 # separately below — rsync --delete must never touch it.
+# Exclude the operator's real local secrets (.dev.vars) but KEEP the committed
+# .dev.vars.example template — deploy.sh seeds .dev.vars from it on a fresh copy.
 # wrangler.toml (operator-owned) and wrangler.toml.upstream (the re-vendor baseline)
 # are both handled below and must survive rsync --delete, so exclude them here.
-EXCLUDES=(node_modules dist .dev.vars .dev.vars.* worker-configuration.d.ts .wrangler wrangler.toml wrangler.toml.upstream .git)
+EXCLUDES=(node_modules dist .dev.vars worker-configuration.d.ts .wrangler wrangler.toml wrangler.toml.upstream .git)
 if command -v rsync >/dev/null 2>&1; then
   RSYNC_ARGS=(-a --delete)
   for e in "${EXCLUDES[@]}"; do RSYNC_ARGS+=(--exclude "$e"); done
