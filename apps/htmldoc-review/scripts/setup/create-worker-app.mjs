@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// Minimal helper for the GitHub App Manifest flow (run by setup.sh).
+// Helper for the GitHub App Manifest flow: creates the org's GitHub App, captures
+// the credentials GitHub returns, and wires them into the Worker setup (printed to
+// stdout for setup.sh to capture). Run by setup.sh.
 //
 // What it does (within GitHub's 1-hour, single-use code window):
 //   1) Read ORG (and optional account type); mint a random CSRF `state` nonce.
@@ -209,17 +211,27 @@ server.listen(PORT, "127.0.0.1", () => {
   console.error(`create-app: open ${localUrl} in your browser to create the GitHub App for "${ORG}".`);
   console.error(`create-app: GitHub will redirect to ${PERSONAL ? "your personal account's" : "the org's"} new-app page, then back to /manifest/callback.`);
 
-  if (!process.env.NO_OPEN) {
+  if (process.env.NO_OPEN) {
+    // Auto-open suppressed: make sure a human/agent driving this can see exactly
+    // what to do, since nothing will pop up on its own.
+    console.error(`create-app: NO_OPEN set -- not launching a browser. Open this URL manually to continue:`);
+    console.error(`create-app:   ${localUrl}`);
+  } else {
     const opener =
       process.platform === "darwin" ? "open" :
       process.platform === "win32" ? "cmd" : "xdg-open";
     const openerArgs = process.platform === "win32" ? ["/c", "start", "", localUrl] : [localUrl];
     try {
       const child = spawn(opener, openerArgs, { stdio: "ignore", detached: true });
-      child.on("error", () => { /* no browser available; admin uses the printed URL */ });
+      child.on("error", () => {
+        // No browser available; the admin must open the URL printed above manually.
+        console.error(`create-app: could not launch a browser automatically. Open this URL manually:`);
+        console.error(`create-app:   ${localUrl}`);
+      });
       child.unref();
     } catch {
-      /* ignore: admin can open the URL manually */
+      console.error(`create-app: could not launch a browser automatically. Open this URL manually:`);
+      console.error(`create-app:   ${localUrl}`);
     }
   }
 });

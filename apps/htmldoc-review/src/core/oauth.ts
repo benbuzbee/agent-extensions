@@ -2,11 +2,25 @@ import * as arctic from "arctic";
 import type { Config } from "./config";
 import type { SessionStore } from "./store";
 import { createSession } from "./session";
-import { readCookie, SESSION_COOKIE, STATE_COOKIE } from "./cookies";
+import {
+  readCookie,
+  serializeCookie,
+  clearCookieString,
+  SESSION_COOKIE,
+  STATE_COOKIE,
+  STATE_COOKIE_PATH,
+} from "./cookies";
 import { getLogger } from "@logtape/logtape";
 
 const log = getLogger(["htmldoc-review", "oauth"]);
 
+// The signed-state cookie lives only long enough to ride out the round-trip to
+// GitHub and back (10 min); the session cookie lasts up to the refresh-token
+// horizon (~6 months) so a returning browser stays logged in.
+const STATE_COOKIE_MAX_AGE = 600;
+const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 180;
+
+/** Construct the arctic GitHub client from portable config (no Worker types). */
 function gh(cfg: Config): arctic.GitHub {
   return new arctic.GitHub(
     cfg.githubClientId,
@@ -15,13 +29,19 @@ function gh(cfg: Config): arctic.GitHub {
   );
 }
 
-function b64url(bytes: Uint8Array): string {
+// The four primitives below (b64url, hmac, timingSafeEqual, clearStateCookieString)
+// are exported only so the core unit suite can exercise them in isolation; they
+// are implementation details of the OAuth flow and not part of any public API.
+
+/** URL-safe base64 (RFC 4648 §5) with padding stripped — used for HMAC sigs. */
+export function b64url(bytes: Uint8Array): string {
   let s = "";
   for (const b of bytes) s += String.fromCharCode(b);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-async function hmac(key: string, msg: string): Promise<string> {
+/** HMAC-SHA256(key, msg) as URL-safe base64 — signs the OAuth state nonce. */
+export async function hmac(key: string, msg: string): Promise<string> {
   const enc = new TextEncoder();
   const k = await crypto.subtle.importKey(
     "raw",
@@ -34,27 +54,43 @@ async function hmac(key: string, msg: string): Promise<string> {
   return b64url(new Uint8Array(sig));
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
+/** Constant-time string compare so HMAC verification can't be timing-probed. */
+export function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
 }
 
-function burnState(): string {
-  return `${STATE_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/auth; Max-Age=0`;
+/** `Set-Cookie` value that deletes the state cookie (used on both reject and success). */
+export function clearStateCookieString(): string {
+  return clearCookieString(STATE_COOKIE, STATE_COOKIE_PATH);
 }
 
-function rejectAndBurn(status: number, body: string): Response {
-  // Single choke point for all OAuth callback rejections (bad/missing state,
-  // signature mismatch, authorization failed). `body` is a fixed, non-sensitive
-  // reason string -- it carries no token/code/secret.
+// Single choke point for every OAuth callback rejection (bad/missing state,
+// signature mismatch, authorization failed). It logs and clears the now-spent
+// state cookie. Called from four distinct guard arms below, so it earns its
+// keep over inlining the log+clear+Response triple at each site. `body` is a
+// fixed, non-sensitive reason string — it carries no token/code/secret.
+function rejectAndClearState(status: number, body: string): Response {
   log.error("OAuth callback rejected", { status, reason: body });
   const headers = new Headers({ "Content-Type": "text/plain; charset=utf-8" });
-  headers.append("Set-Cookie", burnState());
+  headers.append("Set-Cookie", clearStateCookieString());
   return new Response(body, { status, headers });
 }
 
+/**
+ * Start the GitHub OAuth login: mint a CSRF state and redirect to GitHub.
+ *
+ * We mint a random `nonce`, HMAC-sign it, and stash `nonce.sig` in a short-lived
+ * HttpOnly state cookie. The same `nonce` (optionally with the caller's
+ * `?return=` path appended as `nonce:return`) rides along as the OAuth `state`
+ * param. On callback we recompute the HMAC over the cookie's nonce and require
+ * it to match the cookie's signature AND the returned state — a forged callback
+ * can't produce a valid signature without the server-side signing key, which
+ * defeats login-CSRF. The cookie is the trust anchor; the URL `state` is only a
+ * carrier. The `return` path is sanitized in `completeLogin`, not trusted here.
+ */
 export async function beginLogin(req: Request, cfg: Config): Promise<Response> {
   const url = new URL(req.url);
   log.info("login begun");
@@ -64,20 +100,32 @@ export async function beginLogin(req: Request, cfg: Config): Promise<Response> {
 
   const ret = url.searchParams.get("return");
   if (ret) {
-    authUrl.searchParams.set(
-      "state",
-      `${nonce}:${encodeURIComponent(ret)}`
-    );
+    authUrl.searchParams.set("state", `${nonce}:${encodeURIComponent(ret)}`);
   }
 
   const headers = new Headers({ Location: authUrl.toString() });
   headers.append(
     "Set-Cookie",
-    `${STATE_COOKIE}=${nonce}.${sig}; HttpOnly; Secure; SameSite=Lax; Path=/auth; Max-Age=600`
+    serializeCookie(STATE_COOKIE, `${nonce}.${sig}`, {
+      path: STATE_COOKIE_PATH,
+      maxAge: STATE_COOKIE_MAX_AGE,
+    })
   );
   return new Response(null, { status: 302, headers });
 }
 
+/**
+ * Complete the GitHub OAuth login: verify CSRF state, exchange the code, and
+ * mint a server-side session.
+ *
+ * Verification mirrors `beginLogin`: the state cookie (`nonce.sig`) is the
+ * trust anchor. We require the cookie's signature to be a valid HMAC over its
+ * own nonce AND that nonce to equal the nonce echoed back in the URL `state`.
+ * Any mismatch, missing piece, or failed code exchange routes through
+ * `rejectAndClearState` (4xx + clear cookie). On success we persist the tokens
+ * server-side (only an opaque session id reaches the browser), redirect to the
+ * sanitized return path, and clear the spent state cookie.
+ */
 export async function completeLogin(
   req: Request,
   cfg: Config,
@@ -89,7 +137,7 @@ export async function completeLogin(
   const cookie = readCookie(req, STATE_COOKIE);
 
   if (!code || !stateParam || !cookie) {
-    return rejectAndBurn(400, "Invalid OAuth state");
+    return rejectAndClearState(400, "Invalid OAuth state");
   }
 
   const colon = stateParam.indexOf(":");
@@ -98,13 +146,13 @@ export async function completeLogin(
     colon === -1 ? "/" : decodeURIComponent(stateParam.slice(colon + 1));
 
   const dot = cookie.indexOf(".");
-  if (dot === -1) return rejectAndBurn(400, "Invalid OAuth state");
+  if (dot === -1) return rejectAndClearState(400, "Invalid OAuth state");
   const nonce = cookie.slice(0, dot);
   const sig = cookie.slice(dot + 1);
   const expected = await hmac(cfg.stateSigningKey, nonce);
 
   if (stateNonce !== nonce || !timingSafeEqual(expected, sig)) {
-    return rejectAndBurn(400, "Invalid OAuth state");
+    return rejectAndClearState(400, "Invalid OAuth state");
   }
 
   let tokens: arctic.OAuth2Tokens;
@@ -121,7 +169,7 @@ export async function completeLogin(
       e instanceof arctic.UnexpectedResponseError ||
       e instanceof arctic.UnexpectedErrorResponseBodyError
     ) {
-      return rejectAndBurn(400, "Authorization failed");
+      return rejectAndClearState(400, "Authorization failed");
     }
     throw e;
   }
@@ -151,12 +199,20 @@ export async function completeLogin(
   const headers = new Headers({ Location: dest.toString() });
   headers.append(
     "Set-Cookie",
-    `${SESSION_COOKIE}=${sid}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${60 * 60 * 24 * 180}`
+    serializeCookie(SESSION_COOKIE, sid, {
+      path: "/",
+      maxAge: SESSION_COOKIE_MAX_AGE,
+    })
   );
-  headers.append("Set-Cookie", burnState());
+  headers.append("Set-Cookie", clearStateCookieString());
   return new Response(null, { status: 302, headers });
 }
 
+/**
+ * Exchange a refresh token for a fresh `OAuth2Tokens` via GitHub. Thin wrapper
+ * over arctic's `GitHub.refreshAccessToken`; the session layer owns persistence,
+ * the dead-grant decision, and the refresh-race retry (see `session.ts`).
+ */
 export function refresh(
   cfg: Config,
   refreshToken: string

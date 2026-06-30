@@ -13,14 +13,19 @@ id = "REPLACE_WITH_KV_NAMESPACE_ID"   # setup.sh fills from: wrangler kv namespa
 # This Worker is scoped to ONE GitHub org via DOC_OWNER. The repo + doc path come
 # from the request URL (/{repo}/{...docPath}) and the optional branch/tag/SHA from
 # ?ref= — so there is intentionally no DOC_REPO / DOC_BRANCH here.
+# These are deliberately invalid placeholders: they parse as TOML but will NOT
+# work until you edit them. Replace each REPLACE_ME_* before deploying for real.
 [vars]
-DOC_OWNER = "my-org"
-GITHUB_CLIENT_ID = "Iv1.REPLACE"                 # GitHub App client id is NOT secret
-CALLBACK_URL = "https://docs.my-org.dev/auth/callback"
+DOC_OWNER = "REPLACE_ME_GITHUB_ORG_SLUG"          # e.g. "my-org"
+GITHUB_CLIENT_ID = "REPLACE_ME_GITHUB_APP_CLIENT_ID"  # GitHub App client id is NOT secret (e.g. "Iv1.abc123…")
+CALLBACK_URL = "https://REPLACE_ME_DOMAIN/auth/callback"  # e.g. "https://htmldocs.mydomain.ai/auth/callback"
 
 # Custom domain (Cloudflare provisions DNS + TLS). Bare host, NO /* with custom_domain.
+# The pattern below is an invalid placeholder host (the ".invalid" TLD is reserved by
+# RFC 2606 and can never resolve) so a deploy can't silently grab a real domain.
+# Replace with your real bare host, e.g. "htmldocs.mydomain.ai".
 [[routes]]
-pattern = "docs.my-org.dev"
+pattern = "REPLACE-ME-DOMAIN.invalid"
 custom_domain = true
 
 # DO NOT ADD: compatibility_flags/nodejs_compat (arctic+fetch are Workers-native),

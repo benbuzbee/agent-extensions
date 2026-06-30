@@ -1,8 +1,8 @@
 {
-  "name": "htmldoc-review-ORG",
-  "url": "https://docs.ORG.dev",
-  "redirect_url": "https://docs.ORG.dev/manifest/callback",
-  "callback_urls": ["https://docs.ORG.dev/auth/callback"],
+  "name": "htmldoc-review-{{REPLACE_WITH_ORG_SLUG_e.g._my-org}}",
+  "url": "https://{{REPLACE_WITH_DOMAIN_e.g._htmldocs.mydomain.ai}}",
+  "redirect_url": "https://{{REPLACE_WITH_DOMAIN_e.g._htmldocs.mydomain.ai}}/manifest/callback",
+  "callback_urls": ["https://{{REPLACE_WITH_DOMAIN_e.g._htmldocs.mydomain.ai}}/auth/callback"],
   "public": false,
   "request_oauth_on_install": true,
   "default_permissions": { "contents": "read" }

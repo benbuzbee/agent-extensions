@@ -1,37 +1,13 @@
 # htmldoc-review (Deliverable 1: proxy + auth)
 
 A self-hosted, **per-org** Cloudflare Worker that gates access to private HTML docs
-in a GitHub repo behind a GitHub **App** user-to-server OAuth login, then proxies the
-requested doc from the GitHub Contents API **as that logged-in user**.
+in any repo of a GitHub org behind a GitHub **App** user-to-server OAuth login, then
+proxies the requested doc from the GitHub Contents API **as that logged-in user**.
 
 Each org creates its **own** GitHub App (via the App Manifest flow) and runs its **own**
 Worker. We ship a manifest template + a wrangler-based setup script. **We never hold
 anyone's client secret** — it is minted into your Cloudflare account during setup and
 stored only as a Worker secret.
-
-## What this deliverable is (and is NOT)
-
-**In scope (D1):**
-
-1. **Login** — viewer signs in through a GitHub App user-to-server OAuth flow. The
-   access/refresh tokens are stored **server-side** in Workers KV, keyed by an opaque
-   session id. The browser cookie holds **only** the session id (`HttpOnly; Secure;
-   SameSite=Lax`); the GitHub token never reaches the browser.
-2. **Proxy** — fetch the requested doc from the GitHub Contents API as that user
-   (`GET /repos/{owner}/{repo}/contents/{path}?ref={branch}`, owner from `DOC_OWNER`).
-   `200` -> serve the raw HTML. `404`/`403` -> a single **neutral** "not found or no
-   access" `404` (we deliberately do **not** distinguish "missing" from "forbidden").
-
-**Explicitly OUT of scope (these are Deliverable 2):**
-
-- review-UI injection
-- HTMLRewriter
-- comment store
-- Durable Objects
-- D1 / SQL
-
-Session storage is **Workers KV with native per-key TTL** — that is the entire cleanup
-story. No Durable Object, no alarm, no cron, no D1.
 
 ## The locked contract
 
@@ -42,9 +18,7 @@ Every install uses **exactly** these names. Do not rename them.
 | KV binding | `SESSIONS` | `sess:<id>` -> `{ access_token, refresh_token, expires_at }` |
 | Secret | `GITHUB_CLIENT_SECRET` | GitHub App client secret |
 | Secret | `STATE_SIGNING_KEY` | HMAC key for the signed OAuth `state` nonce |
-| Var | `DOC_OWNER` | repo owner (NOT in the URL) |
-| Var | `DOC_REPO` | repo name |
-| Var | `DOC_BRANCH` | branch / `ref` |
+| Var | `DOC_OWNER` | GitHub org/owner this Worker is scoped to (NOT in the URL) |
 | Var | `GITHUB_CLIENT_ID` | GitHub App client id (non-secret) |
 | Var | `CALLBACK_URL` | `https://<your-host>/auth/callback` |
 
@@ -58,10 +32,12 @@ secrets go in via `wrangler secret put` and are never committed.
 | `GET /auth/login` | Mint signed `state`, set short-lived `oauth_state` cookie, redirect to GitHub authorize URL. |
 | `GET /auth/callback?code=&state=` | Verify-and-burn the `state` cookie via HMAC, exchange the code, create the KV session, set the `HttpOnly/Secure/SameSite=Lax` session cookie, redirect back to the original path (or `/`). |
 | `GET /auth/logout` | Delete the KV session and clear the cookie. |
-| `GET /:path*` (catch-all doc route) | Require a session (else `302` to `/auth/login` with a return-to). Get a valid access token (silent-refresh if the access token expired). Fetch the Contents API as the user. `200` -> raw HTML; `404`/`403` -> neutral `404`. |
+| `GET /{repo}/{path}?ref=<branch\|tag\|sha>` (catch-all doc route) | Require a session (else `302` to `/auth/login` with a return-to). Get a valid access token (silent-refresh if the access token expired). Fetch the Contents API as the user. `200` -> raw HTML; `404`/`403` -> neutral `404`. |
 
-The **owner is never in the URL** (it comes from `DOC_OWNER`). Repo and branch also
-come from config (`DOC_REPO` / `DOC_BRANCH`); the URL path is the doc `{path}`.
+The **owner is never in the URL** — it is fixed per Worker by `DOC_OWNER`. The first
+URL segment is the `{repo}` (any repo in that org is addressable; the viewer's own
+GitHub access is the gate), and the remainder is the doc `{path}`. The optional
+`?ref=` selects a branch/tag/SHA; omit it and GitHub serves the repo's default branch.
 
 ### Two-tier token expiry
 
@@ -98,9 +74,7 @@ Edit `[vars]` and the custom-domain `[[routes]]` for your org:
 
 ```toml
 [vars]
-DOC_OWNER   = "my-org"
-DOC_REPO    = "private-docs"
-DOC_BRANCH  = "main"
+DOC_OWNER   = "my-org"                            # the org/owner this Worker is scoped to
 GITHUB_CLIENT_ID = "Iv1.REPLACE"                  # filled by setup after the manifest flow
 CALLBACK_URL = "https://docs.my-org.dev/auth/callback"
 
@@ -114,27 +88,17 @@ The `id` under `[[kv_namespaces]]` is left as `REPLACE_WITH_KV_NAMESPACE_ID`;
 
 ### 2. Create the GitHub App via the App Manifest flow
 
-You do **not** click through GitHub's App UI by hand — `scripts/setup/setup.sh` runs the
-manifest flow for you (`scripts/setup/create-worker-app.mjs`):
-
-1. It generates a CSRF `state` nonce and renders `app-manifest.json` with your org
-   substituted, then opens an auto-submitting form that POSTs the manifest to
-   `https://github.com/organizations/<ORG>/settings/apps/new?state=<nonce>`
-   (or `https://github.com/settings/apps/new` for a personal account).
-2. GitHub redirects back to `/manifest/callback?code=&state=`. The helper verifies the
-   state and **immediately** (within GitHub's 1-hour, single-use window) POSTs
-   `https://api.github.com/app-manifests/<code>/conversions`.
-3. On `201` it extracts **only** `client_id` and `client_secret` (the App's `id`, pem,
-   and webhook secret are discarded — unused in D1, and returned only once).
-
-The App is created with `contents: read` permission only, `public: false`,
-`request_oauth_on_install: true`, and `callback_urls: [<origin>/auth/callback]`.
+You do **not** click through GitHub's App UI by hand — `scripts/setup/setup.sh`
+(via `scripts/setup/create-worker-app.mjs`) drives the GitHub App Manifest flow for
+you and captures just the `client_id` / `client_secret` it returns. The resulting App
+has `contents: read` permission only, `public: false`, `request_oauth_on_install: true`,
+and `callback_urls: [<origin>/auth/callback]`.
 
 ### 3. Install the App on your org
 
-After the App is created, **install it** on your org (or the specific repo named by
-`DOC_REPO`) from its GitHub App page. Because `request_oauth_on_install` is on, install
-and OAuth authorization happen together.
+After the App is created, **install it** on your org (all repos, or a selected subset)
+from its GitHub App page. Because `request_oauth_on_install` is on, install and OAuth
+authorization happen together.
 
 > **Confirm "User-to-server token expiration" is ON** under the App's *Optional
 > features*. There is no manifest key for this; it is on by default for new apps, but
@@ -147,37 +111,22 @@ and OAuth authorization happen together.
 ./scripts/setup/setup.sh
 ```
 
-It performs, in order:
-
-1. **Create-app** — the manifest flow above, capturing `GITHUB_CLIENT_ID` /
-   `GITHUB_CLIENT_SECRET`.
-2. **Create the KV namespace** — `npx wrangler kv namespace create SESSIONS`, parse the
-   32-hex id from stdout, and `sed` it into the `[[kv_namespaces]]` id placeholder in
-   `wrangler.toml` (stable wrangler does not auto-edit config).
-3. **Preflight** — `npx wrangler deploy --dry-run --outdir dist` (bundle + config
-   validation; does not validate secrets or the live KV id).
-4. **First deploy** — `npx wrangler deploy` (creates the live Worker + KV binding; this
-   must exist before secrets can be put).
-5. **Secrets** — pipe each value via stdin (`printf %s` to avoid a trailing newline):
-
-   ```sh
-   printf %s "$GITHUB_CLIENT_SECRET" | npx wrangler secret put GITHUB_CLIENT_SECRET
-   printf %s "$(openssl rand -base64 32)" | npx wrangler secret put STATE_SIGNING_KEY
-   ```
-
-   Each `secret put` redeploys a new version, which is why they run **after** the first
-   deploy.
+This drives the whole install end to end: it runs the App Manifest flow, creates the
+`SESSIONS` KV namespace and writes its id into `wrangler.toml`, does a `--dry-run`
+preflight, deploys the Worker, and finally pushes the two secrets
+(`GITHUB_CLIENT_SECRET` and a freshly generated `STATE_SIGNING_KEY`). See the script
+itself for the exact ordering and the reasons behind it.
 
 ### 5. Use it
 
-Browse to `https://<your-host>/<path-to-doc>.html` (e.g.
-`https://docs.my-org.dev/guide.html`).
+Browse to `https://<your-host>/{repo}/{path}` (e.g.
+`https://docs.my-org.dev/handbook/guide.html`), optionally adding `?ref=<branch|tag|sha>`
+to pin a non-default branch.
 
-- No session -> you are redirected to `/auth/login`, through GitHub, and back to the
-  doc you asked for.
-- The Worker fetches that doc from `DOC_REPO@DOC_BRANCH` **as you**. If GitHub returns
-  the file, you see the raw HTML. If you lack access (or it does not exist), you get a
-  neutral "Not found or no access" page — the two cases are indistinguishable.
+- The Worker fetches `{path}` from `{repo}` in `DOC_OWNER` (at `?ref=`, else the repo's
+  default branch) **as you**. If GitHub returns the file, you see the raw HTML. If you
+  lack access (or it does not exist), you get a neutral "Not found or no access" page —
+  the two cases are indistinguishable.
 
 ## Running tests locally
 
