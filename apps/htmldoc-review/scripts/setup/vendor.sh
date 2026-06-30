@@ -24,6 +24,12 @@ set -euo pipefail
 # .wrangler/). The app's own .gitignore is copied too, so those stay ignored in
 # your repo. A PROVENANCE.md is written recording the exact upstream commit so
 # updates are a known re-copy.
+#
+# wrangler.toml is special: it is the ONE file you own (DOC_OWNER, CALLBACK_URL,
+# and the client id + KV id deploy.sh writes in). On a FIRST vendor we copy the
+# template. On a RE-vendor we never overwrite yours — instead we drop the fresh
+# template beside it as wrangler.toml.upstream (gitignored) so you can diff/merge
+# any template changes by hand.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -57,8 +63,11 @@ fi
 echo "==> Vendoring htmldoc-review -> $DEST"
 echo "    from $SRC_REMOTE @ $SRC_SHORT$SRC_DIRTY"
 
-# rsync if available (clean excludes); else fall back to tar with the same excludes.
-EXCLUDES=(node_modules dist .dev.vars .dev.vars.* worker-configuration.d.ts .wrangler .git)
+# wrangler.toml is operator-owned, so it's excluded from the bulk copy and handled
+# separately below — rsync --delete must never touch it.
+# wrangler.toml (operator-owned) and wrangler.toml.upstream (the re-vendor baseline)
+# are both handled below and must survive rsync --delete, so exclude them here.
+EXCLUDES=(node_modules dist .dev.vars .dev.vars.* worker-configuration.d.ts .wrangler wrangler.toml wrangler.toml.upstream .git)
 if command -v rsync >/dev/null 2>&1; then
   RSYNC_ARGS=(-a --delete)
   for e in "${EXCLUDES[@]}"; do RSYNC_ARGS+=(--exclude "$e"); done
@@ -67,6 +76,22 @@ else
   TAR_ARGS=()
   for e in "${EXCLUDES[@]}"; do TAR_ARGS+=(--exclude "$e"); done
   ( cd "$APP_ROOT" && tar cf - "${TAR_ARGS[@]}" . ) | ( cd "$DEST" && tar xf - )
+fi
+
+# wrangler.toml: first vendor copies the template. On re-vendor we never overwrite
+# yours; instead we keep the latest template beside it as wrangler.toml.upstream
+# (gitignored) so you can diff/merge. The sidecar doubles as the baseline of "last
+# template you saw", so we only nag when the template actually CHANGED since the
+# last re-vendor (new template != existing sidecar) rather than on every run.
+REVENDORED=""
+SIDECAR="$DEST/wrangler.toml.upstream"
+if [ -f "$DEST/wrangler.toml" ]; then
+  if [ ! -f "$SIDECAR" ] || ! cmp -s "$APP_ROOT/wrangler.toml" "$SIDECAR"; then
+    cp "$APP_ROOT/wrangler.toml" "$SIDECAR"
+    REVENDORED=1
+  fi
+else
+  cp "$APP_ROOT/wrangler.toml" "$DEST/wrangler.toml"
 fi
 
 # Stamp provenance.
@@ -83,17 +108,23 @@ Local edits here (wrangler.toml config, etc.) are expected and intentional.
 ## Updating
 
 To pull a newer version of the template, re-run \`vendor.sh <this-dir>\` from a fresh
-checkout of the upstream repo at the desired commit. It copies code only — your
-wrangler.toml values, secrets (Worker-side), and KV namespace are untouched by a
-redeploy. Review the diff before deploying.
+checkout of the upstream repo at the desired commit. Your \`wrangler.toml\` is never
+overwritten; if the template's changed, the new one lands as \`wrangler.toml.upstream\`
+for you to diff/merge by hand. Secrets (Worker-side) and the KV namespace are
+untouched. Review the diff before deploying.
 EOF
 
 echo "==> Wrote $DEST/PROVENANCE.md"
-echo ""
-echo "Next:"
-echo "  cd $DEST"
-echo "  # edit wrangler.toml: set DOC_OWNER (your org/user slug)."
-echo "  npm install"
-echo "  ./scripts/setup/deploy.sh        # mints the GitHub App, creates KV, deploys, pushes secrets"
-echo "  # after the first deploy prints your workers.dev URL, set CALLBACK_URL to"
-echo "  # https://htmldoc-review.<your-subdomain>.workers.dev/auth/callback and re-run deploy.sh"
+if [ -n "$REVENDORED" ]; then
+  echo ""
+  echo "Re-vendored; you may need to merge any changes in wrangler.toml.upstream with your wrangler.toml manually."
+else
+  echo ""
+  echo "Next:"
+  echo "  cd $DEST"
+  echo "  # edit wrangler.toml: set DOC_OWNER (your org/user slug)."
+  echo "  npm install"
+  echo "  ./scripts/setup/deploy.sh        # mints the GitHub App, creates KV, deploys, pushes secrets"
+  echo "  # after the first deploy prints your workers.dev URL, set CALLBACK_URL to"
+  echo "  # https://htmldoc-review.<your-subdomain>.workers.dev/auth/callback and re-run deploy.sh"
+fi
