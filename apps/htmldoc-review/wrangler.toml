@@ -1,0 +1,37 @@
+name = "htmldoc-review"
+main = "src/worker/index.ts"
+compatibility_date = "2025-06-01"
+# Quick start: deploy to the free *.workers.dev subdomain (no DNS / domain needed).
+# Your Worker is served at https://htmldoc-review.<your-subdomain>.workers.dev.
+# To promote to a custom domain later, flip this to false and uncomment the
+# [[routes]] block below (see the README "Promote to a custom domain" section).
+workers_dev = true
+
+# Server-side session store: { session_id -> {access_token, refresh_token, expires_at} }.
+# Native per-key TTL via put(key,val,{expirationTtl}) is the ENTIRE cleanup story. No DO/D1/cron.
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"   # deploy.sh fills from: wrangler kv namespace create SESSIONS
+
+# Non-secret config ONLY (committed plaintext). Secrets go via `wrangler secret put`.
+# This Worker is scoped to ONE GitHub account (org or individual) via REPO_ORG. The
+# repo + doc path come from the request URL (/{repo}/{...docPath}) and the optional
+# branch/tag/SHA from ?ref= — so there is intentionally no REPO / BRANCH var here.
+# Set REPO_ORG before deploying; deploy.sh fills GITHUB_CLIENT_ID and CALLBACK_URL.
+[vars]
+REPO_ORG = "REPLACE_ME_GITHUB_ORG_SLUG"          # e.g. "my-org"; set this yourself before deploy
+GITHUB_CLIENT_ID = "REPLACE_ME_GITHUB_APP_CLIENT_ID"  # GitHub App client id is NOT secret (e.g. "Iv1.abc123…"); deploy.sh fills this
+# Your deployment origin + /auth/callback. deploy.sh fills this after the first deploy
+# (workers.dev URL). MUST exactly match a Callback URL registered on the GitHub App —
+# GitHub rejects login otherwise. On a domain change, update BOTH this and the App.
+CALLBACK_URL = "https://REPLACE_ME_DOMAIN/auth/callback"  # deploy.sh fills this
+
+# Custom domain (the production path; NOT needed for the workers.dev quick start).
+# Uncomment + set this AND flip workers_dev=false above to promote. Bare host, NO /*
+# with custom_domain. Cloudflare provisions DNS + TLS. e.g. "htmldocs.mydomain.ai".
+# [[routes]]
+# pattern = "htmldocs.mydomain.ai"
+# custom_domain = true
+
+# DO NOT ADD: compatibility_flags/nodejs_compat (arctic+fetch are Workers-native),
+# [[d1_databases]], [durable_objects], [site], usage_model, type, webpack_config.
