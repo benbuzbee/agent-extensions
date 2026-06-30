@@ -9,53 +9,39 @@ Worker. We ship a manifest template + a wrangler-based setup script. **We never 
 anyone's client secret** — it is minted into your Cloudflare account during setup and
 stored only as a Worker secret.
 
-## The locked contract
+## What it does
 
-Every install uses **exactly** these names. Do not rename them.
+This Worker implements GitHub App user-to-server OAuth login, then serves docs by
+fetching them **as the logged-in user** from `GET /{repo}/{path}?ref=<branch|tag|sha>`.
+The org owner is fixed per Worker (`DOC_OWNER`) and is never in the URL; the first URL
+segment is the `{repo}` and the rest is the doc `{path}`. Omit `?ref=` and GitHub serves
+the repo's default branch. A request with no valid session is bounced through login;
+files the viewer can't see (or that don't exist) return a neutral `404` so the two cases
+are indistinguishable.
+
+### Config (env + bindings)
+
+Every install uses **exactly** these names — do not rename them.
 
 | Kind | Name | Notes |
 | --- | --- | --- |
-| KV binding | `SESSIONS` | `sess:<id>` -> `{ access_token, refresh_token, expires_at }` |
-| Secret | `GITHUB_CLIENT_SECRET` | GitHub App client secret |
-| Secret | `STATE_SIGNING_KEY` | HMAC key for the signed OAuth `state` nonce |
 | Var | `DOC_OWNER` | GitHub org/owner this Worker is scoped to (NOT in the URL) |
-| Var | `GITHUB_CLIENT_ID` | GitHub App client id (non-secret) |
+| Var | `GITHUB_CLIENT_ID` | GitHub App client id (non-secret `[vars]`, committed plaintext) |
 | Var | `CALLBACK_URL` | `https://<your-host>/auth/callback` |
-
-`GITHUB_CLIENT_ID` is a non-secret `[vars]` value (committed plaintext). The two
-secrets go in via `wrangler secret put` and are never committed.
-
-### Routes
-
-| Route | Behavior |
-| --- | --- |
-| `GET /auth/login` | Mint signed `state`, set short-lived `oauth_state` cookie, redirect to GitHub authorize URL. |
-| `GET /auth/callback?code=&state=` | Verify-and-burn the `state` cookie via HMAC, exchange the code, create the KV session, set the `HttpOnly/Secure/SameSite=Lax` session cookie, redirect back to the original path (or `/`). |
-| `GET /auth/logout` | Delete the KV session and clear the cookie. |
-| `GET /{repo}/{path}?ref=<branch\|tag\|sha>` (catch-all doc route) | Require a session (else `302` to `/auth/login` with a return-to). Get a valid access token (silent-refresh if the access token expired). Fetch the Contents API as the user. `200` -> raw HTML; `404`/`403` -> neutral `404`. |
-
-The **owner is never in the URL** — it is fixed per Worker by `DOC_OWNER`. The first
-URL segment is the `{repo}` (any repo in that org is addressable; the viewer's own
-GitHub access is the gate), and the remainder is the doc `{path}`. The optional
-`?ref=` selects a branch/tag/SHA; omit it and GitHub serves the repo's default branch.
-
-### Two-tier token expiry
-
-- **Tier 1 — access token expired (8h):** silently refresh using the ~6-month refresh
-  token, write the new tokens back to KV (GitHub **rotates** the refresh token, so the
-  new one is persisted), and continue the request. The browser never notices.
-- **Tier 2 — refresh token expired/revoked:** only then bounce the viewer through a
-  full GitHub re-login (`302` to `/auth/login`).
-
-The refresh decision is driven by the `expires_at` stored **inside** the KV value, not
-by the KV TTL. The KV `expirationTtl` is set to the **refresh-token horizon** (~6
-months), so the row never vanishes before silent refresh can run.
+| Secret | `GITHUB_CLIENT_SECRET` | GitHub App client secret (via `wrangler secret put`) |
+| Secret | `STATE_SIGNING_KEY` | HMAC key for the signed OAuth `state` nonce (via `wrangler secret put`) |
+| KV binding | `SESSIONS` | server-side session store, native per-key TTL |
 
 ## Self-hosted setup walkthrough
 
-> Prerequisites: Node 18+, a Cloudflare account with `wrangler` access, a custom domain
-> on Cloudflare for this Worker, and admin rights to create a GitHub App in your org.
-> `openssl` is used to generate the HMAC signing key.
+> Prerequisites: Node 18+, a Cloudflare account with `wrangler` access, and admin rights
+> to create a GitHub App in your org. `openssl` is used to generate the HMAC signing key.
+> **No custom domain or DNS is required for the quick start** — you deploy to the free
+> `*.workers.dev` subdomain first and can promote to a custom domain later.
+
+The quick start deploys to your free `*.workers.dev` subdomain. Your Worker URL will be
+`https://htmldoc-review.<your-subdomain>.workers.dev`, and both `CALLBACK_URL` and the
+GitHub App's callback URL use that same `workers.dev` origin.
 
 ### 0. Install deps
 
@@ -70,34 +56,27 @@ npm install
 
 ### 1. Fill in your config in `wrangler.toml`
 
-Edit `[vars]` and the custom-domain `[[routes]]` for your org:
+Set `DOC_OWNER` to your org slug. Leave `GITHUB_CLIENT_ID` and the KV namespace `id` as
+their placeholders — the setup script fills both. Set `CALLBACK_URL` to your
+`workers.dev` origin once you know your subdomain (it is
+`https://htmldoc-review.<your-subdomain>.workers.dev/auth/callback`); you can deploy
+once to discover the subdomain, then set this and redeploy.
 
-```toml
-[vars]
-DOC_OWNER   = "my-org"                            # the org/owner this Worker is scoped to
-GITHUB_CLIENT_ID = "Iv1.REPLACE"                  # filled by setup after the manifest flow
-CALLBACK_URL = "https://docs.my-org.dev/auth/callback"
+### 2. Run the setup script
 
-[[routes]]
-pattern = "docs.my-org.dev"
-custom_domain = true
+```sh
+./scripts/setup/setup.sh
 ```
 
-The `id` under `[[kv_namespaces]]` is left as `REPLACE_WITH_KV_NAMESPACE_ID`;
-`scripts/setup/setup.sh` fills it.
-
-### 2. Create the GitHub App via the App Manifest flow
-
-You do **not** click through GitHub's App UI by hand — `scripts/setup/setup.sh`
-(via `scripts/setup/create-worker-app.mjs`) drives the GitHub App Manifest flow for
-you and captures just the `client_id` / `client_secret` it returns. The resulting App
-has `contents: read` permission only, `public: false`, `request_oauth_on_install: true`,
-and `callback_urls: [<origin>/auth/callback]`.
+This drives the whole install end to end: the App Manifest flow (which mints the
+`client_id`/`client_secret` and registers the callback URL), the `SESSIONS` KV
+namespace, a `--dry-run` preflight, the first deploy, and pushing the two secrets. See
+the script itself for the exact ordering and the reasons behind it.
 
 ### 3. Install the App on your org
 
 After the App is created, **install it** on your org (all repos, or a selected subset)
-from its GitHub App page. Because `request_oauth_on_install` is on, install and OAuth
+from its GitHub App page. Because the App requests OAuth on install, install and OAuth
 authorization happen together.
 
 > **Confirm "User-to-server token expiration" is ON** under the App's *Optional
@@ -105,28 +84,24 @@ authorization happen together.
 > the silent-refresh logic depends on it. If it is off, refresh tokens are never issued
 > and viewers will be forced to re-login every 8 hours.
 
-### 4. Run the setup script
+### 4. Use it
 
-```sh
-./scripts/setup/setup.sh
-```
+Browse to `https://htmldoc-review.<your-subdomain>.workers.dev/{repo}/{path}` (e.g.
+`.../handbook/guide.html`), optionally adding `?ref=<branch|tag|sha>` to pin a
+non-default branch. The Worker fetches `{path}` from `{repo}` in `DOC_OWNER` **as you**:
+if GitHub returns the file you see the raw HTML; otherwise you get a neutral "Not found
+or no access" page.
 
-This drives the whole install end to end: it runs the App Manifest flow, creates the
-`SESSIONS` KV namespace and writes its id into `wrangler.toml`, does a `--dry-run`
-preflight, deploys the Worker, and finally pushes the two secrets
-(`GITHUB_CLIENT_SECRET` and a freshly generated `STATE_SIGNING_KEY`). See the script
-itself for the exact ordering and the reasons behind it.
+### Promote to a custom domain
 
-### 5. Use it
+The `workers.dev` URL is a fine production path on its own. To move to a custom domain:
 
-Browse to `https://<your-host>/{repo}/{path}` (e.g.
-`https://docs.my-org.dev/handbook/guide.html`), optionally adding `?ref=<branch|tag|sha>`
-to pin a non-default branch.
-
-- The Worker fetches `{path}` from `{repo}` in `DOC_OWNER` (at `?ref=`, else the repo's
-  default branch) **as you**. If GitHub returns the file, you see the raw HTML. If you
-  lack access (or it does not exist), you get a neutral "Not found or no access" page —
-  the two cases are indistinguishable.
+1. Onboard the domain to Cloudflare (add the zone; point its nameservers at Cloudflare).
+2. Add the domain to the Worker as a custom domain / route (Cloudflare provisions DNS +
+   TLS). In `wrangler.toml` this is a bare-host `[[routes]]` entry with
+   `custom_domain = true`.
+3. Update `CALLBACK_URL` to `https://<your-host>/auth/callback` **and** update the
+   GitHub App's callback URL to match, then redeploy.
 
 ## Running tests locally
 
@@ -152,10 +127,7 @@ GitHub and any unused mock fails loudly.
 > `arctic` runs on `workerd` with Fetch + Web Crypto only — **do not** add
 > `nodejs_compat` to `wrangler.toml`.
 
-## Manual / pre-ship checks
-
-Some things cannot be verified by the unattended test suite (e.g. a live GitHub
-intersection returning a real `200`/`404`, and confirming GitHub actually returns `404`
-rather than `403` for no-access). See
-[d1-spikes.md](../../docs/plans/d1-spikes.md) for the manual checklist to run before
-relying on this in production.
+For manual / pre-ship checks that the unattended suite can't cover, see
+[d1-spikes.md](../../docs/plans/worker/d1-spikes.md).
+</content>
+</invoke>

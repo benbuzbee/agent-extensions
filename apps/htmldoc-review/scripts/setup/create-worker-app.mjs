@@ -15,7 +15,7 @@
 //                                  -> verify state === NONCE, then immediately
 //                                     POST https://api.github.com/app-manifests/{code}/conversions
 //                                     (Accept: application/vnd.github+json,
-//                                      X-GitHub-Api-Version: 2022-11-28, NO auth).
+//                                      X-GitHub-Api-Version pinned, NO auth).
 //                                     On 201 extract ONLY client_id + client_secret
 //                                     (id/pem/webhook_secret are discarded -- unused in D1).
 //   3) Print client_id + client_secret to stdout for setup.sh to capture. These are
@@ -29,9 +29,9 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import open from "open";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -64,13 +64,14 @@ if (!ORG) {
 
 // 1) Load + render the manifest template (substitute the ORG placeholder everywhere).
 const template = await readFile(MANIFEST_FILE, "utf8");
-let manifest;
-try {
-  manifest = JSON.parse(template.replaceAll("ORG", ORG));
-} catch (e) {
-  console.error(`error: ${MANIFEST_FILE} is not valid JSON after ORG substitution: ${e.message}`);
-  process.exit(1);
-}
+const manifest = (() => {
+  try {
+    return JSON.parse(template.replaceAll("ORG", ORG));
+  } catch (e) {
+    console.error(`error: ${MANIFEST_FILE} is not valid JSON after ORG substitution: ${e.message}`);
+    process.exit(1);
+  }
+})();
 
 const nonce = randomUUID();
 
@@ -109,12 +110,20 @@ function callbackPage(message) {
 }
 
 let settled = false;
-function finish(server, code) {
+function closeAndExit(server, code) {
   if (settled) return;
   settled = true;
   server.close(() => process.exit(code));
 }
 
+// Why a hand-rolled node:http server (and not an OAuth-callback library): the GitHub
+// App MANIFEST flow is not standard OAuth. Its final step POSTs the temporary code to
+// /app-manifests/{code}/conversions and gets back an app *config* (client_id/secret),
+// not an OAuth token. OAuth-callback libs don't model that, so adopting one would still
+// leave the conversion POST and the manifest-form route hand-written. ~60 lines of
+// node:http with no extra deps is the right call. The server also exists because the
+// Manifest flow needs a redirect target to catch GitHub's ?code= callback (see the
+// listen() call below for the full rationale).
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
 
@@ -133,14 +142,14 @@ const server = createServer(async (req, res) => {
       res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
       res.end(callbackPage("State mismatch -- aborting (possible CSRF). No app created."));
       console.error("error: state mismatch on /manifest/callback");
-      finish(server, 1);
+      closeAndExit(server, 1);
       return;
     }
     if (!code) {
       res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
       res.end(callbackPage("Missing ?code from GitHub -- aborting."));
       console.error("error: missing code on /manifest/callback");
-      finish(server, 1);
+      closeAndExit(server, 1);
       return;
     }
 
@@ -152,7 +161,13 @@ const server = createServer(async (req, res) => {
           method: "POST",
           headers: {
             Accept: "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
+            // GitHub's REST API uses dated versions as stable identifiers (not a
+            // "keep bumping" treadmill). We pin one so a future breaking version can't
+            // silently change this call's behavior; 2026-03-10's breaking changes are
+            // disjoint from /app-manifests/{code}/conversions (client_id/client_secret
+            // are untouched). See:
+            // https://docs.github.com/en/rest/about-the-rest-api/api-versions
+            "X-GitHub-Api-Version": "2026-03-10",
             "User-Agent": "htmldoc-review-setup",
           },
         },
@@ -163,7 +178,7 @@ const server = createServer(async (req, res) => {
         res.writeHead(502, { "Content-Type": "text/html; charset=utf-8" });
         res.end(callbackPage(`GitHub conversion failed (HTTP ${conv.status}).`));
         console.error(`error: /conversions returned ${conv.status}: ${text}`);
-        finish(server, 1);
+        closeAndExit(server, 1);
         return;
       }
 
@@ -175,22 +190,25 @@ const server = createServer(async (req, res) => {
         res.writeHead(502, { "Content-Type": "text/html; charset=utf-8" });
         res.end(callbackPage("Conversion succeeded but client_id/client_secret missing."));
         console.error("error: conversion response missing client_id/client_secret");
-        finish(server, 1);
+        closeAndExit(server, 1);
         return;
       }
 
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       res.end(callbackPage("GitHub App created. Credentials captured in the terminal."));
 
-      // Print for setup.sh to capture. These are returned ONCE and are unrecoverable.
+      // stdout carries ONLY the machine-readable credentials for setup.sh to capture;
+      // every human/status message goes to stderr (console.error) so the two streams
+      // never mix and setup.sh can parse stdout cleanly. These values are returned ONCE
+      // by GitHub and are unrecoverable.
       process.stdout.write(`GITHUB_CLIENT_ID=${clientId}\n`);
       process.stdout.write(`GITHUB_CLIENT_SECRET=${clientSecret}\n`);
-      finish(server, 0);
+      closeAndExit(server, 0);
     } catch (e) {
       res.writeHead(502, { "Content-Type": "text/html; charset=utf-8" });
       res.end(callbackPage("Network error talking to GitHub."));
       console.error(`error: conversion request failed: ${e?.message ?? e}`);
-      finish(server, 1);
+      closeAndExit(server, 1);
     }
     return;
   }
@@ -199,7 +217,12 @@ const server = createServer(async (req, res) => {
   res.end("Not found");
 });
 
-server.listen(PORT, "127.0.0.1", () => {
+// Why a local http server exists at all: the GitHub App Manifest flow needs a redirect
+// target to catch GitHub's ?code= callback after the admin submits the manifest form.
+// Setup therefore spins up a throwaway localhost server purely to receive that callback.
+// This script may be driven by an agent/admin rather than a human at a browser, so the
+// server (plus the URLs we print to stderr) lets either drive the flow end to end.
+server.listen(PORT, "127.0.0.1", async () => {
   const addr = server.address();
   const localUrl = `http://127.0.0.1:${addr.port}/`;
 
@@ -217,19 +240,13 @@ server.listen(PORT, "127.0.0.1", () => {
     console.error(`create-app: NO_OPEN set -- not launching a browser. Open this URL manually to continue:`);
     console.error(`create-app:   ${localUrl}`);
   } else {
-    const opener =
-      process.platform === "darwin" ? "open" :
-      process.platform === "win32" ? "cmd" : "xdg-open";
-    const openerArgs = process.platform === "win32" ? ["/c", "start", "", localUrl] : [localUrl];
+    // The 'open' package handles the cross-platform cases a hand-rolled
+    // process.platform switch gets wrong: WSL (open the Windows browser, not Linux
+    // xdg-open), Windows arg-escaping, and Flatpak/Snap xdg-open.
     try {
-      const child = spawn(opener, openerArgs, { stdio: "ignore", detached: true });
-      child.on("error", () => {
-        // No browser available; the admin must open the URL printed above manually.
-        console.error(`create-app: could not launch a browser automatically. Open this URL manually:`);
-        console.error(`create-app:   ${localUrl}`);
-      });
-      child.unref();
+      await open(localUrl);
     } catch {
+      // No browser available; the admin must open the URL printed above manually.
       console.error(`create-app: could not launch a browser automatically. Open this URL manually:`);
       console.error(`create-app:   ${localUrl}`);
     }

@@ -20,10 +20,10 @@ export class InvalidPathError extends Error {
  * Split the request pathname into `{ repo, docPath }`.
  *
  * The first non-empty path segment is the repo; the remainder is the
- * repo-relative doc path. One Worker is scoped to one org (`cfg.docOwner`), so
- * ANY repo in that org is addressable by name — the viewer's own GitHub access
- * is the gate. Example: `/app-ios/docs/foo.html` -> repo `app-ios`, docPath
- * `docs/foo.html`.
+ * repo-relative doc path. One Worker serves one account (`cfg.repoOrg`), so any
+ * repo under that account is addressable by name — the viewer's own GitHub
+ * access is the gate. Example: `/app-ios/docs/foo.html` -> repo `app-ios`,
+ * docPath `docs/foo.html`.
  *
  * @throws {InvalidPathError} if there is no repo segment or no doc path.
  */
@@ -31,6 +31,8 @@ export function parseDocRequest(pathname: string): {
   repo: string;
   docPath: string;
 } {
+  // A request path always starts with "/"; strip the leading slash(es) so the
+  // first real path segment (the repo) lands at index 0.
   const trimmed = pathname.replace(/^\/+/, "");
   const slash = trimmed.indexOf("/");
   if (slash === -1) {
@@ -48,7 +50,7 @@ export function parseDocRequest(pathname: string): {
 /**
  * Treat `repo` and `path` as opaque, attacker-controlled strings. Reject
  * traversal / empty / absolute segments, then percent-encode each segment so
- * that `?`, `#`, `&`, and `..` can never escape the DOC_OWNER/repo confinement
+ * that `?`, `#`, `&`, and `..` can never escape the repoOrg/repo confinement
  * or inject query parameters (e.g. override `ref`).
  *
  * @throws {InvalidPathError} if any segment is empty, `.`, or `..`.
@@ -66,9 +68,9 @@ function safeSegments(value: string): string {
 /**
  * Proxy a single doc from the org's repo via the GitHub Contents API.
  *
- * The `repo` and `path` come from the request URL (see `parseDocRequest`), NOT
- * from env — this Worker is org-scoped, not repo-scoped. `ref` is the optional
- * branch/tag/SHA from the request's `?ref=` query param:
+ * The `repo` and `path` come from the request URL (see `parseDocRequest`); the
+ * owning account is `cfg.repoOrg`. `ref` is the optional branch/tag/SHA from
+ * the request's `?ref=` query param:
  *   - present  -> sent as `?ref=<percent-encoded>` so slashed branches like
  *                 `feature/a/b` survive (GitHub's own param name + encoding).
  *   - absent   -> NO `ref` param is sent; GitHub then serves the repo's default
@@ -87,7 +89,7 @@ export async function fetchDoc(
   const safeRepo = safeSegments(repo);
   const safePath = safeSegments(path);
 
-  let url = `https://api.github.com/repos/${cfg.docOwner}/${safeRepo}/contents/${safePath}`;
+  let url = `https://api.github.com/repos/${cfg.repoOrg}/${safeRepo}/contents/${safePath}`;
   if (ref !== undefined && ref !== "") {
     // Percent-encode the whole ref so slashed branches (feature/a/b) work.
     url += `?ref=${encodeURIComponent(ref)}`;

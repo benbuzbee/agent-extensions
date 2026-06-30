@@ -1,3 +1,9 @@
+// The GitHub App user-to-server OAuth flow: begin a login (mint a signed CSRF
+// state + redirect to GitHub), complete the callback (verify state, exchange
+// the code, mint a server-side session), and refresh an access token. Portable
+// by construction — it depends only on a plain Config and the SessionStore seam
+// and uses Web-standard crypto/fetch, so it pulls in no Cloudflare types and
+// runs unchanged anywhere those globals exist.
 import * as arctic from "arctic";
 import type { Config } from "./config";
 import type { SessionStore } from "./store";

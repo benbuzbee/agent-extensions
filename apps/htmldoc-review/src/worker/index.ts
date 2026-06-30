@@ -8,6 +8,7 @@ import {
   CookieParseError,
   SESSION_COOKIE,
 } from "../core/cookies";
+import { asSessionId, type SessionId } from "../core/store";
 import type { Config } from "../core/config";
 import { getLogger } from "@logtape/logtape";
 import { KvSessionStore } from "./kv-store";
@@ -24,12 +25,11 @@ const ROUTES = {
 } as const;
 
 /**
- * Runtime bindings for this Worker (the composition-root inputs). One Worker is
- * scoped to exactly one GitHub org via `DOC_OWNER`; it is NOT scoped to a single
- * repo or branch. The repo is the first URL path segment and the doc path is the
- * remainder (e.g. `/app-ios/docs/foo.html`); the optional branch/tag/SHA is the
- * `?ref=` query param. So there is deliberately no `DOC_REPO` / `DOC_BRANCH`
- * here — adding them back would re-scope the Worker to a single repo.
+ * Runtime bindings for this Worker (the composition-root inputs). One Worker
+ * serves one GitHub account (org or individual) via `DOC_OWNER`. The repo is
+ * the first URL path segment and the doc path is the remainder (e.g.
+ * `/app-ios/docs/foo.html`); the optional branch/tag/SHA is the `?ref=` query
+ * param.
  *
  * - `SESSIONS`           KV namespace: `sess:<id>` -> {access_token, refresh_token, expires_at}.
  * - `GITHUB_CLIENT_ID`   GitHub App client id (public, not a secret).
@@ -54,7 +54,7 @@ function configOf(env: Env): Config {
     githubClientSecret: env.GITHUB_CLIENT_SECRET,
     callbackUrl: env.CALLBACK_URL,
     stateSigningKey: env.STATE_SIGNING_KEY,
-    docOwner: env.DOC_OWNER,
+    repoOrg: env.DOC_OWNER,
   };
 }
 
@@ -74,7 +74,7 @@ async function serveDoc(
   cfg: Config,
   store: KvSessionStore,
   url: URL,
-  sid: string | null,
+  sid: SessionId | null,
   token: string,
   repo: string,
   docPath: string,
@@ -86,7 +86,7 @@ async function serveDoc(
     if (!fresh) return loginRedirect(url);
     res = await fetchDoc(cfg, fresh, repo, docPath, ref);
   }
-  const repoFqn = `${cfg.docOwner}/${repo}`;
+  const repoFqn = `${cfg.repoOrg}/${repo}`;
   if (res.status === 200) {
     log.info("doc served", { path: docPath, repo: repoFqn, ref: ref ?? "(default)" });
   } else {
@@ -109,8 +109,8 @@ export default {
         case ROUTES.callback:
           return await completeLogin(req, cfg, store);
         case ROUTES.logout: {
-          const sid = readCookie(req, SESSION_COOKIE);
-          if (sid) await deleteSession(store, sid);
+          const sidCookie = readCookie(req, SESSION_COOKIE);
+          if (sidCookie) await deleteSession(store, asSessionId(sidCookie));
           const headers = new Headers({
             Location: new URL("/", url.origin).toString(),
           });
@@ -122,7 +122,10 @@ export default {
       // Doc request. No valid session -> redirect to login (never reveals
       // whether the doc exists).
       const sid = readCookie(req, SESSION_COOKIE);
-      const token = sid ? await getValidAccessToken(cfg, store, sid) : null;
+      const sessionId = sid ? asSessionId(sid) : null;
+      const token = sessionId
+        ? await getValidAccessToken(cfg, store, sessionId)
+        : null;
       if (!token) return loginRedirect(url);
 
       // Repo = first path segment, doc path = remainder; branch/tag/SHA = ?ref=.
@@ -147,7 +150,7 @@ export default {
       // decoded value to fetchDoc, which re-encodes it for the Contents API.
       const ref = url.searchParams.get("ref") ?? undefined;
 
-      return await serveDoc(cfg, store, url, sid, token, repo, docPath, ref);
+      return await serveDoc(cfg, store, url, sessionId, token, repo, docPath, ref);
     } catch (err) {
       // A safeSegments InvalidPathError raised from inside fetchDoc launders to
       // the same neutral 404 as a parse-time one.

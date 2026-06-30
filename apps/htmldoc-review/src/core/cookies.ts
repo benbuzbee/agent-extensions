@@ -44,12 +44,13 @@ export class CookieParseError extends Error {
 export function readCookie(req: Request, name: string): string | null {
   const header = req.headers.get("Cookie");
   if (!header) return null;
-  let jar: Record<string, string | undefined>;
-  try {
-    jar = parseCookie(header);
-  } catch (cause) {
-    throw new CookieParseError("could not parse Cookie header", { cause });
-  }
+  const jar = ((): Record<string, string | undefined> => {
+    try {
+      return parseCookie(header);
+    } catch (cause) {
+      throw new CookieParseError("could not parse Cookie header", { cause });
+    }
+  })();
   return jar[name] ?? null;
 }
 
