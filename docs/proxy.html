@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>htmldoc-review — the proxy layer (Deliverable 1)</title>
+<style>
+  :root {
+    --bg: #fdfdfc;
+    --fg: #1a1a1a;
+    --muted: #6a6a6a;
+    --accent: #2a5d9f;
+    --border: #d8d8d4;
+    --code-bg: #f3f3ef;
+    --aside-bg: #f7f3e9;
+    --aside-border: #d9c98a;
+    --risk-bg: #fbeee6;
+    --risk-border: #d99a6b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --fg: #e6e6e6;
+      --muted: #9aa0a6;
+      --accent: #7fb1ff;
+      --border: #2a2e36;
+      --code-bg: #161a21;
+      --aside-bg: #1d1a10;
+      --aside-border: #5a4a16;
+      --risk-bg: #2a1a12;
+      --risk-border: #8a4a20;
+    }
+  }
+  html { color-scheme: light dark; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 860px;
+    margin: 2rem auto;
+    padding: 0 1.25rem;
+  }
+  h1, h2, h3 { line-height: 1.25; }
+  h1 { font-size: 1.65rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  h3 { font-size: 1.02rem; margin: 1.25rem 0 .35rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  p.meta { color: var(--muted); font-size: .88rem; margin: .25rem 0 1rem; }
+  nav.toc { border: 1px solid var(--border); border-radius: 6px; padding: .5rem .9rem; margin: 1rem 0 1.5rem; background: var(--code-bg); }
+  nav.toc ol { margin: .25rem 0; padding-left: 1.25rem; }
+  nav.toc li { margin: .1rem 0; }
+  article { margin: 1.5rem 0; }
+  section { margin: .9rem 0; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: .65rem .8rem;
+    overflow-x: auto;
+    font-size: .87rem;
+  }
+  code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+  :not(pre) > code { background: var(--code-bg); padding: .05rem .3rem; border-radius: 3px; }
+  table { border-collapse: collapse; margin: .5rem 0; font-size: .92rem; width: 100%; }
+  th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.k { white-space: nowrap; font-weight: 600; }
+  aside {
+    background: var(--aside-bg);
+    border-left: 3px solid var(--aside-border);
+    padding: .55rem .85rem;
+    margin: 1.5rem 0;
+    border-radius: 0 4px 4px 0;
+  }
+  aside.risk {
+    background: var(--risk-bg);
+    border-left-color: var(--risk-border);
+  }
+  details { margin: .75rem 0; border: 1px solid var(--border); border-radius: 5px; padding: .35rem .8rem; background: var(--code-bg); }
+  details summary { cursor: pointer; color: var(--accent); font-weight: 500; }
+  details[open] { padding-bottom: .75rem; }
+  figure { margin: 1rem 0; }
+  figcaption { color: var(--muted); font-size: .86rem; margin-top: .35rem; }
+  ul.criteria > li { margin: .35rem 0; }
+  .badge { display: inline-block; font-size: .7rem; font-weight: 700; padding: .05rem .35rem; border-radius: 3px; margin-right: .35rem; vertical-align: middle; }
+  .badge.ok { background: rgba(31,122,58,.15); color: #1f7a3a; }
+  .badge.warn { background: rgba(217,154,107,.22); color: #b3631f; }
+  @media (prefers-color-scheme: dark) {
+    .badge.ok { color: #6ed18a; background: rgba(110,209,138,.18); }
+    .badge.warn { color: #e0a36b; background: rgba(224,163,107,.18); }
+  }
+</style>
+</head>
+<body>
+
+<h1>htmldoc-review — the proxy layer</h1>
+<p class="meta" data-updated="2026-06-30" data-status="shipped">Last updated 2026-06-30 · shipped (Deliverable 1, merged) · describes the code at <code>apps/htmldoc-review/</code></p>
+
+<nav class="toc" aria-label="Table of contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#scope">Document scope</a></li>
+    <li><a href="#what">What it does</a></li>
+    <li><a href="#security">Security principles</a></li>
+    <li><a href="#lifecycle">Request lifecycle</a></li>
+    <li><a href="#auth">The auth parts — App, token, refresh</a></li>
+    <li><a href="#sessions">Sessions &amp; token refresh</a></li>
+    <li><a href="#fetch">Fetching docs</a></li>
+    <li><a href="#structure">Code structure</a></li>
+    <li><a href="#setup">Setup, in brief</a></li>
+  </ol>
+</nav>
+
+<article id="scope" data-kind="scope">
+  <h2>Document scope</h2>
+  <p>
+    The <strong>htmldoc-review</strong> app is, at its core, a Cloudflare Worker that proxies HTML documentation and
+    layers collaboration on top of it — chiefly <strong>sharability</strong> and <strong>reviewability</strong>. The
+    proxy takes security seriously: it can never widen the scope of access. Because a GitHub-hosted doc is fetched with
+    the viewer's own access token, each person sees only what they are already authorized to see, and a file they
+    cannot reach returns a neutral <code>404</code> rather than leaking its existence. The aim is simply to make HTML
+    documents easy to share and review together, so they can serve as durable, high-quality context for agentic
+    engineering.
+  </p>
+  <p>
+    This document covers the <strong>shipped proxy layer</strong> (Deliverable 1): the GitHub App login, the
+    as-the-user fetch, session handling and silent token refresh, the non-leak property, and the code layout — enough
+    for a maintainer to extend or debug it. It does <em>not</em> cover review mode, the comment UI and its storage,
+    which is Deliverable 2 and lives in its own future doc
+    (<a href="plans/worker/d2-review-mode-plan.html">d2-review-mode-plan.html</a>). A forward-looking rationale doc
+    (<a href="plans/worker/htmldoc_worker_review.html">htmldoc_worker_review.html</a>) explores the wider design; where
+    it and this doc disagree, the running code wins. Setup and operations are only summarized here, with full detail in
+    the app <a href="../apps/htmldoc-review/README.md">README</a> and the
+    <a href="plans/worker/d1-handoff.md">D1 handoff</a>.
+  </p>
+</article>
+
+<article id="what" data-kind="overview">
+  <h2>What it does</h2>
+  <p>
+    A single Cloudflare Worker fronts one GitHub <strong>account</strong> — GitHub's term for an entity that owns
+    repos, either an <em>organization</em> account (e.g. <code>myboop-ai</code>) or an individual <em>user</em> account
+    (e.g. <code>benbuzbee</code>). The account is fixed per deployment as <code>REPO_ORG</code>. A viewer requests
+    <code>https://&lt;host&gt;/{repo}/{path}?ref=&lt;branch|tag|sha&gt;</code>; the Worker logs them in via a GitHub App
+    OAuth flow, then fetches the requested file from the GitHub Contents API
+    <strong>using that viewer's own token</strong> and serves it back.
+  </p>
+  <p>
+    <strong>The one insight.</strong> Because the fetch runs as the viewer, GitHub itself is the authorization engine.
+    We never maintain a permission list: a repo or file the viewer can't see simply returns <code>404</code>, which the
+    Worker passes through as a neutral "not found or no access" page — so access control and existence-hiding both come
+    for free from the same fetch. Authentication and authorization collapse into one call.
+  </p>
+  <ul class="criteria">
+    <li><strong>The Worker and the GitHub App operate at the same level — the account (the org).</strong> A repo within
+      it is selected by the first path segment and the doc path is the remainder; the commit/branch/tag is the
+      <code>?ref=</code> query param (omit it for the repo's default branch). The account is never in the URL. So
+      <code>/app-ios/docs/foo.html?ref=main</code> means repo <code>app-ios</code>, doc <code>docs/foo.html</code>, on
+      <code>main</code>.</li>
+    <li><strong>Login is not a one-time event.</strong> The viewer signs in once interactively, but the Worker
+      re-authenticates whenever GitHub rejects the token: an expired access token is refreshed silently, and a
+      <code>401</code> mid-fetch forces one refresh-and-retry before falling back to a fresh login.</li>
+    <li><strong>Self-hosted, per-account:</strong> each account creates its own GitHub App and runs its own Worker; we
+      never hold anyone's secret.</li>
+    <li><strong>Sessions in Workers KV</strong> with native TTL — no Durable Object, no SQL. The browser cookie holds
+      only an opaque session id.</li>
+  </ul>
+</article>
+
+<article id="security" data-kind="security">
+  <h2>Security principles</h2>
+  <p>The proxy layer holds to a small set of security invariants. Each is stated plainly below with a concrete example of how the code upholds it. Treat these as invariants: a change that breaks one is a regression even if every test still passes.</p>
+  <ul class="criteria">
+    <li><strong>Never widen access.</strong> The proxy can only return what the viewer's own GitHub token can already fetch; it holds no elevated credential of its own for reading docs. <em>Example:</em> <code>fetchDoc</code> calls the GitHub Contents API with the logged-in user's user-to-server token in the <code>Authorization</code> header, so a repo they cannot see on GitHub is equally unreachable through the proxy.</li>
+    <li><strong>Don't leak existence.</strong> Missing, forbidden, and malformed-path cases all return the same neutral <code>404</code> with a byte-identical body, <code>Not found or no access</code>. <em>Example:</em> a GitHub <code>404</code> (missing) and a <code>403</code> (forbidden) both fall through to <code>neutral()</code>, so a viewer cannot tell whether a private doc exists.</li>
+    <li><strong>Keep secrets off the client.</strong> Tokens live server-side in Workers KV; the browser cookie carries only an opaque session id, set <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code>. A stolen cookie yields no GitHub token, and revocation is simply deleting the server-side record.</li>
+    <li><strong>Never log secrets.</strong> No access or refresh token, OAuth <code>code</code>, client secret, signing key, or <code>Authorization</code> header is ever logged. <em>Example:</em> the OAuth rejection path logs a fixed reason string and status only; success logs carry the opaque <code>sessionId</code> and nothing more.</li>
+    <li><strong>Verify the callback is genuine.</strong> The OAuth callback is authenticated with a signed <code>state</code>: a random nonce HMAC-signed with a server-side <code>STATE_SIGNING_KEY</code>, stored in a short-lived <code>HttpOnly</code> cookie and echoed as the OAuth state. A forged callback cannot produce a valid signature, and the spent state cookie is burned on every callback.</li>
+    <li><strong>Treat request paths as hostile.</strong> Repo and path segments are validated (empty, <code>.</code>, and <code>..</code> are rejected) then percent-encoded, so <code>?</code>, <code>#</code>, <code>&amp;</code>, and <code>..</code> cannot traverse out of the configured org/repo or inject query params such as an overridden <code>ref</code>.</li>
+    <li><strong>No secrets in source.</strong> Real secrets are pushed at deploy time via <code>wrangler secret put</code>; the repo carries only fake placeholder values in <code>.dev.vars.example</code>.</li>
+  </ul>
+</article>
+
+<article id="lifecycle" data-kind="flow">
+  <h2>Request lifecycle</h2>
+  <p>
+    Every request enters one <code>fetch</code> handler (<code>worker/index.ts</code>), which dispatches on the URL
+    path: the three <code>/auth/*</code> routes are auth plumbing, and <em>everything else</em> is treated as a doc
+    request. A doc request with no valid session is bounced to login; with a session, it parses the path and fetches.
+  </p>
+  <figure id="lifecycle-diagram" data-kind="diagram">
+    <pre class="mermaid">flowchart TD
+  R[Request] --> D{path?}
+  D -->|/auth/login| L[beginLogin: mint signed state, 302 to GitHub]
+  D -->|/auth/callback| C{setup_action?}
+  C -->|yes, post-install| SC[friendly 'installed' page 200]
+  C -->|no| CB[completeLogin: verify state, exchange code, mint session]
+  D -->|/auth/logout| LO[delete session, clear cookie, 302 /]
+  D -->|anything else| DOC{valid session?}
+  DOC -->|no| L
+  DOC -->|yes| P{parse path}
+  P -->|unparseable| N[neutral 404]
+  P -->|repo + docPath| F[fetchDoc as the user]
+  F -->|200| H[serve raw HTML]
+  F -->|401| RF{refresh + retry}
+  RF -->|ok| H
+  RF -->|dead grant| L
+  F -->|404 / 403| N</pre>
+    <figcaption>One entry point, path-dispatched. The doc path is the catch-all; auth routes are the only special
+      cases. <code>404</code> and <code>403</code> from GitHub collapse to the same neutral page (see
+      <a href="#fetch">non-leak 404</a>).</figcaption>
+  </figure>
+</article>
+
+<article id="auth" data-kind="design">
+  <h2>The auth parts — App, token, refresh</h2>
+  <p>
+    Three pieces cooperate: a <strong>GitHub App</strong> (the identity), the <strong>Worker</strong> (which runs the
+    OAuth flow and holds the tokens server-side), and the <strong>Contents API</strong> (fetched with the viewer's
+    token). The App issues a short-lived <em>user-to-server</em> access token plus a long-lived refresh token; the
+    Worker stores both in KV and presents the access token when fetching docs, silently refreshing it when it expires.
+  </p>
+  <figure id="auth-diagram" data-kind="diagram">
+    <pre class="mermaid">sequenceDiagram
+  participant B as Browser
+  participant W as Worker
+  participant KV as Sessions KV
+  participant G as GitHub App / OAuth
+  participant API as GitHub Contents API
+
+  Note over B,G: First visit — log in
+  B->>W: GET /{repo}/{path} (no session)
+  W->>B: 302 /auth/login
+  B->>W: GET /auth/login
+  W->>B: 302 to GitHub authorize (+ signed state cookie)
+  B->>G: authorize the App
+  G->>W: 302 /auth/callback?code&state
+  W->>W: verify state (HMAC) == cookie
+  W->>G: exchange code -> access token + refresh token
+  W->>KV: store {access, refresh, expires_at} under opaque id
+  W->>B: 302 to the doc (+ session-id cookie)
+
+  Note over B,API: Later — fetch a doc
+  B->>W: GET /{repo}/{path} (session cookie)
+  W->>KV: load tokens by session id
+  alt access token expired
+    W->>G: refresh (rotates refresh token)
+    W->>KV: persist rotated tokens
+  end
+  W->>API: GET contents (Authorization: Bearer access token)
+  API->>W: 200 + raw HTML  (or 404/403 if the user can't see it)
+  W->>B: HTML  (or neutral 404)</pre>
+    <figcaption>The App serves a token to the Worker; the Worker stores the refresh token server-side and presents the
+      access token when fetching docs. The browser only ever holds an opaque session id — never a GitHub token.</figcaption>
+  </figure>
+  <p>
+    The login itself is a GitHub App <em>user-to-server</em> OAuth flow, run via the <code>arctic</code> library in
+    <code>core/oauth.ts</code>. CSRF is hand-rolled with a <strong>signed <code>state</code></strong>: <code>beginLogin</code>
+    mints a random nonce, HMAC-signs it with <code>STATE_SIGNING_KEY</code>, stashes <code>nonce.sig</code> in a
+    short-lived <code>HttpOnly</code> cookie, and sends the bare nonce as the OAuth <code>state</code>. On callback,
+    <code>completeLogin</code> recomputes the HMAC over the cookie's nonce and requires it to match both its own
+    signature and the returned <code>state</code> — a forged callback can't produce a valid signature without the
+    server-side key.
+  </p>
+</article>
+
+<article id="sessions" data-kind="design">
+  <h2>Sessions &amp; token refresh</h2>
+  <p>
+    Sessions live in Workers KV (<code>core/session.ts</code> over the <code>SessionStore</code> seam, implemented by
+    <code>worker/kv-store.ts</code>). The record is <code>{ access_token, refresh_token, expires_at }</code>, keyed by a
+    single <code>crypto.randomUUID()</code> (CSPRNG, 122 bits — clears the OWASP session-id floor). The cookie carries
+    only that id; both tokens stay server-side, so revocation is "delete the record" and a stolen cookie yields no
+    GitHub token.
+  </p>
+  <table>
+    <thead><tr><th>Concern</th><th>How it's handled</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Expiry</td><td>Access token treated as expired <code>30s</code> before its real expiry (<code>SKEW_MS</code>) so it can't lapse in flight. <code>getValidAccessToken</code> returns the cached token if fresh, else refreshes.</td></tr>
+      <tr><td class="k">Silent refresh</td><td><code>doRefresh</code> swaps the refresh token for a new access token (GitHub <em>rotates</em> the refresh token, so the new one is persisted). KV TTL is set from <code>refresh_token_expires_in</code> (default 180d).</td></tr>
+      <tr><td class="k">Dead grant</td><td>A rejected refresh (revoked/expired) purges the session → forces re-login. A <em>network</em> error does NOT purge — it surfaces as 5xx so a transient blip can't log everyone out.</td></tr>
+      <tr><td class="k">Refresh race</td><td>No Durable Object to serialize refreshes, so two concurrent requests can both refresh; the first rotates the token and the second's looks dead. On a dead grant we <strong>re-read once</strong>: if a concurrent request already rotated to a fresh token, use it instead of purging. A residual race remains and is <span class="badge warn">accepted</span> for D1.</td></tr>
+    </tbody>
+  </table>
+  <p>
+    On a doc fetch, a <code>401</code> from GitHub (token stale/revoked mid-flight) triggers exactly <em>one</em> forced
+    refresh + retry in <code>serveDoc</code>; a second <code>401</code> or a dead session bounces to login. This is the
+    single place the 401→refresh→retry path lives, so the happy path and re-auth path can't diverge.
+  </p>
+</article>
+
+<article id="fetch" data-kind="design">
+  <h2>Fetching docs</h2>
+  <p>
+    <code>core/docsource.ts</code> parses the path and fetches the raw file. <code>parseDocRequest</code> splits the URL
+    into <code>{ repo, docPath }</code> (first segment = repo, rest = doc path); <code>fetchDoc</code> calls
+    <code>GET /repos/{REPO_ORG}/{repo}/contents/{path}</code> with <code>Authorization: Bearer &lt;user token&gt;</code>
+    and <code>Accept: application/vnd.github.raw+json</code>, which returns the file's raw bytes (the proxy serves them
+    back with a <code>text/html</code> content type). A present <code>?ref=</code> is percent-encoded (so slashed
+    branches like <code>feature/a/b</code> survive); an absent one is omitted so GitHub serves the repo default branch —
+    no <code>default_branch</code> lookup needed.
+  </p>
+  <p>
+    The response mapping is where two <a href="#security">security principles</a> live: <code>fetchDoc</code> collapses
+    GitHub's <code>404</code> (missing) and <code>403</code> (forbidden) — plus unparseable paths and unsafe segments
+    (<code>.</code>, <code>..</code>, empty) via <code>InvalidPathError</code> — into one byte-identical
+    <code>neutral()</code> response, and <code>safeSegments</code> validates and percent-encodes each path segment so it
+    can't escape the <code>REPO_ORG/repo</code> confinement or inject a query param. Both are load-bearing: changing
+    either is a regression, not an improvement.
+  </p>
+</article>
+
+<article id="structure" data-kind="components">
+  <h2>Code structure</h2>
+  <p>
+    The Worker is built around a deliberate split: a <strong>portable core</strong> that knows nothing about
+    Cloudflare, and a <strong>thin Cloudflare layer</strong> wrapped around it. The core is written against
+    Web-standard globals only (<code>fetch</code> and Web Crypto), so it can run anywhere those exist. The Worker entry
+    point acts as the composition root: it reads Cloudflare <code>Env</code> bindings and hands the core a plain
+    <code>Config</code> object, which means core code never imports a Cloudflare type. That boundary is also the seam
+    where a future non-GitHub documentation source would slot in.
+  </p>
+  <table>
+    <thead>
+      <tr><th>Directory</th><th>What lives there</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="k"><code>src/core/</code></td>
+        <td>The portable core with no Cloudflare dependencies: the OAuth flow, session lifecycle, the as-the-user doc fetch, cookie handling, and response builders. See <code>oauth.ts</code>, <code>session.ts</code>, <code>docsource.ts</code>.</td>
+      </tr>
+      <tr>
+        <td class="k"><code>src/worker/</code></td>
+        <td>The Cloudflare-specific layer: the fetch handler and path dispatch (the composition root), the KV-backed session store, and logging setup. See <code>index.ts</code>, <code>kv-store.ts</code>.</td>
+      </tr>
+      <tr>
+        <td class="k"><code>test/</code></td>
+        <td>Tests that mirror the split. <code>test/core/</code> runs as plain vitest on Node, while <code>test/worker/</code> uses vitest-pool-workers with a local fetch-mock. Every GitHub call is mocked, so the suite needs no real credentials.</td>
+      </tr>
+      <tr>
+        <td class="k"><code>scripts/setup/</code></td>
+        <td>The vendor-then-deploy tooling. See <code>vendor.sh</code>, <code>deploy.sh</code>, <code>create-worker-app.mjs</code>.</td>
+      </tr>
+    </tbody>
+  </table>
+</article>
+
+<article id="setup" data-kind="setup">
+  <h2>Setup, in brief</h2>
+  <p>
+    Full procedure: the app <a href="../apps/htmldoc-review/README.md">README</a> and
+    <a href="plans/worker/d1-handoff.md">D1 handoff</a>. In short — the model is <strong>vendor-then-deploy</strong>:
+  </p>
+  <ol>
+    <li><strong>Vendor</strong> (<code>vendor.sh</code>): copy the app into your own infra repo (it stamps
+      <code>PROVENANCE.md</code> and preserves your <code>wrangler.toml</code> on re-vendor). You configure and deploy
+      from your copy, never the upstream template.</li>
+    <li><strong>Deploy</strong> (<code>deploy.sh</code>, idempotent, <em>deploy-first</em>): set <code>REPO_ORG</code>,
+      then it deploys once to learn the <code>workers.dev</code> URL, derives <code>CALLBACK_URL</code>, creates the
+      GitHub App via the manifest flow with that callback baked in, pushes secrets, and redeploys.</li>
+    <li><strong>Install the App</strong> on your org (required — creating ≠ installing; the script prints the URL).</li>
+  </ol>
+</article>
+
+<aside id="related" data-kind="related">
+  <strong>Related:</strong>
+  <a href="plans/worker/htmldoc_worker_review.html">architecture plan</a> — why this design ·
+  <a href="plans/worker/d2-review-mode-plan.html">D2 plan</a> — review mode (comments) ·
+  <a href="plans/worker/d1-handoff.md">D1 handoff</a> — live status + deploy notes ·
+  <a href="../apps/htmldoc-review/README.md">app README</a> — setup/run ·
+  <a href="../apps/htmldoc-review/src/worker/index.ts">worker/index.ts</a> — the entry point this doc describes.
+</aside>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: false, theme: dark ? 'dark' : 'default' });
+  await mermaid.run();
+</script>
+
+</body>
+</html>
