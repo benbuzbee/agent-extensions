@@ -99,7 +99,7 @@ export type Op = CreateOp | ResolveOp | ReopenOp | DeleteOp | ReplyOp | EditOp;
 
 // --- OpResult discriminated union ---
 
-export type OpError = { code: "no_access" | "transient" | "not_found"; message?: string };
+export type OpError = { code: "no_access" | "transient" | "not_found"; message?: string; threadId?: ThreadId };
 
 export type OpResult =
   | { ok: true; op: "create"; thread: Thread }

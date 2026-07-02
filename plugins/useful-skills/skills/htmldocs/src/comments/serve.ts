@@ -19,8 +19,10 @@ import * as crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import type { CommentsModel, LegacyComment } from './review-ux/types.js';
+import type { CommentsModel, LegacyComment, Author, DocKey } from './review-ux/types.js';
 import { injectIntoHtml } from './adapters/local/inject.js';
+import { handleCommentsRequest } from './api/index.js';
+import { SidecarStore } from './adapters/local/sidecar-store.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BUNDLE_PATH = path.join(HERE, 'comments.mjs');
@@ -272,6 +274,81 @@ async function handleGet(res: http.ServerResponse, root: string, sidecarDir: str
   }
 }
 
+// --- comment API (runtime-agnostic logic mounted over HTTP) --------------
+
+// Fixed local reviewer identity. The author is ALWAYS stamped server-side,
+// never read from the request body — the same contract the hosted Worker
+// enforces from the session.
+const LOCAL_AUTHOR: Author = { login: 'user', name: null };
+
+// GET/POST <doc>?ref=&comments — mounts the runtime-agnostic comment API over
+// HTTP against a Node fs-backed SidecarStore. Resolves + requires an existing
+// .html doc (else 404, matching the sidecar PUT path), builds a SidecarStore
+// wired to the existing readSidecar/writeSidecarAtomic helpers, stamps the
+// fixed local author, and dispatches to handleCommentsRequest.
+async function handleCommentsApi(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  root: string,
+  sidecarDir: string,
+  urlPath: string,
+  params: URLSearchParams,
+  method: string,
+): Promise<void> {
+  const htmlPath = resolveUnderRoot(root, urlPath);
+  if (!htmlPath) { sendJson(res, 404, { error: 'not found' }); return; }
+  if (!/\.html?$/i.test(htmlPath)) { sendJson(res, 404, { error: 'not found' }); return; }
+  const htmlStat = await fs.stat(htmlPath).catch(() => null);
+  if (!htmlStat || !htmlStat.isFile()) { sendJson(res, 404, { error: 'not found' }); return; }
+
+  const docLabel = path.basename(htmlPath);
+  const sidecarPath = sidecarPathFor(htmlPath, root, sidecarDir);
+  const store = new SidecarStore(
+    {
+      load: () => readSidecar(sidecarPath, docLabel),
+      save: (model) => writeSidecarAtomic(sidecarPath, model),
+    },
+    docLabel,
+  );
+
+  // The local route has NO <repo> segment; a missing ?ref= is the literal
+  // 'default' sentinel. SidecarStore ignores the tuple (one sidecar per page)
+  // but the shape stays identical to the hosted seam.
+  const doc: DocKey = {
+    repo: '',
+    ref: params.get('ref') ?? 'default',
+    path: stripQueryHash(urlPath),
+  };
+
+  let body: unknown;
+  if (method === 'POST') {
+    let raw: string;
+    try {
+      raw = await readBody(req, 5 * 1024 * 1024); // 5 MiB cap
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      if (code === 'ETOOBIG') { sendJson(res, 413, { error: 'payload too large' }); return; }
+      sendJson(res, 400, { error: 'bad request' }); return;
+    }
+    if (raw.trim()) {
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        sendJson(res, 400, { error: 'invalid JSON' }); return;
+      }
+    }
+  }
+
+  const { status, json } = await handleCommentsRequest({
+    method, body, store, doc, author: LOCAL_AUTHOR,
+  });
+  sendJson(res, status, json);
+}
+
+function sendJson(res: http.ServerResponse, status: number, json: unknown): void {
+  send(res, status, JSON.stringify(json), { 'Content-Type': MIME['.json']! });
+}
+
 // --- public API -----------------------------------------------------------
 
 export interface ServerConfig {
@@ -289,6 +366,18 @@ export function createServer(cfg: ServerConfig): http.Server {
       handlePutSidecar(req, res, cfg.root, cfg.sidecarDir, urlPath).catch((err) => {
         console.error('[serve] PUT failed:', err);
         if (!res.headersSent) send(res, 500, 'write failed');
+      });
+      return;
+    }
+
+    // Comment API: GET/POST <doc>?ref=&comments. The query string names the
+    // collection, the body names the op. Detected via ?comments (bare or =1).
+    const query = url.indexOf('?');
+    const params = new URLSearchParams(query === -1 ? '' : url.slice(query + 1));
+    if (params.has('comments') && (method === 'GET' || method === 'POST')) {
+      handleCommentsApi(req, res, cfg.root, cfg.sidecarDir, urlPath, params, method).catch((err) => {
+        console.error('[serve] comments API failed:', err);
+        if (!res.headersSent) sendJson(res, 500, { error: 'internal error' });
       });
       return;
     }
