@@ -230,30 +230,59 @@ KEY OPEN CALL THE DESIGN MUST SETTLE (plan flags it open): the physical home of 
 ]
 
 // ===========================================================================
+// Resume geometry. startAt lets a fresh run pick up an existing stack:
+// - fresh build (no startAt / pr0): must launch from clean main.
+// - resume at prN (N>=1): PRs below it are already committed as d2/ branches,
+//   so we expect to be ON the previously-committed layer's branch with a CLEAN
+//   tree (any unvalidated draft for prN must be stashed/discarded first — the
+//   workflow rebuilds prN from scratch so it earns its own gate + evidence).
+// The decision ledger only accrues within a single run; a resume starts it
+// empty, which is fine because every design/impl agent re-reads the actual
+// base-branch code and the plan, and honors "what's already on your base".
+// ===========================================================================
+// args can arrive as an object OR as a JSON string (the harness sometimes
+// passes it stringified) — normalize so args.startAt / args.submit are read
+// consistently either way.
+const ARGS = (() => {
+  if (typeof args === 'string') { try { return JSON.parse(args) } catch { return {} } }
+  return args ?? {}
+})()
+const startIdx = Math.max(0, ARGS?.startAt ? CARDS.findIndex((c) => c.key === ARGS.startAt) : 0)
+const resuming = startIdx > 0
+const baseBranch = resuming ? CARDS[startIdx - 1].branch : 'main'
+
+// ===========================================================================
 // Preflight
 // ===========================================================================
 phase('Preflight')
 const pre = await agent(
-  `Preflight for building a stacked-PR series in ${REPO}. Check and report (do not fix code):
-1. 'git -C ${REPO} status --porcelain' — current branch must be main; tracked files clean. Untracked files under docs/plans/worker/ are EXPECTED (they are PR0's payload); list any OTHER untracked files as warnings.
+  `Preflight for ${resuming ? `RESUMING a stacked-PR series at ${ARGS.startAt.toUpperCase()}` : 'building a stacked-PR series from scratch'} in ${REPO}. Check and report (do not fix code):
+1. 'git -C ${REPO} status --porcelain' and 'git -C ${REPO} branch --show-current'. ${resuming
+    ? `RESUME MODE: the current branch must be '${baseBranch}' (the already-committed layer this run builds on top of), and the tracked tree must be CLEAN — no modified/deleted/staged files. Untracked files are allowed only if they are clearly stray (list them as warnings); any uncommitted product changes are a FAILURE (the draft for ${ARGS.startAt.toUpperCase()} must be stashed or discarded before resuming, since this run rebuilds it). Also confirm with 'gt log short' that '${baseBranch}' exists in the stack on top of main.`
+    : `FRESH MODE: the current branch must be main; tracked files clean. Untracked files under docs/plans/worker/ are EXPECTED (they are PR0's payload); list any OTHER untracked files as warnings.`}
 2. These files exist: ${PLAN}, ${WORKFLOW_FILE}, ${REPO}/docs/plans/worker/d2-plan-revisions.md.
-3. 'gt --version' works. Check Graphite is initialized for this repo (e.g. 'gt log short' from ${REPO} succeeds); if it errors about initialization, run 'gt init --trunk main' non-interactively and confirm it took.
+3. 'gt --version' works. Check Graphite is initialized for this repo (e.g. 'gt log short' from ${REPO} succeeds); if it errors about initialization${resuming ? ' this is a FAILURE (a resume needs the existing stack)' : ", run 'gt init --trunk main' non-interactively and confirm it took"}.
 4. node + npm available; ${APP} and ${SKILL} have package.json.
 5. Submission auth (the finished stack is submitted as draft PRs): 'gh auth status' succeeds and 'git -C ${REPO} remote -v' shows a GitHub origin. If gt needs its own auth ('gt auth --help' / a failed 'gt log short' hints), report it as a failure — do NOT store or print any token.
 Return JSON-ish via the schema: pass=true only if every check is green (warnings don't block).`,
   { label: 'preflight', phase: 'Preflight', model: 'sonnet', effort: 'low', agentType: 'general-purpose', schema: GATE_SCHEMA }
 )
 if (!ok(pre?.pass)) {
-  return { aborted: 'preflight', detail: pre, next: 'Fix the preflight failures (see detail.failures), then re-run this workflow.' }
+  return {
+    aborted: 'preflight',
+    detail: pre,
+    next: resuming
+      ? `Resume preflight failed. Ensure you are on '${baseBranch}' with a clean tree (stash/discard any unvalidated ${ARGS.startAt.toUpperCase()} draft), then re-run with args {startAt:"${ARGS.startAt}"}.`
+      : 'Fix the preflight failures (see detail.failures), then re-run this workflow.',
+  }
 }
-log('Preflight green — building the stack')
+log(resuming ? `Preflight green — resuming the stack at ${ARGS.startAt} on top of ${baseBranch}` : 'Preflight green — building the stack')
 
 // ===========================================================================
 // The build loop — inherently sequential: each PR stacks on the previous
 // branch's git state and design decisions. Parallelism lives INSIDE a card
 // (review lenses), never across cards.
 // ===========================================================================
-const startIdx = Math.max(0, args?.startAt ? CARDS.findIndex((c) => c.key === args.startAt) : 0)
 const ledger = []
 
 for (const card of CARDS.slice(startIdx)) {
@@ -280,10 +309,10 @@ ${LOCKED}
 ${GUARDRAILS}
 
 Produce the spec an implementer can execute without guessing: exact file paths (created/moved/edited) and what lands in each; every naming/API/placement call the plan leaves open, decided with a one-line why; the test plan mapped to this card's validation contract:\n${card.validate}\nAnd the EXACT extra validation commands (cd <absolute dir> && ...) the gate must run beyond the standing gates. Keep it minimal — the smallest design that satisfies the card. Return via the schema.`
-    spec = await agent(designPrompt, { label: `${card.key}:design`, phase: card.phase, model: 'opus', effort: 'high', agentType: 'general-purpose', schema: DESIGN_SCHEMA })
+    spec = await agent(designPrompt, { label: `${card.key}:design`, phase: card.phase, model: 'opus', effort: 'high', stallMs: 600000, agentType: 'general-purpose', schema: DESIGN_SCHEMA })
 
     const critique = await agent(
-      `You are a Fable-class DESIGN ADVISOR. Adversarially review this implementation spec for ${card.key.toUpperCase()} of the htmldoc-review Deliverable 2 stack before code is written. Ground yourself in the plan card ${card.planAnchor} in ${PLAN} and the actual code the spec claims to change (read both — trust neither the spec nor your memory).
+      `You are a Fable-class DESIGN ADVISOR. Adversarially review this implementation spec for ${card.key.toUpperCase()} of the htmldoc-review Deliverable 2 stack before code is written. This is a SPEC-LEVEL review, not a code audit — budget yourself HARD: read the plan card ${card.planAnchor} section of ${PLAN} (extract just that section, not the whole document), then spot-check AT MOST 5 existing files the spec names where you suspect a specific problem. Do not read entire test suites or survey the codebase; stay under ~12 tool calls total. The implementation will get its own deep code review later — your job here is only to catch a flawed plan before code is written.
 
 Hunt specifically for: contradictions with the plan's locked decisions; reaching forward into a later PR's scope or depending on work that doesn't exist yet on the base branch; breakage of Deliverable 1 behavior (neutral 404, sessions, existing tests) or of local review mode; the checked-in dist artifacts not being rebuilt when their sources move; validation that couldn't actually catch the card's failure modes; guardrail violations (anything touching live infra). Do NOT manufacture problems — approve a sound spec.
 
@@ -294,7 +323,7 @@ ${GUARDRAILS}
 THE SPEC:\n${JSON.stringify(spec, null, 2)}
 
 Return verdict approve/revise with mustFix (blocking only) via the schema.`,
-      { label: `${card.key}:advisor-design`, phase: card.phase, model: 'fable', effort: 'high', agentType: 'general-purpose', schema: CRITIQUE_SCHEMA }
+      { label: `${card.key}:advisor-design`, phase: card.phase, model: 'fable', effort: 'medium', agentType: 'general-purpose', schema: CRITIQUE_SCHEMA }
     )
 
     const mustFix = arr(critique?.mustFix)
@@ -309,7 +338,7 @@ ADVISOR NOTES: ${str(critique?.notes)}
 ORIGINAL SPEC:\n${JSON.stringify(spec, null, 2)}
 
 ${LOCKED}\n\n${GUARDRAILS}`,
-        { label: `${card.key}:design-revise`, phase: card.phase, model: 'opus', effort: 'high', agentType: 'general-purpose', schema: DESIGN_SCHEMA }
+        { label: `${card.key}:design-revise`, phase: card.phase, model: 'opus', effort: 'high', stallMs: 600000, agentType: 'general-purpose', schema: DESIGN_SCHEMA }
       )) ?? spec
     }
     log(`${card.key}: design locked — ${str(spec?.summary).slice(0, 140)}`)
@@ -334,7 +363,7 @@ ${GUARDRAILS}
 ${ADVISOR_TIP}
 
 Write real, working, minimal code — no placeholder bodies, no TODO stubs (except values the plan itself defines as placeholders, e.g. REPLACE_WITH_D1_DATABASE_ID). Match surrounding code conventions (read neighboring files and any CLAUDE.md in the directories you touch). Write the tests your card's validation demands alongside the code. Rebuild any checked-in dist artifacts your changes affect. When done, return a plain-text report: files created/moved/edited, deviations from the spec (with why), and anything the validator should know.`,
-    { label: `${card.key}:implement`, phase: card.phase, model: card.implModel, effort: 'high', agentType: 'general-purpose' }
+    { label: `${card.key}:implement`, phase: card.phase, model: card.implModel, effort: 'high', stallMs: 600000, agentType: 'general-purpose' }
   )
 
   // --- Validation gate loop (run for real; Opus debugs) ----------------------
@@ -362,7 +391,7 @@ ${card.needsDesign ? `LOCKED SPEC:\n${JSON.stringify(spec, null, 2)}\n` : ''}
 ${LOCKED}\n\n${GUARDRAILS}\n\n${ADVISOR_TIP}
 
 Do not commit. Report what you changed and why.`,
-      { label: `${card.key}:fix-r${round}`, phase: card.phase, model: 'opus', effort: 'high', agentType: 'general-purpose' }
+      { label: `${card.key}:fix-r${round}`, phase: card.phase, model: 'opus', effort: 'high', stallMs: 600000, agentType: 'general-purpose' }
     )
     gate = await agent(gatePrompt(`Re-run after fix round ${round}.`), { label: `${card.key}:regate-r${round}`, phase: card.phase, model: 'opus', effort: 'medium', agentType: 'general-purpose', schema: GATE_SCHEMA })
   }
@@ -381,7 +410,7 @@ Do not commit. Report what you changed and why.`,
   // (5 independent reviewers -> confidence scoring -> filter >=80), adapted to
   // an unpushed local layer. pr0 (docs-only) skips code-review.
   const lensPrompt = (lens) =>
-    `You are a Fable-class CODE REVIEWER (${lens} lens) for ${card.key.toUpperCase()} in ${REPO}. Review the UNCOMMITTED working-tree changes for this layer: use 'git -C ${REPO} status --porcelain' and 'git -C ${REPO} diff' plus reading new/untracked files in full. Judge them against the plan card ${card.planAnchor} in ${PLAN}.
+    `You are a Fable-class CODE REVIEWER (${lens} lens) for ${card.key.toUpperCase()} in ${REPO}. Review the UNCOMMITTED working-tree changes for this layer: use 'git -C ${REPO} status --porcelain' and 'git -C ${REPO} diff' plus reading new/untracked files in full. Judge them against the plan card ${card.planAnchor} in ${PLAN} (extract that card's section, not the whole document). Depth belongs on the DIFF — read unchanged files only where the diff directly interacts with them; do not survey the codebase.
 
 ${lens === 'plan-fidelity'
       ? `FOCUS: does the code deliver the card, exactly? Locked decisions honored (spot-check against the plan's #decisions table); nothing reaching forward into later PRs; Deliverable 1 and local review behavior preserved; the card's validation contract genuinely covered by the tests (not vacuously); code quality consistent with the surrounding codebase; checked-in dist artifacts regenerated if their sources changed.`
@@ -436,7 +465,7 @@ Return score + reasoning via the schema.`,
   if (card.key !== 'pr0') log(`${card.key}: code-review found ${crIssues.length} candidate issue(s), ${crConfirmed.length} confirmed at >=80 confidence`)
 
   const reviews = (await parallel(lenses.map((lens) => () =>
-    agent(lensPrompt(lens), { label: `${card.key}:advisor-${lens}`, phase: card.phase, model: 'fable', effort: 'high', agentType: 'general-purpose', schema: REVIEW_SCHEMA })
+    agent(lensPrompt(lens), { label: `${card.key}:advisor-${lens}`, phase: card.phase, model: 'fable', effort: 'high', stallMs: 600000, agentType: 'general-purpose', schema: REVIEW_SCHEMA })
   ))).filter(Boolean)
 
   const actionable = [
@@ -452,7 +481,7 @@ FINDINGS:\n${JSON.stringify(actionable, null, 2)}
 ${card.needsDesign ? `LOCKED SPEC:\n${JSON.stringify(spec, null, 2)}\n` : ''}${GUARDRAILS}
 
 Do not commit. Report what you changed / skipped.`,
-      { label: `${card.key}:review-fixes`, phase: card.phase, model: 'opus', effort: 'high', agentType: 'general-purpose' }
+      { label: `${card.key}:review-fixes`, phase: card.phase, model: 'opus', effort: 'high', stallMs: 600000, agentType: 'general-purpose' }
     )
     gate = await agent(gatePrompt('Final re-run after review fixes.'), { label: `${card.key}:regate-final`, phase: card.phase, model: 'opus', effort: 'medium', agentType: 'general-purpose', schema: GATE_SCHEMA })
     if (!ok(gate?.pass)) {
@@ -533,7 +562,7 @@ Return pass/commandLog/failures via the schema.`,
 - local review mode has no regression
 Also: which plan risks/"verify" badges remain unverified, and exactly what needs a HUMAN + live infrastructure (first real deploy, D1 create, migrations apply --remote, live probe behavior) — the plan defers these on purpose; list them as the manual checklist, not failures.
 Return via the schema: verdict = approve/fix; findings = unmet criteria (blocker) or gaps (major/minor); notes = the human manual checklist.`,
-    { label: 'exit-audit', phase: 'Wrap-up', model: 'fable', effort: 'high', agentType: 'general-purpose', schema: REVIEW_SCHEMA }
+    { label: 'exit-audit', phase: 'Wrap-up', model: 'fable', effort: 'high', stallMs: 600000, agentType: 'general-purpose', schema: REVIEW_SCHEMA }
   ),
 ])
 
@@ -552,7 +581,7 @@ EXIT AUDIT:\n${JSON.stringify({ verdict: str(exitAudit?.verdict), unmet: blocker
 // Submit the stack — this IS the deliverable. Default on; {submit:false} keeps
 // it local; a red final gate blocks submission (never publish a broken stack).
 let submitted
-if (args?.submit === false) {
+if (ARGS?.submit === false) {
   submitted = 'skipped by args {submit:false} — submit by hand with: gt submit --stack --draft'
 } else if (!ok(finalGate?.pass)) {
   submitted = 'BLOCKED — final gate not green; fix the failures, then submit with: gt submit --stack --draft'
