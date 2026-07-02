@@ -1,0 +1,1 @@
+Transport, identity, injection placement only. Implements ICommentsStore; never touches rendering. The inject.ts here PLACES the strings produced by review-ux/inject.ts — it must not inline or re-derive the markup.

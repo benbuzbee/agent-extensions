@@ -19,7 +19,8 @@ import * as crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import type { Comment, CommentsModel } from './types.js';
+import type { CommentsModel, LegacyComment } from './review-ux/types.js';
+import { injectIntoHtml } from './adapters/local/inject.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BUNDLE_PATH = path.join(HERE, 'comments.mjs');
@@ -90,13 +91,13 @@ function sidecarPathFor(htmlPath: string, root: string, sidecarDir: string): str
 
 // --- model + sidecar I/O --------------------------------------------------
 
-function isWellShapedComment(c: unknown): c is Comment {
+function isWellShapedComment(c: unknown): c is LegacyComment {
   if (!c || typeof c !== 'object') return false;
-  const x = c as Partial<Comment>;
+  const x = c as Partial<LegacyComment>;
   if (typeof x.id !== 'string' || typeof x.body !== 'string') return false;
   if (typeof x.author !== 'string' || typeof x.created_at !== 'string') return false;
   if (!x.anchor || typeof x.anchor !== 'object') return false;
-  const a = x.anchor as Partial<Comment['anchor']>;
+  const a = x.anchor as Partial<LegacyComment['anchor']>;
   if (!Array.isArray(a.sections) || !a.sections.every((s) => typeof s === 'string')) return false;
   return typeof a.prefix === 'string'
     && typeof a.exact === 'string' && typeof a.suffix === 'string';
@@ -152,20 +153,6 @@ async function writeSidecarAtomic(sidecarPath: string, model: CommentsModel): Pr
     fs.unlink(tmpPath).catch(() => {});
     throw err;
   }
-}
-
-// --- HTML inject ----------------------------------------------------------
-
-// Escape `<` so a `</script>` inside a comment body can't break out.
-function injectIntoHtml(html: string, model: CommentsModel): string {
-  const seedJson = JSON.stringify(model).replace(/</g, '\\u003c');
-  const blocks = (
-    '<script type="application/json" id="__htmldocs_comments">' + seedJson + '</script>\n' +
-    '<script type="module" src="/__htmldocs/comments.mjs"></script>\n'
-  );
-  const idx = html.lastIndexOf('</body>');
-  if (idx === -1) return html + '\n' + blocks;
-  return html.slice(0, idx) + blocks + html.slice(idx);
 }
 
 // --- HTTP plumbing --------------------------------------------------------

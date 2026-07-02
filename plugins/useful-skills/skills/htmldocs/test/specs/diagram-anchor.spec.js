@@ -28,7 +28,7 @@ test('SVG <text> label inside <article> round-trips through anchor', async ({ pa
   expect(out.decoded).toBe('User to DB');
 });
 
-test('orphan SVG (no enclosing <article>) does not surface the popover', async ({ page }) => {
+test('orphan SVG (no enclosing <article>) NOW surfaces the popover (gate removed)', async ({ page }) => {
   await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
   await interceptSidecar(page);
   await page.goto('/test/fixtures/orphan-svg/index.html?test=1');
@@ -42,5 +42,5 @@ test('orphan SVG (no enclosing <article>) does not surface the popover', async (
     sel.removeAllRanges();
     sel.addRange(r);
   });
-  await expect(page.locator('.htmldocs-cmt-popover')).toBeHidden();
+  await expect(page.locator('.htmldocs-cmt-popover')).toBeVisible();
 });

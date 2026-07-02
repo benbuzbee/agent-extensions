@@ -1,0 +1,243 @@
+// LocalFileStore — ICommentsStore implementation over the local server's
+// JSON sidecar (read-modify-write via HTTP PUT).
+//
+// Internally the widget works with Thread[] (the internal model). For
+// persistence, LocalFileStore SERIALIZES back to the legacy CommentsModel
+// wire shape (author: string, created_at: ISO string) when PUTting to the
+// sidecar endpoint, and DESERIALIZES from that shape when reading the
+// inline seed.
+
+import type { ICommentsStore } from '../../review-ux/store';
+import type {
+  Thread, ThreadId, Comment, DocKey, Author,
+  CreateOp, ReplyOp, ResolveOp, ReopenOp, DeleteOp, EditOp, Op, OpResult,
+  CommentsModel, OpError,
+} from '../../review-ux/types';
+import {
+  asThreadId, asCommentId, asTimestamp,
+  threadToLegacy, legacyToThread,
+} from '../../review-ux/types';
+
+const SCHEMA_VERSION = 1 as const;
+const SIDECAR_URL_PREFIX = '/__htmldocs/sidecar';
+const SEED_ELEMENT_ID = '__htmldocs_comments';
+
+// Build the PUT URL for the page hosting the widget.
+function sidecarUrlForCurrentDoc(): string {
+  let pathname = location.pathname;
+  if (pathname.endsWith('/')) {
+    const trimmed = pathname.slice(0, -1);
+    const lastSeg = trimmed.slice(trimmed.lastIndexOf('/') + 1);
+    pathname = /\.html?$/i.test(lastSeg) ? trimmed : pathname + 'index.html';
+  }
+  return SIDECAR_URL_PREFIX + pathname;
+}
+
+function currentBasename(): string {
+  return location.pathname.split('/').pop() || 'index.html';
+}
+
+// Shape check matching serve.ts's isWellShapedModel.
+function isWellShapedComment(c: unknown): boolean {
+  if (!c || typeof c !== 'object') return false;
+  const x = c as Record<string, unknown>;
+  if (typeof x.id !== 'string' || typeof x.body !== 'string') return false;
+  if (typeof x.author !== 'string' || typeof x.created_at !== 'string') return false;
+  if (!x.anchor || typeof x.anchor !== 'object') return false;
+  const a = x.anchor as Record<string, unknown>;
+  if (!Array.isArray(a.sections) || !a.sections.every((s: unknown) => typeof s === 'string')) return false;
+  return typeof a.prefix === 'string'
+    && typeof a.exact === 'string' && typeof a.suffix === 'string';
+}
+
+function isWellShaped(parsed: unknown): parsed is CommentsModel {
+  if (!parsed || typeof parsed !== 'object') return false;
+  const m = parsed as Partial<CommentsModel>;
+  if (typeof m.doc !== 'string' || m.schema !== 1 || !Array.isArray(m.comments)) return false;
+  return m.comments.every(isWellShapedComment);
+}
+
+export class LocalFileStore implements ICommentsStore {
+  private threads: Thread[] = [];
+
+  constructor() {
+    // Load from inline seed on construction
+    this.loadFromSeed();
+  }
+
+  private loadFromSeed(): void {
+    const node = document.getElementById(SEED_ELEMENT_ID);
+    if (!node) { this.threads = []; return; }
+    const text = node.textContent || '';
+    if (!text.trim()) { this.threads = []; return; }
+    let parsed: unknown;
+    try { parsed = JSON.parse(text); } catch { this.threads = []; return; }
+    if (!isWellShaped(parsed)) { this.threads = []; return; }
+    this.threads = parsed.comments.map(legacyToThread);
+  }
+
+  async list(_doc: DocKey): Promise<Thread[]> {
+    return this.threads.slice();
+  }
+
+  async create(_doc: DocKey, op: CreateOp, author: Author): Promise<Thread> {
+    const id = asThreadId(crypto.randomUUID());
+    const now = asTimestamp(Date.now());
+    const thread: Thread = {
+      id,
+      anchor: op.anchor,
+      root: {
+        id: asCommentId(id as string),
+        author,
+        body: op.text,
+        createdAt: now,
+      },
+      replies: [],
+      resolvedAt: null,
+    };
+    this.threads.push(thread);
+    try {
+      await this.persist();
+    } catch (err) {
+      // Roll back so a failed PUT doesn't leave a ghost thread that a retry
+      // (or the next successful save) would silently persist as a duplicate.
+      const idx = this.threads.indexOf(thread);
+      if (idx !== -1) this.threads.splice(idx, 1);
+      throw err;
+    }
+    return thread;
+  }
+
+  async reply(_doc: DocKey, _op: ReplyOp, _author: Author): Promise<Comment> {
+    throw new Error('op not yet supported');
+  }
+
+  async resolve(_doc: DocKey, op: ResolveOp, _author: Author): Promise<Thread> {
+    const thread = this.threads.find(t => t.id === op.threadId);
+    if (!thread) {
+      throw Object.assign(new Error('thread not found'), { opError: { code: 'not_found' as const } });
+    }
+    // Idempotent: if already resolved, don't re-stamp
+    const prev = thread.resolvedAt;
+    if (thread.resolvedAt === null) {
+      thread.resolvedAt = asTimestamp(Date.now());
+    }
+    try {
+      await this.persist();
+    } catch (err) {
+      thread.resolvedAt = prev;
+      throw err;
+    }
+    return thread;
+  }
+
+  async reopen(_doc: DocKey, op: ReopenOp, _author: Author): Promise<Thread> {
+    const thread = this.threads.find(t => t.id === op.threadId);
+    if (!thread) {
+      throw Object.assign(new Error('thread not found'), { opError: { code: 'not_found' as const } });
+    }
+    const prev = thread.resolvedAt;
+    thread.resolvedAt = null;
+    try {
+      await this.persist();
+    } catch (err) {
+      thread.resolvedAt = prev;
+      throw err;
+    }
+    return thread;
+  }
+
+  async delete(_doc: DocKey, op: DeleteOp, _author: Author): Promise<ThreadId> {
+    const idx = this.threads.findIndex(t => t.id === op.threadId);
+    if (idx === -1) {
+      throw Object.assign(new Error('thread not found'), { opError: { code: 'not_found' as const } });
+    }
+    const [removed] = this.threads.splice(idx, 1);
+    try {
+      await this.persist();
+    } catch (err) {
+      // Re-insert at the original position so store state matches the last
+      // successful persist.
+      if (removed) this.threads.splice(idx, 0, removed);
+      throw err;
+    }
+    return op.threadId;
+  }
+
+  async edit(_doc: DocKey, _op: EditOp, _author: Author): Promise<Comment> {
+    throw new Error('op not yet supported');
+  }
+
+  async batch(doc: DocKey, ops: Op[], author: Author): Promise<OpResult[]> {
+    const results: OpResult[] = [];
+    for (const op of ops) {
+      try {
+        switch (op.op) {
+          case 'create': {
+            const thread = await this.create(doc, op, author);
+            results.push({ ok: true, op: 'create', thread });
+            break;
+          }
+          case 'resolve': {
+            const thread = await this.resolve(doc, op, author);
+            results.push({ ok: true, op: 'resolve', thread });
+            break;
+          }
+          case 'reopen': {
+            const thread = await this.reopen(doc, op, author);
+            results.push({ ok: true, op: 'reopen', thread });
+            break;
+          }
+          case 'delete': {
+            const threadId = await this.delete(doc, op, author);
+            results.push({ ok: true, op: 'delete', threadId });
+            break;
+          }
+          case 'reply': {
+            await this.reply(doc, op, author);
+            // Won't reach here — reply throws
+            break;
+          }
+          case 'edit': {
+            await this.edit(doc, op, author);
+            // Won't reach here — edit throws
+            break;
+          }
+        }
+      } catch (err: unknown) {
+        const opError = (err as { opError?: OpError }).opError;
+        if (opError) {
+          results.push({ ok: false, op: op.op, error: opError });
+        } else {
+          // Reserved ops (reply/edit) throw plain Error
+          results.push({ ok: false, op: op.op, error: { code: 'transient', message: 'op not yet supported' } });
+        }
+      }
+    }
+    return results;
+  }
+
+  private async persist(): Promise<void> {
+    // Serialize threads to legacy CommentsModel wire shape
+    const comments = this.threads.flatMap(threadToLegacy);
+    const model: CommentsModel = {
+      doc: currentBasename(),
+      schema: SCHEMA_VERSION,
+      comments,
+    };
+    const url = sidecarUrlForCurrentDoc();
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(model, null, 2) + '\n',
+    });
+    if (!res.ok) {
+      throw new Error(`LocalFileStore: PUT ${url} → ${res.status}`);
+    }
+  }
+
+  /** `foo.html` -> `foo.comments.json`. Static helper for sidecar path derivation. */
+  static filename(basename: string): string {
+    return basename.replace(/\.html?$/i, '') + '.comments.json';
+  }
+}

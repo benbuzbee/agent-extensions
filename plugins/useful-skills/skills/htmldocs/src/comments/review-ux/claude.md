@@ -1,0 +1,1 @@
+Every file here is imported by both runtimes. Nothing may reference transport, fs, server, GitHub, Cloudflare, D1. Must not construct a store or mint identity. The inject.ts helpers here produce the markup strings; adapters own only the placement mechanism.

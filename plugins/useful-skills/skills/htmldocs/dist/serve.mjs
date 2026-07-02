@@ -5413,6 +5413,23 @@ function isYargsInstance(y) {
 var Yargs = YargsFactory(esm_default);
 var yargs_default = Yargs;
 
+// src/comments/review-ux/inject.ts
+function seedJsonScript(model) {
+  const json = JSON.stringify(model).replace(/</g, "\\u003c");
+  return '<script type="application/json" id="__htmldocs_comments">' + json + "</script>";
+}
+function widgetScriptTag(src) {
+  return `<script type="module" src="${src}"></script>`;
+}
+
+// src/comments/adapters/local/inject.ts
+function injectIntoHtml(html, model) {
+  const blocks = seedJsonScript(model) + "\n" + widgetScriptTag("/__htmldocs/comments.mjs") + "\n";
+  const idx = html.lastIndexOf("</body>");
+  if (idx === -1) return html + "\n" + blocks;
+  return html.slice(0, idx) + blocks + html.slice(idx);
+}
+
 // src/comments/serve.ts
 var HERE = path.dirname(fileURLToPath2(import.meta.url));
 var BUNDLE_PATH = path.join(HERE, "comments.mjs");
@@ -5514,13 +5531,6 @@ async function writeSidecarAtomic(sidecarPath, model) {
     });
     throw err;
   }
-}
-function injectIntoHtml(html, model) {
-  const seedJson = JSON.stringify(model).replace(/</g, "\\u003c");
-  const blocks = '<script type="application/json" id="__htmldocs_comments">' + seedJson + '</script>\n<script type="module" src="/__htmldocs/comments.mjs"></script>\n';
-  const idx = html.lastIndexOf("</body>");
-  if (idx === -1) return html + "\n" + blocks;
-  return html.slice(0, idx) + blocks + html.slice(idx);
 }
 function send(res, status, body, headers = {}) {
   res.writeHead(status, headers);

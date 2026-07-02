@@ -26,14 +26,13 @@ test('saveComment writes a valid sidecar that the server would persist', async (
     };
   });
 
-  expect(saved.comment.anchor.sections).toEqual(['alpha']);
-  expect(saved.comment.anchor.exact).toBe('quick brown fox');
   expect(saved.comment.body).toBe('first comment');
 
   const onWire = sidecar.getState();
   expect(onWire.doc).toBe('index.html');
   expect(onWire.schema).toBe(1);
   expect(onWire.comments).toHaveLength(1);
+  expect(onWire.comments[0].anchor.sections).toEqual(['alpha']);
   expect(onWire.comments[0].anchor.exact).toBe('quick brown fox');
   expect(onWire.comments[0].body).toBe('first comment');
 
