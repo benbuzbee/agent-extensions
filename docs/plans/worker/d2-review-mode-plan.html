@@ -1785,7 +1785,7 @@ type OpResult =
     <p>
       <a href="https://github.com/benbuzbee/agent-extensions/pull/6">GitHub PR #6</a> (node-native review server + Mermaid
       <code>noscript</code> fallback) is <strong>orthogonal</strong> to this deliverable — and is unrelated to the
-      <code>PR1&hellip;PR6</code> stack in <a href="#phases">Implementation phases</a>, which are the branches that build
+      <code>PR1&hellip;PR7</code> stack in <a href="#phases">Implementation phases</a>, which are the branches that build
       this deliverable. It moves
       port/arg/file-vs-dir handling out of <code>serve.sh</code> into <code>serve.ts</code>'s yargs
       CLI (so review mode runs anywhere <code>node</code> is on PATH) and adds a Mermaid fallback. It touches only the
@@ -1849,7 +1849,7 @@ type OpResult =
     validate. Every card states its <strong>stack position</strong> (its base branch) up front, so an executor picking
     up one card in isolation still knows exactly what it branches from.
   </p>
-  <p class="lineage"><code>main &lt;- PR0 &lt;- PR1 &lt;- PR2 &lt;- PR3 &lt;- PR4 &lt;- PR5 &lt;- PR6</code></p>
+  <p class="lineage"><code>main &lt;- PR0 &lt;- PR1 &lt;- PR2 &lt;- PR3 &lt;- PR4 &lt;- PR5 &lt;- PR6 &lt;- PR7</code></p>
   <p>
     The stack is authored with <strong>Graphite (<code>gt</code>)</strong>. In Graphite's model each PR is a
     <strong>branch stacked on its parent</strong> above <code>trunk</code> (<code>main</code>): PR1 branches off
@@ -2429,7 +2429,7 @@ BEHAVIORAL CONTRACT VERIFICATION:
 
   <section data-kind="pr-card" id="pr6">
     <h3>PR6 — Injection + docs (pass 1)</h3>
-    <p class="stack-pos"><strong>Stack position:</strong> layer 6 (top) — branches off <code>PR5</code> (<code>PR5 &lt;- PR6</code>).</p>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 6 — branches off <code>PR5</code> (<code>PR5 &lt;- PR6</code>).</p>
     <p>
       Wire the widget into served docs and write the first docs pass. On a 200 HTML doc response the Worker's
       <a href="#widget"><code>HTMLRewriter</code></a> appends the widget script plus an inline JSON seed of the doc's
@@ -2521,6 +2521,50 @@ EXIT=0  (git diff clean, no drift)
   dist/serve.mjs  272.3kb  ⚡ Done in 494ms
 EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
     </details>
+  </section>
+
+  <section data-kind="pr-card" id="pr7">
+    <h3>PR7 — Hosted browser review (widget wiring)</h3>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 7 (top) — branches off <code>PR6</code> (<code>PR6 &lt;- PR7</code>).</p>
+    <p>
+      Fill the hosted adapter slice PR6 deferred, so a reviewer in a <em>browser</em> on a hosted doc can comment end
+      to end — the gap the stack-wide exit-criteria audit flagged. The shared <a href="#widget"><code>review-ux/</code></a>
+      layer is complete and needs <strong>no changes</strong>; everything here is the thin layer
+      <a href="#widget-dirs"><code>adapters/hosted/</code></a> reserved (transport + identity + wiring), plus the Worker
+      serving the bundle. Four pieces: a Worker route that serves the checked-in widget bundle at the injected
+      <code>WIDGET_SRC</code> path; a browser-side hosted <code>ICommentsStore</code> that drives
+      <code>&lt;doc&gt;?ref=&amp;comments</code> over <code>fetch</code> with the session cookie (POST op envelopes,
+      GET list — the <a href="#api">API</a> and D1 persistence already exist and are tested); hosted
+      <code>deps.ts</code> building <code>MountDeps</code> from that store plus the author already carried in the
+      injected seed; and runtime selection in <code>main.ts</code> off the injected seed, with the checked-in
+      <code>dist</code> rebuilt. Also update <code>docs/hosted_review.html</code> and the "deferred follow-up" notes
+      this PR closes.
+    </p>
+    <details>
+      <summary>PR7 specifics — the calls the design must settle</summary>
+      <ul>
+        <li><strong>Bundle bytes at deploy time:</strong> <code>vendor.sh</code> cannot carry files above the app root
+          (the PR3/PR4 vendoring lesson) — settle how the deployed Worker gets <code>comments.mjs</code>; the PR4
+          precedent is a sync script + <code>git diff --exit-code</code> drift gate.</li>
+        <li><strong>Bundle-route auth posture:</strong> the route serves generic widget code, not doc data — settle
+          whether it requires a session, and prove it cannot interact with the neutral-404 non-leak contract either
+          way.</li>
+        <li><strong>Runtime discriminator:</strong> how <code>main.ts</code> decides hosted vs. local off the injected
+          seed (e.g. the seeded author PR6 landed), keeping local behavior byte-compatible.</li>
+        <li><strong>Store semantics:</strong> the hosted store maps every verb + batch to op envelopes and unwraps
+          <code>OpResult</code>s per the seam contract — same observable behavior as <code>LocalFileStore</code> from
+          the widget's point of view.</li>
+      </ul>
+    </details>
+    <aside data-kind="validation">
+      <strong>Validate.</strong> Workerd: <code>GET WIDGET_SRC</code> serves the bundle (correct content-type, bytes
+      match the checked-in dist) with the designed auth posture, and the neutral-404 path stays byte-identical to a
+      missing doc (no widget, no bundle-route interplay). Unit: the hosted store's envelope mapping and
+      <code>OpResult</code> unwrapping against a mocked <code>fetch</code>; runtime selection picks hosted deps on a
+      hosted seed and local deps otherwise. Playwright: full local regression green (behavior unchanged); a hosted-mode
+      mount against a stubbed transport does create &rarr; resolve round-trip with the green indicator and the comment
+      still visible. Both packages' full gates green; dist rebuilt and committed.
+    </aside>
   </section>
 
   <aside data-kind="exit-criteria">
