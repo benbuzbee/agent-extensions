@@ -10,9 +10,9 @@ import { isNotFoundError } from './thread-ops';
 
 const RESERVED_MESSAGE = 'op not yet supported';
 
-/** Pull an OpError out of whatever a store threw. LocalFileStore tags errors
- *  with `.opError`; thread-ops throws NotFoundError; anything else is a
- *  genuine transient failure. */
+/** Pull an OpError out of whatever a store threw. A store may tag an error with
+ *  `.opError`; thread-ops throws NotFoundError; anything else is a genuine
+ *  transient failure. */
 function errorToOpError(err: unknown): OpError {
   const tagged = (err as { opError?: OpError }).opError;
   if (tagged && typeof tagged.code === 'string') return tagged;

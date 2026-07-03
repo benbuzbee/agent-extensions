@@ -109,7 +109,7 @@ export class D1Store implements ICommentsStore {
   // are not capability secrets (they appear in list responses, seeds, DOM, shared
   // links). Adding the (repo, ref, path) predicate makes a foreign-doc id behave
   // exactly like a missing id: zero rows -> not_found, no existence leak, and the
-  // same semantics LocalFileStore has (its backing collection IS one doc).
+  // same semantics the local SidecarStore has (its backing collection IS one doc).
   private getRow(doc: DocKey, id: ThreadId): Promise<CommentRow | null> {
     return this.db
       .prepare(
@@ -222,8 +222,8 @@ export class D1Store implements ICommentsStore {
   }
 
   // Best-effort per-op: loop the single-op methods, build OpResult[] in request
-  // order, and catch EVERY throw with the same mapping LocalFileStore.batch /
-  // handlers.errorToOpError use — not_found for a NotFoundError, transient for
+  // order, and catch EVERY throw with the same mapping the shared
+  // handlers.errorToOpError uses — not_found for a NotFoundError, transient for
   // anything else (including the reserved reply/edit Error, whose message is
   // RESERVED_MESSAGE). There is no 'unsupported' OpError code, so a reserved op
   // inside a batch is a per-op transient, never a whole-batch reject.

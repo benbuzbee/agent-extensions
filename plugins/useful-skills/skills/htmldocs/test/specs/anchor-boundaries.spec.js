@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
+import { seedInline, interceptComments } from '../helpers/comments-route.js';
 
 // Anchor encode/decode across block boundaries, inline boundaries,
 // and out-of-article body text.
 
 test('anchor round-trips across block boundaries (p + blockquote)', async ({ page }) => {
-  await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-  await interceptSidecar(page);
+  await seedInline(page);
+  await interceptComments(page);
   await page.goto('/test/fixtures/no-article/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 
@@ -26,8 +26,8 @@ test('anchor round-trips across block boundaries (p + blockquote)', async ({ pag
 });
 
 test('anchor round-trips across inline boundaries (em inside blockquote)', async ({ page }) => {
-  await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-  await interceptSidecar(page);
+  await seedInline(page);
+  await interceptComments(page);
   await page.goto('/test/fixtures/no-article/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 
@@ -48,8 +48,8 @@ test('anchor round-trips across inline boundaries (em inside blockquote)', async
 });
 
 test('anchor for out-of-article body text encodes with sections:[] and decodes correctly', async ({ page }) => {
-  await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-  await interceptSidecar(page);
+  await seedInline(page);
+  await interceptComments(page);
   await page.goto('/test/fixtures/no-article/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 

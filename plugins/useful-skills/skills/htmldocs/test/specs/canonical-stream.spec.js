@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
+import { seedInline, interceptComments } from '../helpers/comments-route.js';
 
 // Regression coverage for two correctness hedges added in this PR:
 //
@@ -16,8 +16,8 @@ import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
 //    matching the implicit set semantics of `sections.includes(X)`.
 
 test('encoded prefix/suffix do not contain widget chrome text', async ({ page }) => {
-  await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-  await interceptSidecar(page);
+  await seedInline(page);
+  await interceptComments(page);
   await page.goto('/test/fixtures/clean/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 
@@ -44,8 +44,8 @@ test('encoded prefix/suffix do not contain widget chrome text', async ({ page })
 });
 
 test('touchedArticleIds dedupes duplicate ids on malformed docs', async ({ page }) => {
-  await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-  await interceptSidecar(page);
+  await seedInline(page);
+  await interceptComments(page);
   await page.goto('/test/fixtures/clean/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 

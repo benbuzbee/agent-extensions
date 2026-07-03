@@ -8,7 +8,7 @@
 // directly, via the app's @shared/* tsconfig path alias.
 //
 // The contract both runtimes honor: place the SINGLE shared fragment,
-//   injectionFragment(model, src, author?)   // review-ux/inject.ts
+//   injectionFragment(threads, src, author?)   // review-ux/inject.ts
 // as one unit — local string-splices it before </body>; hosted appends it in ONE
 // HTMLRewriter el.append(fragment, { html: true }) on <body>, on a 200 text/html
 // doc response only. The neutral-404 path is untouched (no widget, no seed, no
@@ -16,9 +16,9 @@
 // byte-identical by construction.
 
 import { injectionFragment } from '../../review-ux/inject';
-import type { CommentsModel } from '../../review-ux/types';
+import type { Thread } from '../../review-ux/types';
 
 // Keep the import used so this stub compiles under the skill's typecheck; the
 // real placement is apps/htmldoc-review/src/worker/inject.ts.
 void injectionFragment;
-export type HostedModel = CommentsModel;
+export type HostedSeedThreads = Thread[];

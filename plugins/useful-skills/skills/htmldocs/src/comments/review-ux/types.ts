@@ -31,8 +31,8 @@ export interface Anchor {
 /**
  * Reviewer identity, stamped server-side from the session. `id` is the OPTIONAL
  * stable GitHub numeric id — supplied only on the hosted Worker path (from the
- * captured session identity); the local path (adapter/LocalFileStore/playwright)
- * never sets or reads it, so the local JSON carries no id.
+ * captured session identity); the local adapter (fixed "user" author) never
+ * sets or reads it, so the local shape and behavior are unchanged.
  */
 export type Author = { login: string; name: string | null; id?: number };
 
@@ -135,97 +135,15 @@ export type OpResult =
   | { ok: true; op: "delete"; threadId: ThreadId }
   | { ok: false; op: Op["op"]; error: OpError };
 
-// --- Legacy sidecar wire format (backward-compatible) ---
-
-/**
- * One comment in the legacy sidecar JSON shape. This is the wire format
- * `isWellShapedModel` in serve.ts validates; it is NOT the internal
- * Thread/Comment shape.
- */
-export interface LegacyComment {
-  id: string;
-  anchor: { sections: string[]; prefix: string; exact: string; suffix: string };
-  body: string;
-  author: string;
-  created_at: string;
-  /**
-   * Optional soft-close timestamp (ISO string, mirroring `created_at`).
-   * Absent/omitted == open. Added backward-compatibly: serve.ts's
-   * `isWellShapedModel` tolerates extra fields, and older sidecars simply
-   * lack it (they load as open), so Deliverable 1 sidecars still validate.
-   */
-  resolved_at?: string;
-}
-
-/**
- * Top-level shape of the JSON sidecar and the inline seed. One definition
- * serves the widget, the server, and the agent — single source of truth.
- */
-export interface CommentsModel {
-  doc: string;
-  schema: 1;
-  comments: LegacyComment[];
-}
-
-// --- Conversion helpers (bridge legacy <-> internal) ---
-
-/**
- * Flatten a Thread back to the legacy wire array of LegacyComment objects.
- * Each thread becomes one root entry (replies are appended after root).
- */
-export function threadToLegacy(thread: Thread): LegacyComment[] {
-  const out: LegacyComment[] = [];
-  const toLegacy = (c: Comment, anchor: Anchor): LegacyComment => {
-    const legacy: LegacyComment = {
-      id: c.id,
-      anchor: {
-        sections: anchor.sections ?? [],
-        prefix: anchor.prefix ?? '',
-        exact: anchor.exact,
-        suffix: anchor.suffix ?? '',
-      },
-      body: c.body,
-      author: c.author.login,
-      created_at: new Date(c.createdAt).toISOString(),
-    };
-    // Carry resolve state on the wire so a soft-close survives persist/reload.
-    if (thread.resolvedAt !== null) {
-      legacy.resolved_at = new Date(thread.resolvedAt).toISOString();
-    }
-    return legacy;
-  };
-  out.push(toLegacy(thread.root, thread.anchor));
-  for (const reply of thread.replies) {
-    out.push(toLegacy(reply, thread.anchor));
-  }
-  return out;
-}
-
-/**
- * Convert a single legacy comment (treated as a thread root with no replies)
- * into the internal Thread shape. For v1 single-comment threads: replies=[]
- * and resolvedAt=null; ThreadId === the legacy comment's id.
- */
-export function legacyToThread(comment: LegacyComment): Thread {
-  return {
-    id: asThreadId(comment.id),
-    anchor: {
-      exact: comment.anchor.exact,
-      prefix: comment.anchor.prefix || undefined,
-      suffix: comment.anchor.suffix || undefined,
-      sections: comment.anchor.sections.length > 0 ? comment.anchor.sections : undefined,
-    },
-    root: {
-      id: asCommentId(comment.id),
-      author: { login: comment.author, name: null },
-      body: comment.body,
-      createdAt: asTimestamp(new Date(comment.created_at).getTime()),
-    },
-    replies: [],
-    resolvedAt: comment.resolved_at
-      ? asTimestamp(new Date(comment.resolved_at).getTime())
-      : null,
-  };
+// The inline seed and the GET ?comments response share ONE wire shape: the
+// internal { threads: Thread[] } view (plus an optional top-level `author`,
+// present only on the hosted path). There is no legacy shape here — the
+// legacy `*.comments.json` (de)serialization lives entirely in the Node disk
+// layer (adapters/local/legacy-format.ts), never in this shared, browser-facing
+// package.
+export interface CommentsSeed {
+  threads: Thread[];
+  author?: Author;
 }
 
 // NOTE: `AnchorAPI` (the Range<->Anchor encode/decode surface) lives in
@@ -234,6 +152,5 @@ export function legacyToThread(comment: LegacyComment): Thread {
 // D1Store seam) pull these domain types under an es2022-only lib.
 
 // NOTE: the TestHandle interface and its `Window` global live in the entry
-// point (main.ts), NOT here. TestHandle names the concrete LocalFileStore
-// (a transport adapter), and this shared layer must never reference an
-// adapter — see review-ux/CLAUDE.md.
+// point (main.ts), NOT here. TestHandle names concrete transport adapters, and
+// this shared layer must never reference one — see review-ux/CLAUDE.md.

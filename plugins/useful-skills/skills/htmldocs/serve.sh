@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Serve an htmldocs directory over http://127.0.0.1 so the comments widget
-# can PUT its sidecar back to disk. Every .html / .htm response under the
+# can save comments through the <doc>?comments op API. Every .html / .htm response under the
 # served root gets the review widget injected; each doc writes to a sidecar
 # JSON under a dedicated sidecar directory (auto-tmp by default, or
 # `--sidecar-dir <path>` for a stable resumable location). Foreground server;

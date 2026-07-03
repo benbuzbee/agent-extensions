@@ -23,8 +23,10 @@ export interface ICommentsStore {
 
 /**
  * The seam mount.ts receives — store + author. Each runtime's deps.ts builds
- * this: local supplies LocalFileStore + fixed author, hosted supplies D1Store
- * + real GitHub identity.
+ * this: BOTH build the shared HttpCommentsStore (browser HTTP client over the
+ * ?comments API) and differ only in author — local supplies a fixed "user",
+ * hosted supplies the real GitHub identity. Server-side, the local route is
+ * backed by SidecarStore and the hosted route by D1Store.
  */
 export interface MountDeps {
   store: ICommentsStore;

@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { SidecarStore } from '../../src/comments/adapters/local/sidecar-store';
 import type { SidecarPersistence } from '../../src/comments/adapters/local/sidecar-store';
-import type { CommentsModel, CreateOp } from '../../src/comments/review-ux/types';
+import type { CommentsModel } from '../../src/comments/adapters/local/legacy-format';
+import type { CreateOp } from '../../src/comments/review-ux/types';
 import { asThreadId } from '../../src/comments/review-ux/types';
 
 const DOC = { repo: '', ref: 'default', path: '/doc.html' };

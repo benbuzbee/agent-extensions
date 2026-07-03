@@ -1,22 +1,25 @@
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
+import { seedInline, interceptComments, thread } from '../helpers/comments-route.js';
 
 // Surrounding text changes; exact-quoted substring is preserved. Re-anchor
-// must still find the highlight after the prose drifts around it. The
-// `drift-exact-preserved` sidecar's anchor is "quick brown fox" with prose
-// before/after — we rewrite the prose at runtime and reanchor.
+// must still find the highlight after the prose drifts around it. The seeded
+// thread's anchor is "quick brown fox" with prose before/after — we rewrite the
+// prose at runtime and reanchor.
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const seed = JSON.parse(
-  readFileSync(path.resolve(here, '../fixtures/drift-exact-preserved/index.comments.json'), 'utf8'),
-);
+const seed = {
+  threads: [thread({
+    id: 'c1',
+    exact: 'quick brown fox',
+    prefix: 'talks about the ',
+    suffix: ' and then continues',
+    sections: ['alpha'],
+    body: 'Is this still the right metaphor here?',
+  })],
+};
 
 test('re-anchor finds the highlight after surrounding text edits', async ({ page }) => {
   await seedInline(page, seed);
-  await interceptSidecar(page, { initial: seed });
+  await interceptComments(page, { threads: seed.threads });
   await page.goto('/test/fixtures/drift-exact-preserved/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 

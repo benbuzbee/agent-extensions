@@ -22,12 +22,7 @@ import { KvSessionStore } from "./kv-store";
 import { checkAccess } from "./access";
 import { handleComments, type Actor } from "./comments";
 import { D1Store } from "./d1-store";
-import {
-  buildSeedModel,
-  injectWidget,
-  serveWidgetBundle,
-  COMMENTS_WIDGET_SRC,
-} from "./inject";
+import { injectWidget, serveWidgetBundle, COMMENTS_WIDGET_SRC } from "./inject";
 import { initWorkerLogging } from "./logging";
 
 const log = getLogger(["htmldoc-review", "worker"]);
@@ -331,12 +326,11 @@ export default {
         ref: ref ?? "default",
         path: docPath,
       });
-      const model = buildSeedModel(threads, docPath);
       // A dead session here (record vanished since token resolution) must not
       // break a doc VIEW that already served — seed without an author instead.
       // No GitHub call is involved: resolveAuthor only reads the session record.
       const author = (await resolveAuthor(store, cred))?.author;
-      return injectWidget(res, model, COMMENTS_WIDGET_SRC, author);
+      return injectWidget(res, threads, COMMENTS_WIDGET_SRC, author);
     } catch (err) {
       // A safeSegments InvalidPathError raised from inside fetchDoc launders to
       // the same neutral 404 as a parse-time one.

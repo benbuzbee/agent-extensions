@@ -74,7 +74,7 @@ Default to portable: one `<style>` block in `<head>`, no external CSS, JS, or fo
 
 ## Review mode (optional)
 
-If User wants to leave inline comments on a doc — or several related docs in the same folder — run `bash <htmldocs-skill>/serve.sh path/to/doc.html` via `Bash` with `run_in_background=true` (`<htmldocs-skill>` = this skill's root on disk). The server emits two stdout lines: `URL: …` (hand to User) and `SIDECAR_DIR: …` (where you'll read comments back from when User signals done). Requires `node` on PATH. Full recipe in `references/comments.md`.
+If User wants to leave inline comments on a doc — or several related docs in the same folder — run `bash <htmldocs-skill>/serve.sh path/to/doc.html` via `Bash` with `run_in_background=true` (`<htmldocs-skill>` = this skill's root on disk). The server emits two stdout lines: `URL: …` (hand to User) and `SIDECAR_DIR: …` (an on-disk backup of the comments, for inspection). Read and act on comments over the doc's `?comments` HTTP API — the same call shape locally or hosted; the sidecar files are storage, not the interface. Requires `node` on PATH. Full recipe in `references/comments.md`.
 
 For hosted review 2.0 behind a Cloudflare Worker (org-wide, GitHub-gated, agent-drivable over a `?comments` API), see `docs/hosted_review.html`.
 
@@ -82,5 +82,5 @@ For hosted review 2.0 behind a Cloudflare Worker (org-wide, GitHub-gated, agent-
 
 - `references/conventions.md` — default `data-*` vocabularies, ID naming, document-type schemas, escaping rules.
 - `references/examples.md` — bad/good pairs for each principle.
-- `references/comments.md` — review-mode recipe: enable on a doc, run `serve.sh`, sidecar shape, reading comments back.
+- `references/comments.md` — review-mode recipe: enable on a doc, run `serve.sh`, and drive comments over the `?comments` HTTP API (list / resolve / delete).
 - `references/mermaid.md` — use inline Mermaid to generate diagrams; read it for complex diagrams or if rendering issues come up.

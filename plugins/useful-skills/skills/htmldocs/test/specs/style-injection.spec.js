@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
+import { seedInline, interceptComments } from '../helpers/comments-route.js';
 
 // Two cached stylesheets make init() safe to call repeatedly: one for the
 // highlight sheet (main.ts), one for the UI sheet (ui.ts). Both modules
@@ -9,8 +9,8 @@ import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
 // review mode, (b) re-init does not duplicate them.
 
 test('adoptedStyleSheets grows by exactly 2 in review mode, idempotent on re-init', async ({ page }) => {
-  await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-  await interceptSidecar(page);
+  await seedInline(page);
+  await interceptComments(page);
   await page.goto('/test/fixtures/clean/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 

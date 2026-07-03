@@ -19,7 +19,8 @@ import * as crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import type { CommentsModel, LegacyComment, Author, DocKey } from './review-ux/types.js';
+import type { Author, DocKey } from './review-ux/types.js';
+import type { CommentsModel, LegacyComment } from './adapters/local/legacy-format.js';
 import { injectIntoHtml } from './adapters/local/inject.js';
 import { COMMENTS_WIDGET_SRC } from './review-ux/inject.js';
 import { handleCommentsRequest } from './api/index.js';
@@ -27,7 +28,6 @@ import { SidecarStore } from './adapters/local/sidecar-store.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BUNDLE_PATH = path.join(HERE, 'comments.mjs');
-const SIDECAR_URL_PREFIX = '/__htmldocs/sidecar/';
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -110,7 +110,7 @@ function isWellShapedModel(parsed: unknown): parsed is CommentsModel {
   if (!parsed || typeof parsed !== 'object') return false;
   const m = parsed as Partial<CommentsModel>;
   if (typeof m.doc !== 'string' || m.schema !== 1 || !Array.isArray(m.comments)) return false;
-  // Deep-validate so a malformed PUT can't land junk the widget later trips on.
+  // Deep-validate so a malformed write can't land junk the widget later trips on.
   return m.comments.every(isWellShapedComment);
 }
 
@@ -119,7 +119,7 @@ function emptyModel(docLabel: string): CommentsModel {
 }
 
 // Returns empty model for any recoverable failure so the widget mounts with
-// a clean slate and the next PUT overwrites the bad file. Other I/O errors
+// a clean slate and the next write overwrites the bad file. Other I/O errors
 // propagate so GETs fail loudly instead of silently dropping data.
 async function readSidecar(sidecarPath: string, docLabel: string): Promise<CommentsModel> {
   let text: string;
@@ -185,39 +185,6 @@ async function readBody(req: http.IncomingMessage, limit: number): Promise<strin
 
 // --- request handlers -----------------------------------------------------
 
-// PUT /__htmldocs/sidecar/<doc-path>. URL-derived doc path is validated
-// against --root; sidecar lands under --sidecar-dir, mirrored.
-async function handlePutSidecar(req: http.IncomingMessage, res: http.ServerResponse, root: string, sidecarDir: string, urlPath: string): Promise<void> {
-  const docRel = urlPath.slice(SIDECAR_URL_PREFIX.length);
-  if (!docRel) { send(res, 400, 'missing doc path'); return; }
-  const htmlPath = resolveUnderRoot(root, '/' + docRel);
-  if (!htmlPath) { send(res, 400, 'bad doc path'); return; }
-  if (!/\.html?$/i.test(htmlPath)) { send(res, 400, 'doc path must end in .html'); return; }
-  // Refuse orphan sidecars: the widget only PUTs for the doc it's hosted on,
-  // so a missing doc means a crafted curl or stale bundle — junk either way.
-  const htmlStat = await fs.stat(htmlPath).catch(() => null);
-  if (!htmlStat || !htmlStat.isFile()) { send(res, 404, 'doc not found'); return; }
-  let body: string;
-  try {
-    body = await readBody(req, 5 * 1024 * 1024); // 5 MiB cap
-  } catch (err) {
-    const code = (err as { code?: string }).code;
-    if (code === 'ETOOBIG') { send(res, 413, 'payload too large'); return; }
-    send(res, 400, 'bad request'); return;
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(body);
-  } catch {
-    send(res, 400, 'invalid JSON'); return;
-  }
-  if (!isWellShapedModel(parsed)) {
-    send(res, 422, 'invalid CommentsModel shape'); return;
-  }
-  await writeSidecarAtomic(sidecarPathFor(htmlPath, root, sidecarDir), parsed);
-  send(res, 204, '');
-}
-
 async function handleGetBundle(res: http.ServerResponse): Promise<void> {
   try {
     const bytes = await fs.readFile(BUNDLE_PATH);
@@ -227,8 +194,10 @@ async function handleGetBundle(res: http.ServerResponse): Promise<void> {
   }
 }
 
-// Serve an HTML doc with the widget bundle + inline JSON seed injected.
-// Sidecar is read fresh per request so reloads always reflect on-disk state.
+// Serve an HTML doc with the widget bundle + inline JSON seed injected. The
+// seed is the internal { threads } view: we load through a SidecarStore so the
+// legacy disk shape is converted to Thread[] INSIDE the disk layer, never
+// browser-side. Read fresh per request so reloads always reflect on-disk state.
 async function handleHtmlInject(res: http.ServerResponse, root: string, sidecarDir: string, htmlPath: string): Promise<void> {
   let html: string;
   try {
@@ -238,8 +207,16 @@ async function handleHtmlInject(res: http.ServerResponse, root: string, sidecarD
     send(res, 500, 'read failed'); return;
   }
   const docLabel = path.basename(htmlPath);
-  const model = await readSidecar(sidecarPathFor(htmlPath, root, sidecarDir), docLabel);
-  const injected = injectIntoHtml(html, model);
+  const sidecarPath = sidecarPathFor(htmlPath, root, sidecarDir);
+  const store = new SidecarStore(
+    {
+      load: () => readSidecar(sidecarPath, docLabel),
+      save: (model) => writeSidecarAtomic(sidecarPath, model),
+    },
+    docLabel,
+  );
+  const threads = await store.list({ repo: '', ref: 'default', path: stripQueryHash(htmlPath) });
+  const injected = injectIntoHtml(html, threads);
   send(res, 200, injected, { 'Content-Type': MIME['.html']!, 'Cache-Control': 'no-cache' });
 }
 
@@ -284,7 +261,7 @@ const LOCAL_AUTHOR: Author = { login: 'user', name: null };
 
 // GET/POST <doc>?ref=&comments — mounts the runtime-agnostic comment API over
 // HTTP against a Node fs-backed SidecarStore. Resolves + requires an existing
-// .html doc (else 404, matching the sidecar PUT path), builds a SidecarStore
+// .html doc (else 404, the same doc-existence check the injector uses), builds a SidecarStore
 // wired to the existing readSidecar/writeSidecarAtomic helpers, stamps the
 // fixed local author, and dispatches to handleCommentsRequest.
 async function handleCommentsApi(
@@ -296,8 +273,14 @@ async function handleCommentsApi(
   params: URLSearchParams,
   method: string,
 ): Promise<void> {
-  const htmlPath = resolveUnderRoot(root, urlPath);
+  let htmlPath = resolveUnderRoot(root, urlPath);
   if (!htmlPath) { sendJson(res, 404, { error: 'not found' }); return; }
+  // Mirror handleGet's directory-index rewrite: a doc served at a trailing-
+  // slash URL is <dir>/index.html, and the widget calls ?comments back with
+  // location.pathname verbatim — so its collection must resolve to that same
+  // file (and the same mirrored sidecar) here too.
+  const dirStat = await fs.stat(htmlPath).catch(() => null);
+  if (dirStat?.isDirectory()) htmlPath = path.join(htmlPath, 'index.html');
   if (!/\.html?$/i.test(htmlPath)) { sendJson(res, 404, { error: 'not found' }); return; }
   const htmlStat = await fs.stat(htmlPath).catch(() => null);
   if (!htmlStat || !htmlStat.isFile()) { sendJson(res, 404, { error: 'not found' }); return; }
@@ -369,14 +352,6 @@ export function createServer(cfg: ServerConfig): http.Server {
     const method = req.method || 'GET';
     const urlPath = stripQueryHash(url);
 
-    if (method === 'PUT' && urlPath.startsWith(SIDECAR_URL_PREFIX)) {
-      handlePutSidecar(req, res, cfg.root, cfg.sidecarDir, urlPath).catch((err) => {
-        console.error('[serve] PUT failed:', err);
-        if (!res.headersSent) send(res, 500, 'write failed');
-      });
-      return;
-    }
-
     // Comment API: GET/POST <doc>?ref=&comments. The query string names the
     // collection, the body names the op. Detected via ?comments (bare or =1).
     const query = url.indexOf('?');
@@ -397,7 +372,7 @@ export function createServer(cfg: ServerConfig): http.Server {
     }
 
     if (method !== 'GET' && method !== 'HEAD') {
-      send(res, 405, 'method not allowed', { Allow: 'GET, HEAD, PUT' });
+      send(res, 405, 'method not allowed', { Allow: 'GET, HEAD' });
       return;
     }
 
@@ -437,7 +412,7 @@ export interface StartReviewServerOpts {
   sidecarDir?: string | null;
   port?: number;  // default 0 = OS-assigned
   // host is intentionally not exposed: review mode is single-user localhost.
-  // Binding any non-loopback address would publish sidecar PUT to the LAN.
+  // Binding any non-loopback address would publish the comment API to the LAN.
 }
 
 export interface ReviewServerHandle {

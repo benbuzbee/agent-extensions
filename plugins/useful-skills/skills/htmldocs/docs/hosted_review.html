@@ -117,9 +117,9 @@
   </p>
   <aside data-kind="scope">
     <strong>Where each store lives.</strong> Sessions stay in Workers <strong>KV</strong> (<code>sess:&lt;id&gt;</code>);
-    comments live in <strong>D1</strong>. They evolve by different mechanisms — do not conflate them. The agent NEVER
-    reads comments off a disk file the way the local sidecar flow does; the hosted store is only reachable through the
-    <code>?comments</code> API below.
+    comments live in <strong>D1</strong>. They evolve by different mechanisms — do not conflate them. The agent reaches
+    comments only through the <code>?comments</code> API below — the same API the local runtime now uses, so there is
+    one agent recipe for both (a local doc keeps a sidecar file on disk as its backing store, but that is not the interface).
   </aside>
 </article>
 
@@ -233,32 +233,26 @@ POST https://&lt;worker-host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&a
 </article>
 
 <article id="recipe" data-kind="recipe">
-  <h2>Agent recipe — list → address → resolve</h2>
+  <h2>Agent recipe — hosted deltas</h2>
   <p>
-    The intended agent loop over a doc under review: <strong>list</strong> the open threads, <strong>address</strong>
-    each one by editing the underlying HTML (the fix lives in the doc, not in a comment reply — <code>reply</code> is
-    reserved in v1), then <strong>resolve</strong> the thread so its indicator turns green while it stays visible for the
-    reviewer to audit. <code>delete</code> only when a thread is truly moot (a hard purge, unauditable).
+    The list → address → resolve loop, the op shapes, and orphan handling are documented once, runtime-agnostically, in
+    <a href="../references/comments.md"><code>references/comments.md</code></a> — that is the canonical recipe. This
+    section carries only what is <em>different</em> when the doc is served over the Worker rather than locally:
   </p>
-  <p><strong>1. List</strong> the doc's comments (open threads have <code>resolvedAt: null</code>):</p>
-<pre><code>curl -s -H "Authorization: Bearer $GH_TOKEN" \
-  "https://&lt;worker-host&gt;/&lt;repo&gt;/docs/foo.html?comments" | jq '.threads[] | select(.resolvedAt == null)'</code></pre>
-  <p>
-    For each open thread, read <code>anchor.exact</code> (with <code>anchor.prefix</code>/<code>suffix</code> as context)
-    to find the pinned span in the doc, and <code>root.body</code> for the reviewer's note.
-  </p>
-  <p><strong>2. Address</strong> it by editing the doc's HTML to satisfy the note (normal file edits, then reship the doc).</p>
-  <p><strong>3. Resolve</strong> the thread once addressed:</p>
-<pre><code>curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" \
-  -d '{"op":"resolve","threadId":"&lt;id&gt;"}' \
-  "https://&lt;worker-host&gt;/&lt;repo&gt;/docs/foo.html?comments"</code></pre>
-  <p>Or resolve several at once with a batch array. Use <code>reopen</code> to undo, <code>delete</code> to purge.</p>
-  <aside class="risk" data-kind="v1-rule">
-    <strong>No agent <code>create</code> in v1.</strong> Creating comments is a reviewer (browser) affordance. The API
-    does not structurally block a bearer <code>create</code> today, but it is deliberately out of the agent's v1 verb
-    set — a bearer-authored create would land a <code>{"login":"agent"}</code> row. Stick to list / resolve / reopen /
-    delete.
-  </aside>
+  <ul>
+    <li><strong>Repo path segment.</strong> A hosted doc URL is <code>https://&lt;worker-host&gt;/&lt;repo&gt;/&lt;path&gt;?comments</code>
+      — the <code>&lt;repo&gt;</code> segment the local route omits.</li>
+    <li><strong>Ref semantics.</strong> Add <code>&amp;ref=&lt;branch|sha&gt;</code> to pin a non-default ref; omit it and the
+      collection resolves against the repo's default branch.</li>
+    <li><strong>Bearer required.</strong> Every request needs <code>Authorization: Bearer $GH_TOKEN</code> with read access
+      to the repo; a local doc needs none.</li>
+    <li><strong>No agent <code>create</code> in v1.</strong> Creating comments is a reviewer (browser) affordance. The API
+      does not structurally block a bearer <code>create</code> today, but it is deliberately out of the agent's v1 verb
+      set — a bearer-authored create would land a <code>{"login":"agent"}</code> row. Stick to list / resolve / reopen /
+      delete.</li>
+    <li><strong>One access probe per batch.</strong> The gate probes GitHub once per request, so batching several ops for
+      the same doc pays a single probe — see <a href="#ops">§ Ops</a>.</li>
+  </ul>
 </article>
 
 <article id="injection" data-kind="injection">
@@ -267,7 +261,7 @@ POST https://&lt;worker-host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&a
     When a reviewer opens a doc (a normal doc view, no <code>?comments</code>), the Worker serves the raw doc and — on a
     <strong><code>200</code> <code>text/html</code> response only</strong> — appends the review widget plus an inline
     JSON <em>seed</em> of that doc's comments (open <strong>and</strong> resolved, each carrying its
-    <code>resolved_at</code>) to <code>&lt;body&gt;</code> via <code>HTMLRewriter</code>. The page therefore paints with
+    <code>resolvedAt</code>) to <code>&lt;body&gt;</code> via <code>HTMLRewriter</code>. The page therefore paints with
     its comments already present, zero extra round trips. The local server produces the byte-identical fragment by
     string-splicing before <code>&lt;/body&gt;</code> — both call the same shared
     <code>seedJsonScript</code>/<code>widgetScriptTag</code> helpers, so the injected markup can't drift between
@@ -295,12 +289,13 @@ POST https://&lt;worker-host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&a
   <ul>
     <li><strong>Hosted browser review now ships (was deferred).</strong> The Worker serves the checked-in widget bundle
       <strong>publicly</strong> at <code>WIDGET_SRC</code> (<code>/__htmldocs/comments.mjs</code>), registered before any
-      doc parsing/auth so it can never leak a doc's existence; a browser <code>HostedStore</code> drives the
+      doc parsing/auth so it can never leak a doc's existence; the shared
+      <code>HttpCommentsStore</code> (<code>src/comments/adapters/http-store.ts</code>, built by both runtimes) drives the
       <code>?comments</code> body-op API over <code>fetch</code> with the session cookie; and <code>main.ts</code> selects
       the hosted vs. local runtime off the injected seed's top-level <code>author</code> (present only on the hosted path,
       so local behavior is byte-identical). The one remaining degraded path: a hosted session whose identity resolution
-      failed seeds without an author and falls back to the local store — rare, and it matches the sanctioned
-      author-discriminator.</li>
+      failed seeds without an author and falls back to the fixed local author label (the store is the same either
+      way) — rare, and it matches the sanctioned author-discriminator.</li>
     <li><strong>Discovery / prompting integration.</strong> This doc is pass-1; whether the <code>SKILL.md</code> pointer
       is the right or only way an agent finds this flow is revisited as the skill's review flow tightens.</li>
     <li><strong>Probe caching.</strong> A short-TTL per-<code>(caller, repo, ref, path)</code> probe cache is a
@@ -316,7 +311,7 @@ POST https://&lt;worker-host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&a
   <a href="../../../../../docs/proxy.html">proxy.html</a> — the Deliverable 1 proxy layer, in depth ·
   <a href="../../../../../apps/htmldoc-review/README.md">htmldoc-review README</a> — deploy, config, and the comment-API reference ·
   <a href="review_system.html">review_system.html</a> — the local review widget this reuses ·
-  <a href="../references/comments.md"><code>references/comments.md</code></a> — the local sidecar schema &amp; agent recipe (the model for this API) ·
+  <a href="../references/comments.md"><code>references/comments.md</code></a> — the unified agent recipe for this same <code>?comments</code> API (local and hosted) ·
   <a href="../SKILL.md"><code>SKILL.md</code></a> § Review mode — the discovery pointer.
 </aside>
 

@@ -1,22 +1,26 @@
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
+import { seedInline, interceptComments, thread } from '../helpers/comments-route.js';
 
-// Pre-existing sidecar JSON resolves to the right Range on page load AND
+// A pre-existing thread (the internal { threads } seed shape, mirroring what the
+// GET ?comments response carries) resolves to the right Range on page load AND
 // registers the highlight in the CSS Custom Highlight registry (not just
 // the JS-side Map). The CSS-side check guards against regressions where
 // rebuildHighlights's feature-detect or guard wrongly skips the .set().
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const seed = JSON.parse(
-  readFileSync(path.resolve(here, '../fixtures/drift-exact-preserved/index.comments.json'), 'utf8'),
-);
+const seed = {
+  threads: [thread({
+    id: 'c1',
+    exact: 'quick brown fox',
+    prefix: 'talks about the ',
+    suffix: ' and then continues',
+    sections: ['alpha'],
+    body: 'Is this still the right metaphor here?',
+  })],
+};
 
-test('seeded sidecar resolves to a Range and registers the CSS highlight', async ({ page }) => {
+test('a seeded thread resolves to a Range and registers the CSS highlight', async ({ page }) => {
   await seedInline(page, seed);
-  await interceptSidecar(page, { initial: seed });
+  await interceptComments(page, { threads: seed.threads });
   await page.goto('/test/fixtures/drift-exact-preserved/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 

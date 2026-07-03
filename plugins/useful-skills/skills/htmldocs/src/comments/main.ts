@@ -9,30 +9,28 @@
 // The TS sources here compile via esbuild into ../../dist/comments.mjs
 // (linguist-generated, checked in). Edit the .ts; rebuild with `npm run build`.
 
-import type { Comment, CommentsModel, Author } from './review-ux/types';
+import type { Comment, CommentsSeed, Author } from './review-ux/types';
 import { parseAuthor } from './review-ux/types';
 import type { AnchorAPI } from './review-ux/anchor';
 import type { MountDeps, ICommentsStore } from './review-ux/store';
 import * as anchor from './review-ux/anchor';
 import { CommentsMount } from './review-ux/mount';
 import { buildLocalDeps } from './adapters/local/deps';
-import { LocalFileStore } from './adapters/local/local-file-store';
 import { buildHostedDeps } from './adapters/hosted/deps';
-import { HostedStore } from './adapters/hosted/store';
+import { HttpCommentsStore } from './adapters/http-store';
 import { chooseDeps } from './adapters/runtime-select';
 
 // Test-only surface exposed at window.__htmldocsComments. Lives here (the
-// entry point that already imports both the shared layer and the local
-// adapter) rather than in review-ux/, so the shared layer keeps zero
-// references to any transport adapter — see review-ux/CLAUDE.md.
+// entry point that already imports both the shared layer and the adapters)
+// rather than in review-ux/, so the shared layer keeps zero references to any
+// transport adapter — see review-ux/CLAUDE.md.
 export interface TestHandle {
   whenReady(): Promise<void>;
   __init(): Promise<void>;
   __anchor: AnchorAPI;
-  __LocalFileStore: typeof LocalFileStore;
-  __HostedStore: typeof HostedStore;
+  __HttpCommentsStore: typeof HttpCommentsStore;
   __resetForTest(): void;
-  getModel(): CommentsModel | null;
+  getModel(): CommentsSeed | null;
   getStore(): ICommentsStore | null;
   getHighlights(): Map<string, Range>;
   getOrphanCount(): number;
@@ -51,9 +49,10 @@ const TEST_MODE = new URLSearchParams(location.search).has('test');
 // Module-load sentinel.
 (window as unknown as { __htmldocsModuleLoaded?: boolean }).__htmldocsModuleLoaded = true;
 
-// Wire MountDeps from the adapter the injected seed selects: a seeded author
-// means a hosted doc (HostedStore over the ?comments API); its absence is the
-// unchanged local path (LocalFileStore). Local behavior stays byte-identical.
+// Wire MountDeps from the adapter the injected seed selects. Both runtimes build
+// the SAME HttpCommentsStore over the ?comments API; the seed's top-level author
+// only picks the AUTHOR — present means a hosted doc (real GitHub identity),
+// absent means the local path (fixed "user"). Local behavior stays identical.
 // chooseDeps constructs the store, so deps are always fully built here and the
 // widget is constructed with them (never nullable, never re-wired after).
 function buildDeps(): MountDeps {
@@ -94,8 +93,7 @@ if (TEST_MODE) {
     whenReady: () => activeWidget.whenReady(),
     __init: () => activeWidget.init(),
     __anchor: { fromRange: anchor.fromRange, toRange: anchor.toRange },
-    __LocalFileStore: LocalFileStore,
-    __HostedStore: HostedStore,
+    __HttpCommentsStore: HttpCommentsStore,
     __resetForTest: () => {
       resetActiveWidget();
     },
