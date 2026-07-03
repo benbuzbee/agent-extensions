@@ -9,6 +9,18 @@
 
 import type { Anchor } from './types';
 
+/**
+ * Pure encode/decode surface for one Range <-> one Anchor. Lives here (not in
+ * types.ts) because its `Range` references are DOM globals and anchor.ts is the
+ * module that actually implements the encode/decode — `fromRange`/`toRange`
+ * below satisfy it. Keeping it out of types.ts leaves that file DOM-free so
+ * non-DOM importers (the hosted Worker) can reuse the domain types.
+ */
+export interface AnchorAPI {
+  fromRange(range: Range): Anchor;
+  toRange(anchor: Anchor): Range | null;
+}
+
 const WINDOW = 32;
 
 // Element tags whose Text descendants should NOT count as visible prose

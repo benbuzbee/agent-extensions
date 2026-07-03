@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Per-org deploy for the htmldoc-review Worker (Deliverable 1: proxy + auth).
-# No D1, no Durable Objects. Session storage is Workers KV with native per-key TTL.
+# Per-org deploy for the htmldoc-review Worker (proxy + auth + comment store).
+# Session storage is Workers KV with native per-key TTL; comments live in a
+# Cloudflare D1 database (created + migrated by steps 2b/7b below). No Durable
+# Objects.
 #
 # Run this from YOUR copy of the app (see the README "Vendor it" step) — it edits
 # wrangler.toml in place, so it must run against your own vendored copy, never the
@@ -85,6 +87,26 @@ if grep -q "REPLACE_WITH_KV_NAMESPACE_ID" wrangler.toml; then
 else
   KV_ID="$(grep -A3 'binding = "SESSIONS"' wrangler.toml | grep -oE '[0-9a-f]{32}' | head -n1)"
   echo "==> KV namespace already wired (id=$KV_ID) -- skipping create."
+fi
+
+# ---------------------------------------------------------------------------
+# 2b) create the D1 comment database ONCE, wire its id into wrangler.toml.
+# ---------------------------------------------------------------------------
+# Mirrors the KV create-once step above. Runs BEFORE any deploy because a real
+# deploy binds this database. Idempotency: only create while the id is still the
+# placeholder; re-running with a real id would orphan a second database.
+# DB_NAME must match `database_name` in wrangler.toml's [[d1_databases]] block.
+DB_NAME="htmldoc-review-comments"
+if grep -q "REPLACE_WITH_D1_DATABASE_ID" wrangler.toml; then
+  echo "==> Creating D1 database $DB_NAME..."
+  CREATE_OUT="$(npx wrangler d1 create "$DB_NAME")"
+  echo "$CREATE_OUT"
+  # D1 ids are UUIDs (36 chars with hyphens), unlike the 32-hex KV id format.
+  D1_ID="$(printf '%s\n' "$CREATE_OUT" | grep -oE '[0-9a-f-]{36}' | head -n1)"
+  [ -n "$D1_ID" ] || { echo "ERROR: could not parse D1 database id"; exit 1; }
+  sed -i.bak "s/REPLACE_WITH_D1_DATABASE_ID/$D1_ID/" wrangler.toml && rm -f wrangler.toml.bak
+else
+  echo "==> D1 database already wired -- skipping create."
 fi
 
 # ---------------------------------------------------------------------------
@@ -188,6 +210,16 @@ fi
 # ---------------------------------------------------------------------------
 echo "==> Final deploy (with real CALLBACK_URL + client id)..."
 npx wrangler deploy
+
+# ---------------------------------------------------------------------------
+# 7b) apply any pending D1 migrations to production. Unconditional and idempotent:
+#     wrangler diffs migrations/ against the in-DB d1_migrations tracking table and
+#     runs only the unapplied files, in order (a no-op when nothing is pending), so
+#     the script never has to detect whether a migration is due. --remote targets
+#     production only; local dev/tests apply with --local and never touch prod.
+# ---------------------------------------------------------------------------
+echo "==> Applying D1 migrations to production ($DB_NAME)..."
+npx wrangler d1 migrations apply "$DB_NAME" --remote
 
 # ---------------------------------------------------------------------------
 # 8) REQUIRED next step: install the App on the org. Deploying + creating the

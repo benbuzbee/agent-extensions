@@ -32,6 +32,10 @@ const ROUTES = {
  * param.
  *
  * - `SESSIONS`           KV namespace: `sess:<id>` -> {access_token, refresh_token, expires_at}.
+ * - `COMMENTS_DB`        D1 database backing the comment store (D1Store). The
+ *                        comment API is not mounted in PR3, so nothing reads
+ *                        this binding yet — it is wired for the store round-trip
+ *                        tests and PR4's API.
  * - `GITHUB_CLIENT_ID`   GitHub App client id (public, not a secret).
  * - `GITHUB_CLIENT_SECRET` GitHub App client secret (via `wrangler secret put`).
  * - `STATE_SIGNING_KEY`  HMAC key for the signed OAuth `state` cookie (secret).
@@ -40,6 +44,7 @@ const ROUTES = {
  */
 export interface Env {
   SESSIONS: KVNamespace;
+  COMMENTS_DB: D1Database;
   GITHUB_CLIENT_ID: string;
   GITHUB_CLIENT_SECRET: string;
   STATE_SIGNING_KEY: string;

@@ -6,7 +6,8 @@
 // The TS sources here compile via esbuild into ../../dist/comments.mjs
 // (linguist-generated, checked in). Edit the .ts; rebuild with `npm run build`.
 
-import type { AnchorAPI, Comment, CommentsModel } from './review-ux/types';
+import type { Comment, CommentsModel } from './review-ux/types';
+import type { AnchorAPI } from './review-ux/anchor';
 import * as anchor from './review-ux/anchor';
 import { CommentsMount } from './review-ux/mount';
 import { buildLocalDeps } from './adapters/local/deps';
