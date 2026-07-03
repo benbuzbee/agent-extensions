@@ -6,8 +6,9 @@
 // runs unchanged anywhere those globals exist.
 import * as arctic from "arctic";
 import type { Config } from "./config";
-import type { SessionStore } from "./store";
-import { createSession } from "./session";
+import type { Identity, SessionStore } from "./store";
+import { createSession, type Grant } from "./session";
+import { fetchIdentity } from "./identity";
 import {
   readCookie,
   serializeCookie,
@@ -183,15 +184,30 @@ export async function completeLogin(
   const refreshTtl = Number(
     (tokens.data as Record<string, unknown>).refresh_token_expires_in
   );
-  const sid = await createSession(
-    store,
-    {
-      access_token: tokens.accessToken(),
-      refresh_token: tokens.refreshToken(),
-      expires_at: tokens.accessTokenExpiresAt().getTime(),
-    },
-    Number.isFinite(refreshTtl) ? refreshTtl : undefined
-  );
+  const grant: Grant = {
+    access_token: tokens.accessToken(),
+    refresh_token: tokens.refreshToken(),
+    expires_at: tokens.accessTokenExpiresAt().getTime(),
+    // Fall back to the 180-day cookie horizon when GitHub omits the refresh
+    // horizon (same value session.ts's DEFAULT_TTL uses).
+    refresh_ttl: Number.isFinite(refreshTtl) ? refreshTtl : SESSION_COOKIE_MAX_AGE,
+  };
+
+  // Capture reviewer identity once, here, with the fresh access token (the same
+  // GET /user the lazy backfill will make for older sessions). Login stays
+  // resilient: a transient /user failure is swallowed (logged, identity persisted
+  // as null, version still 2) rather than blocking login — the next comments
+  // request backfills it. NEVER log the token.
+  let identity: Identity | null = null;
+  try {
+    identity = await fetchIdentity(tokens.accessToken());
+  } catch (e) {
+    log.warn("identity capture deferred", {
+      reason: e instanceof Error ? e.constructor.name : typeof e,
+    });
+  }
+
+  const sid = await createSession(store, grant, identity ?? undefined);
 
   // Only allow same-origin absolute paths. Reject scheme-relative ("//evil")
   // and backslash ("/\\evil") forms that new URL() would resolve off-origin.

@@ -50,9 +50,10 @@ const REF_DEFAULT = "default";
 // the shared api/handlers reserves so a batch surfaces it as a per-op transient.
 const RESERVED_MESSAGE = "op not yet supported";
 
-// PR3 has no captured numeric identity (the shared Author type is {login, name}
-// only). author_id is NOT NULL, so we stamp a placeholder; PR4/PR5 supply the
-// real GitHub numeric id when the Author type gains one.
+// author_id is NOT NULL. The Worker create path always supplies a real numeric
+// id (from the captured session identity), but the shared Author type carries
+// `id?` optionally — so keep the placeholder as the `?? ` fallback for the
+// (type-possible) absent case, never actually hit on the Worker create path.
 const AUTHOR_ID_PLACEHOLDER = 0;
 
 // One persisted row. `author_name` and `resolved_at` are the only nullable
@@ -85,7 +86,7 @@ export class D1Store implements ICommentsStore {
       anchor: JSON.parse(row.anchor) as Anchor,
       root: {
         id: asCommentId(row.id),
-        author: { login: row.author_login, name: row.author_name },
+        author: { login: row.author_login, name: row.author_name, id: row.author_id },
         body: row.body,
         createdAt: asTimestamp(row.created_at),
       },
@@ -149,7 +150,7 @@ export class D1Store implements ICommentsStore {
         thread.root.body,
         author.login,
         author.name,
-        AUTHOR_ID_PLACEHOLDER,
+        author.id ?? AUTHOR_ID_PLACEHOLDER,
         thread.root.createdAt,
         thread.resolvedAt,
       )

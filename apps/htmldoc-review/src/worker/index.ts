@@ -1,4 +1,4 @@
-import { getValidAccessToken, deleteSession } from "../core/session";
+import { getValidAccessToken, getIdentity, deleteSession } from "../core/session";
 import { beginLogin, completeLogin } from "../core/oauth";
 import { fetchDoc, parseDocRequest, InvalidPathError } from "../core/docsource";
 import { neutral, setupComplete, unauthorized } from "../core/responses";
@@ -9,6 +9,7 @@ import {
   SESSION_COOKIE,
 } from "../core/cookies";
 import { asSessionId, type SessionId } from "../core/store";
+import type { Author } from "../core/comments-seam";
 import type { Config } from "../core/config";
 import { getLogger } from "@logtape/logtape";
 import { KvSessionStore } from "./kv-store";
@@ -42,6 +43,10 @@ const ROUTES = {
  * - `STATE_SIGNING_KEY`  HMAC key for the signed OAuth `state` cookie (secret).
  * - `CALLBACK_URL`       Absolute OAuth callback URL for this deployment.
  * - `REPO_ORG`           The GitHub org/owner this Worker proxies docs for.
+ * - `SESSION_VALID_SINCE` OPTIONAL ms-epoch forced-re-login cutoff (0 = disabled).
+ *                        TOML/.dev.vars deliver it as a string, and a Worker that
+ *                        hasn't been redeployed since this shipped delivers
+ *                        undefined — hence `number | string | undefined`.
  */
 export interface Env {
   SESSIONS: KVNamespace;
@@ -51,6 +56,7 @@ export interface Env {
   STATE_SIGNING_KEY: string;
   CALLBACK_URL: string;
   REPO_ORG: string;
+  SESSION_VALID_SINCE?: number | string;
 }
 
 // Composition root: turn Worker bindings into the portable Config the core sees.
@@ -61,6 +67,9 @@ function configOf(env: Env): Config {
     callbackUrl: env.CALLBACK_URL,
     stateSigningKey: env.STATE_SIGNING_KEY,
     repoOrg: env.REPO_ORG,
+    // `?? 0` + Number() is honest against all three shapes (TOML integer,
+    // .dev.vars string, undefined on a not-yet-redeployed Worker).
+    sessionValidSince: Number(env.SESSION_VALID_SINCE ?? 0),
   };
 }
 
@@ -221,13 +230,34 @@ export default {
 
       // The store agrees on the 'default' sentinel for a missing ref; GitHub was
       // probed with ref-or-undefined (never the literal 'default').
-      return isComments
-        ? await handleComments(env.COMMENTS_DB, req, {
-            repo,
-            ref: ref ?? "default",
-            path: docPath,
-          })
-        : await serveDoc(cfg, store, url, refreshSid, token, repo, docPath, ref);
+      if (isComments) {
+        // Stamp the author server-side. Session path: the captured identity
+        // (lazily backfilled on read for older sessions). Bearer/agent path: a
+        // DISTINGUISHABLE placeholder ({login:"agent"}) — never the generic
+        // "unknown" — so an agent-authored audit line can't be confused with a
+        // genuinely-missing identity, and no GET /user is issued for a bearer.
+        let author: Author;
+        let actor: "bearer" | "session";
+        if (refreshSid) {
+          const identity = await getIdentity(cfg, store, refreshSid, token);
+          author = identity
+            ? { login: identity.login, name: identity.name, id: identity.id }
+            : { login: "unknown", name: null };
+          actor = "session";
+        } else {
+          author = { login: "agent", name: null };
+          actor = "bearer";
+        }
+        return await handleComments(
+          env.COMMENTS_DB,
+          req,
+          { repo, ref: ref ?? "default", path: docPath },
+          author,
+          refreshSid,
+          actor,
+        );
+      }
+      return await serveDoc(cfg, store, url, refreshSid, token, repo, docPath, ref);
     } catch (err) {
       // A safeSegments InvalidPathError raised from inside fetchDoc launders to
       // the same neutral 404 as a parse-time one.

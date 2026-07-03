@@ -35,6 +35,12 @@ GITHUB_CLIENT_ID = "REPLACE_ME_GITHUB_APP_CLIENT_ID"  # GitHub App client id is 
 # (workers.dev URL). MUST exactly match a Callback URL registered on the GitHub App —
 # GitHub rejects login otherwise. On a domain change, update BOTH this and the App.
 CALLBACK_URL = "https://REPLACE_ME_DOMAIN/auth/callback"  # deploy.sh fills this
+# Forced-re-login lever (ms epoch). getValidAccessToken deletes-on-read any session
+# whose login-time iat predates this, so bumping it to "now" and redeploying logs
+# EVERYONE out at once — idempotent, no KV enumeration, no cron. Default 0 =
+# disabled (every session passes), so existing sessions and tests are unaffected.
+# Operator-set (NOT auto-filled by deploy.sh, unlike CLIENT_ID/CALLBACK_URL).
+SESSION_VALID_SINCE = 0
 
 # Custom domain (the production path; NOT needed for the workers.dev quick start).
 # Uncomment + set this AND flip workers_dev=false above to promote. Bare host, NO /*

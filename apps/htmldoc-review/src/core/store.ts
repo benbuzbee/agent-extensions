@@ -13,7 +13,29 @@ export function asSessionId(raw: string): SessionId {
   return raw as SessionId;
 }
 
+// Captured GitHub identity for the logged-in reviewer. Minted once from GET
+// /user (login-time in completeLogin, or a lazy on-read backfill for a
+// pre-identity record) and carried on the session for its lifetime. `name` may
+// be null (GitHub users can leave their display name blank); `id` is the stable
+// numeric key we'd reconcile on if a login is ever renamed. Never a token.
+export interface Identity {
+  login: string;
+  name: string | null;
+  id: number;
+}
+
+// The session record. Two eras coexist in KV: pre-identity (version 1) records
+// shipped by Deliverable 1 lack `version`/`iat`/`identity`, so every read site
+// normalizes the missing fields (version -> 1, iat -> 0, identity -> null). The
+// type keeps them required because persist() (session.ts) is the ONLY writer and
+// always emits the full shape — a v1 record only ever exists until its first
+// read, which upgrades it in place. NB: there is no `refresh_ttl` field — the KV
+// expirationTtl is write-only (not readable back), so the lazy-upgrade path
+// derives its TTL explicitly (session.ts grantFrom) rather than round-tripping it.
 export interface SessionData {
+  version: number;
+  iat: number;
+  identity: Identity | null;
   access_token: string;
   refresh_token: string;
   expires_at: number;
