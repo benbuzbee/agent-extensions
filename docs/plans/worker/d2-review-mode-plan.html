@@ -2463,6 +2463,64 @@ BEHAVIORAL CONTRACT VERIFICATION:
           prompting/discovery integration stays deferred per <a href="#prompting">prompting</a>.</li>
       </ul>
     </details>
+    <details class="validation-evidence" open>
+      <summary>Validation evidence — d2/pr6-injection-docs (gate green, 2 fix round(s))</summary>
+      <ul>
+        <li><strong>Commands run:</strong> npm install (worker + skill), tsc --noEmit, vitest run (worker full suite + inject-specific tests ×2), wrangler deploy --dry-run, playwright install chromium, npm run check (skill), node scripts/sync-comments.mjs + git diff --exit-code, npm run build + git diff --exit-code on dist/serve.mjs.</li>
+        <li><strong>Code review:</strong> 4 candidate issues surfaced; 1 confirmed at ≥80 confidence — comment in <code>comments-seam.ts</code> line 8 cited six DOM-free shared files but PR6 adds <code>review-ux/inject.ts</code> as a seventh vendored file, making the count and enumeration stale. Fixed.</li>
+        <li><strong>Fable review:</strong> plan-fidelity lens → approve (1 blocker, addressed); security lens → approve (0 blockers). Both resolved before gate green.</li>
+        <li><strong>Findings fixed:</strong> 2</li>
+      </ul>
+<pre>1. npm install (worker):
+up to date, audited 107 packages in 560ms
+found 0 vulnerabilities
+
+2. npm run typecheck (worker):
+&gt; tsc --noEmit
+(no output — clean, exit 0)
+
+3. npm test (worker):
+ Test Files  8 passed (8)
+       Tests  94 passed (94)
+    Duration  22.26s
+
+4. npx wrangler deploy --dry-run:
+ ⛅️ wrangler 4.105.0
+Total Upload: 155.63 KiB / gzip: 36.53 KiB
+Your Worker has access to the following bindings: SESSIONS (KV), COMMENTS_DB (D1), REPO_ORG/GITHUB_CLIENT_ID/CALLBACK_URL/SESSION_VALID_SINCE (env vars)
+--dry-run: exiting now.
+
+5. npm install (skill):
+up to date, audited 119 packages in 1s
+1 moderate severity vulnerability
+
+6. npx playwright install chromium:
+(completed, no output — already installed)
+
+7. npm run check (skill): unit vitest + playwright + smoke all green:
+  83 passed (8.6s)   [playwright]
+ok[put]: served tree unchanged by PUT
+PASS: serve.sh smoke
+
+8. node scripts/sync-comments.mjs &amp;&amp; git diff --exit-code -- src/comments:
+7 files synced ...
+EXIT=0  (git diff clean, no drift)
+
+9. npx vitest run test/worker/inject.workers.test.ts:
+ Test Files  1 passed (1)
+       Tests  4 passed (4)
+    Duration  10.40s
+
+10. npx vitest run --config test/vitest.config.ts test/unit/inject.test.ts:
+ Test Files  1 passed (1)
+       Tests  7 passed (7)
+    Duration  1.53s
+
+11. npm run build &amp;&amp; git diff --exit-code -- dist/serve.mjs:
+  dist/comments.mjs  136.3kb  ⚡ Done in 121ms
+  dist/serve.mjs  272.3kb  ⚡ Done in 494ms
+EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
+    </details>
   </section>
 
   <aside data-kind="exit-criteria">
@@ -2473,6 +2531,109 @@ BEHAVIORAL CONTRACT VERIFICATION:
     indicator, never hidden</strong>, while a deleted thread is purged outright; and local review mode still works via
     the shared widget with no regression.
   </aside>
+  <details class="validation-evidence" open>
+    <summary>Stack-wide validation evidence — d2/pr6-injection-docs (gate green, 1 fix-required finding)</summary>
+    <p>
+      <strong>Full-stack gate result:</strong> PASS (pass: true, failures: [])
+    </p>
+    <p>
+      <strong>Exit-criteria audit verdict:</strong> fix — one blocker (see below)
+    </p>
+    <pre>
+Branch verified: git branch --show-current → d2/pr6-injection-docs (top of stack per `gt log short`).
+
+--- apps/htmldoc-review ---
+1) npm install:
+up to date, audited 107 packages in 485ms
+found 0 vulnerabilities
+
+2) npm run typecheck (tsc --noEmit):
+&gt; typecheck
+&gt; tsc --noEmit
+(no output — clean, exit 0)
+
+3) npm test (vitest run):
+ Test Files  8 passed (8)
+       Tests  94 passed (94)
+    Start at  13:07:04
+    Duration  20.17s
+
+4) npx wrangler deploy --dry-run:
+⛅️ wrangler 4.105.0
+Total Upload: 155.63 KiB / gzip: 36.53 KiB
+Your Worker has access to the following bindings:
+  env.SESSIONS (REPLACE_WITH_KV_NAMESPACE_ID)              KV Namespace
+  env.COMMENTS_DB (htmldoc-review-comments)                D1 Database
+  env.REPO_ORG ("REPLACE_ME_GITHUB_ORG_SLUG")             Environment Variable
+  env.GITHUB_CLIENT_ID ("REPLACE_ME_GITHUB_APP_CLIENT_ID") Environment Variable
+  env.CALLBACK_URL ("https://REPLACE_ME_DOMAIN/auth/callback") Environment Variable
+  env.SESSION_VALID_SINCE (0)                              Environment Variable
+--dry-run: exiting now.
+
+--- plugins/useful-skills/skills/htmldocs ---
+5) npm install:
+up to date, audited 119 packages in 831ms
+1 moderate severity vulnerability (pre-existing; audit only)
+
+6) npx playwright install chromium:
+(no output — chromium already installed, exit 0)
+
+7) npm run check (playwright + smoke):
+  83 passed (8.7s)
+&gt; htmldocs@0.1.0 test:smoke
+&gt; bash test/smoke/serve.sh
+ok[dir]: http://127.0.0.1:8001/index.html → 200
+ok[dir]: http://127.0.0.1:8001/does-not-exist.html → 404
+ok[file]: http://127.0.0.1:8001/index.html → 200
+ok[put]: PUT sidecar → 204
+ok[put]: sidecar landed at .../index.comments.json with expected body
+ok[put]: served tree unchanged by PUT
+PASS: serve.sh smoke</pre>
+    <p>
+      <strong>Exit-criteria audit — blocker (1 unmet criterion):</strong>
+    </p>
+    <p>
+      Exit criterion 1 ("a reviewer on a hosted doc can comment on any DOM region") is only half met.
+      Persistence/API/seed machinery is real and tested (worker 94/94; skill 83 Playwright + smoke),
+      but a browser reviewer cannot yet comment on a hosted doc:
+      <code>WIDGET_SRC = '/__htmldocs/comments.mjs'</code> is a placeholder path the Worker never serves;
+      <code>plugins/useful-skills/skills/htmldocs/src/comments/adapters/hosted/deps.ts</code> is a stub;
+      and <code>src/comments/main.ts</code> hard-wires <code>buildLocalDeps()</code>.
+      PR6 and <code>docs/hosted_review.html</code> document this as a deliberate follow-up, but it is
+      offline-testable client/Worker code with no live-infra dependency — so it is an unmet criterion
+      rather than a plan-sanctioned live-infra deferral.
+      Every other exit criterion passes on code + re-run tests.
+    </p>
+    <p>
+      <strong>Required fix:</strong> (1) a Worker route serving the checked-in
+      <code>dist/comments.mjs</code> at <code>WIDGET_SRC</code> (before <code>parseDocRequest</code>);
+      (2) a hosted browser <code>ICommentsStore</code> that GET/POSTs <code>&lt;doc&gt;?ref=&amp;comments</code>
+      with credentials (the seam and API already exist); (3) hosted <code>deps.ts</code> building
+      <code>MountDeps</code> from that store + the seed author; (4) runtime selection in
+      <code>main.ts</code>. All offline-testable with the existing workerd + Playwright harnesses.
+      Alternatively, get User's explicit sign-off that D2's exit criteria are amended to defer
+      browser-hosted review to a named follow-up.
+    </p>
+    <p>
+      <strong>Human + live-infra manual checklist (deferred by plan's no-live-infra guardrail — not failures):</strong>
+    </p>
+    <ol>
+      <li>First real deploy: run <code>scripts/setup/deploy.sh</code> — KV create-once, secrets, <code>wrangler deploy</code>, App install (step 8).</li>
+      <li>D1 create-once: <code>wrangler d1 create htmldoc-review-comments</code>; confirm UUID parse + in-place <code>wrangler.toml</code> wiring against real CLI output (only dry-run/Miniflare exercised).</li>
+      <li>Remote migrations: <code>wrangler d1 migrations apply htmldoc-review-comments --remote</code>; confirm <code>0001_create_comments.sql</code> applies and <code>d1_migrations</code> tracking behaves as authored.</li>
+      <li>Live probe semantics: with the App installed, verify an unauthorized/private doc returns a neutral 404 byte-identical to a missing doc, and an authorized doc serves with widget seed injected. Only mocked GitHub was tested.</li>
+      <li>Live agent recipe: bearer PAT against the deployed URL — GET list, POST resolve/delete by id, batch 207 — per <code>docs/hosted_review.html</code>.</li>
+      <li>Live identity: complete a real OAuth login; confirm GET /user capture stamps real login/name on a comment; confirm a surviving D1 (v1) KV session lazy-upgrades in place without re-auth.</li>
+      <li>Live integration tests (deploy a test Worker, hit its URL) — plan-flagged "deferred"; decide if/when worth building.</li>
+    </ol>
+    <p>
+      <strong>Plan verify-badge risks still unverified:</strong>
+      D1 pricing/syntax badge (wrangler.toml + migrations offline-proven; current free-tier numbers and <code>--remote</code> behavior unverified → items 2/3/7);
+      authz probe-cache short-TTL badge (documented lever, not built — open question stays open);
+      ETag/If-None-Match conditional re-probe + token-identity cache key (not built, deferred by design).
+      Verified: anchor-boundaries, widget-chrome predicate tests; <code>"default"</code> ref sentinel route/store agreement.
+    </p>
+  </details>
 </article>
 
 <article id="questions" data-kind="decisions">

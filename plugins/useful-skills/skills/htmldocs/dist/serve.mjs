@@ -5414,17 +5414,21 @@ var Yargs = YargsFactory(esm_default);
 var yargs_default = Yargs;
 
 // src/comments/review-ux/inject.ts
-function seedJsonScript(model) {
-  const json = JSON.stringify(model).replace(/</g, "\\u003c");
+function seedJsonScript(model, author) {
+  const seed = author === void 0 ? model : { ...model, author };
+  const json = JSON.stringify(seed).replace(/</g, "\\u003c");
   return '<script type="application/json" id="__htmldocs_comments">' + json + "</script>";
 }
 function widgetScriptTag(src) {
   return `<script type="module" src="${src}"></script>`;
 }
+function injectionFragment(model, src, author) {
+  return seedJsonScript(model, author) + "\n" + widgetScriptTag(src) + "\n";
+}
 
 // src/comments/adapters/local/inject.ts
 function injectIntoHtml(html, model) {
-  const blocks = seedJsonScript(model) + "\n" + widgetScriptTag("/__htmldocs/comments.mjs") + "\n";
+  const blocks = injectionFragment(model, "/__htmldocs/comments.mjs");
   const idx = html.lastIndexOf("</body>");
   if (idx === -1) return html + "\n" + blocks;
   return html.slice(0, idx) + blocks + html.slice(idx);
