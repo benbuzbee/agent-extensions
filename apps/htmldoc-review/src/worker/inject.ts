@@ -7,14 +7,51 @@
 import { injectionFragment } from "@shared/review-ux/inject";
 import { threadToLegacy } from "@shared/review-ux/types";
 import type { CommentsModel, Thread, Author } from "@shared/review-ux/types";
+// The checked-in widget bundle, vendored from the skill's dist/comments.mjs into
+// src/worker/comments.mjs.txt by scripts/sync-comments.mjs. The `.txt` extension
+// makes Wrangler import it as a string via its DEFAULT Text-module rule (no
+// wrangler.toml [[rules]] entry — see modules.d.ts). index.ts serves these bytes
+// at COMMENTS_WIDGET_SRC.
+import widgetBundle from "./comments.mjs.txt";
 
 // The widget bundle path the injected <script> points at is the SHARED
 // COMMENTS_WIDGET_SRC (WIDGET_BASE + "/comments.mjs"), re-exported so this
-// Worker and the local server can never point at different paths. Actually
-// serving that bundle over the hosted Worker (plus the hosted browser HTTP
-// store and main.ts runtime selection) is a DEFERRED, human-in-the-loop
-// follow-up. This layer locks and tests only the injected markup contract.
+// Worker and the local server can never point at different paths. The hosted
+// Worker serves it PUBLICLY here (serveWidgetBundle): it is doc-independent
+// generic JS, registered before any doc parsing/auth, so it cannot leak a
+// doc's existence. WIDGET_BASE is a reserved namespace prefix (mirrors the
+// local /__htmldocs/sidecar route), so a repo literally named __htmldocs is
+// shadowed here by design.
 export { COMMENTS_WIDGET_SRC } from "@shared/review-ux/inject";
+
+/**
+ * Serve the checked-in widget bundle at COMMENTS_WIDGET_SRC. PUBLIC by design: the bytes
+ * are constant, doc-independent generic JS with no secret, so requiring a session
+ * would only 302 a `<script src>` to a login page and break the module load. The
+ * caller (index.ts) dispatches here as the FIRST thing in fetch — before token
+ * resolution and before parseDocRequest/checkAccess — so this route never probes
+ * GitHub and never touches the neutral-404 non-leak path.
+ *
+ * GET/HEAD -> 200 the bundle string (application/javascript; no-cache, since
+ * COMMENTS_WIDGET_SRC is unversioned and a stale cache would serve an old widget after a
+ * redeploy). Any other method -> 405.
+ */
+export function serveWidgetBundle(req: Request): Response {
+  const method = req.method.toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    return new Response("Method not allowed", {
+      status: 405,
+      headers: { Allow: "GET, HEAD", "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+  return new Response(method === "HEAD" ? null : widgetBundle, {
+    status: 200,
+    headers: {
+      "Content-Type": "application/javascript; charset=utf-8",
+      "Cache-Control": "no-cache",
+    },
+  });
+}
 
 /**
  * Build the inline JSON seed model from a doc's threads. Carries BOTH open and

@@ -293,10 +293,14 @@ POST https://&lt;worker-host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&a
 <article id="forward" data-kind="forward-looking">
   <h2>Forward-looking / deferred</h2>
   <ul>
-    <li><strong>The hosted browser widget bundle isn't served yet.</strong> The injected widget <code>&lt;script
-      src&gt;</code> points at a placeholder path the hosted Worker does not yet serve; live browser review on a hosted
-      doc, the hosted browser HTTP store, and runtime selection are a deliberate, human-in-the-loop follow-up. The API
-      surface and the injected-markup contract are what ship and are tested now.</li>
+    <li><strong>Hosted browser review now ships (was deferred).</strong> The Worker serves the checked-in widget bundle
+      <strong>publicly</strong> at <code>WIDGET_SRC</code> (<code>/__htmldocs/comments.mjs</code>), registered before any
+      doc parsing/auth so it can never leak a doc's existence; a browser <code>HostedStore</code> drives the
+      <code>?comments</code> body-op API over <code>fetch</code> with the session cookie; and <code>main.ts</code> selects
+      the hosted vs. local runtime off the injected seed's top-level <code>author</code> (present only on the hosted path,
+      so local behavior is byte-identical). The one remaining degraded path: a hosted session whose identity resolution
+      failed seeds without an author and falls back to the local store — rare, and it matches the sanctioned
+      author-discriminator.</li>
     <li><strong>Discovery / prompting integration.</strong> This doc is pass-1; whether the <code>SKILL.md</code> pointer
       is the right or only way an agent finds this flow is revisited as the skill's review flow tightens.</li>
     <li><strong>Probe caching.</strong> A short-TTL per-<code>(caller, repo, ref, path)</code> probe cache is a

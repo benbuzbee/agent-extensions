@@ -1,17 +1,24 @@
 // htmldocs review-mode comments widget — entry point.
 //
-// Thin entry: imports review-ux/mount.ts + adapters/local/deps.ts, constructs
-// MountDeps, delegates to mount. Exposes test handle at window.__htmldocsComments.
+// Thin entry: imports review-ux/mount.ts + BOTH adapters' deps builders, then
+// chooseDeps() selects hosted-vs-local off the injected seed's top-level author
+// (present only on the hosted Worker path; absent locally, so local behavior is
+// byte-identical). Hands the chosen MountDeps to mount. Exposes a test handle at
+// window.__htmldocsComments.
 //
 // The TS sources here compile via esbuild into ../../dist/comments.mjs
 // (linguist-generated, checked in). Edit the .ts; rebuild with `npm run build`.
 
-import type { Comment, CommentsModel } from './review-ux/types';
+import type { Comment, CommentsModel, Author } from './review-ux/types';
 import type { AnchorAPI } from './review-ux/anchor';
+import type { MountDeps, ICommentsStore } from './review-ux/store';
 import * as anchor from './review-ux/anchor';
 import { CommentsMount } from './review-ux/mount';
 import { buildLocalDeps } from './adapters/local/deps';
 import { LocalFileStore } from './adapters/local/local-file-store';
+import { buildHostedDeps } from './adapters/hosted/deps';
+import { HostedStore } from './adapters/hosted/store';
+import { chooseDeps } from './adapters/runtime-select';
 
 // Test-only surface exposed at window.__htmldocsComments. Lives here (the
 // entry point that already imports both the shared layer and the local
@@ -22,8 +29,10 @@ export interface TestHandle {
   __init(): Promise<void>;
   __anchor: AnchorAPI;
   __LocalFileStore: typeof LocalFileStore;
+  __HostedStore: typeof HostedStore;
   __resetForTest(): void;
   getModel(): CommentsModel | null;
+  getStore(): ICommentsStore | null;
   getHighlights(): Map<string, Range>;
   getOrphanCount(): number;
   saveComment(range: Range, body: string): Promise<Comment>;
@@ -41,18 +50,40 @@ const TEST_MODE = new URLSearchParams(location.search).has('test');
 // Module-load sentinel.
 (window as unknown as { __htmldocsModuleLoaded?: boolean }).__htmldocsModuleLoaded = true;
 
-// Build a widget wired to a fresh local adapter. CommentsMount requires its
-// MountDeps (store + author) at construction, so deps are built here and the
-// LocalFileStore reads the current inline seed each time.
-function buildWidget(): CommentsMount {
-  return new CommentsMount(buildLocalDeps());
-}
-
-let activeWidget = buildWidget();
+let activeWidget = new CommentsMount();
+let activeDeps: MountDeps | null = null;
 
 function resetActiveWidget(): void {
   activeWidget.unmount();
-  activeWidget = buildWidget();
+  activeWidget = new CommentsMount();
+  activeDeps = null;
+}
+
+// Read the reviewer identity off the injected JSON seed. The hosted Worker
+// stamps a top-level `author` (from the captured session); the local seed never
+// does. Its presence is the hosted-vs-local discriminator. Tolerant: any parse
+// or shape problem falls back to null (-> local), so a malformed seed can never
+// force the hosted path.
+function seededAuthor(): Author | null {
+  const node = document.getElementById('__htmldocs_comments');
+  if (!node) return null;
+  const text = node.textContent || '';
+  if (!text.trim()) return null;
+  try {
+    const parsed = JSON.parse(text) as { author?: unknown };
+    const author = parsed.author as Author | undefined;
+    if (author && typeof author.login === 'string') return author;
+  } catch { /* malformed seed — treat as no author (local) */ }
+  return null;
+}
+
+// Wire MountDeps from the adapter the injected seed selects: a seeded author
+// means a hosted doc (HostedStore over the ?comments API); its absence is the
+// unchanged local path (LocalFileStore). Local behavior stays byte-identical.
+function initWidget(): void {
+  const deps = chooseDeps(seededAuthor(), buildHostedDeps, buildLocalDeps);
+  activeDeps = deps;
+  activeWidget.setDeps(deps);
 }
 
 if (TEST_MODE) {
@@ -61,10 +92,12 @@ if (TEST_MODE) {
     __init: () => activeWidget.init(),
     __anchor: { fromRange: anchor.fromRange, toRange: anchor.toRange },
     __LocalFileStore: LocalFileStore,
+    __HostedStore: HostedStore,
     __resetForTest: () => {
       resetActiveWidget();
     },
     getModel: () => activeWidget.getModel(),
+    getStore: () => (activeDeps ? activeDeps.store : null),
     getHighlights: () => activeWidget.getHighlights(),
     getOrphanCount: () => activeWidget.getOrphanCount(),
     saveComment: (r: Range, b: string) => activeWidget.saveComment(r, b),
