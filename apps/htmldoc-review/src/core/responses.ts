@@ -20,6 +20,21 @@ export function neutral(): Response {
 }
 
 /**
+ * 401 for a comments request that arrived with NO credential (no session
+ * cookie, no bearer). Distinct from the neutral 404 on purpose: it is uniform
+ * across every doc path and returned BEFORE the access probe, so it leaks
+ * nothing about whether a doc exists — it only tells the widget/agent "you must
+ * authenticate". A credential-less DOC request still 302s to login (browser
+ * flow); this JSON 401 is for the API surface, which has no browser to redirect.
+ */
+export function unauthorized(): Response {
+  return new Response(JSON.stringify({ error: "authentication required" }), {
+    status: 401,
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  });
+}
+
+/**
  * Friendly confirmation shown after the GitHub App is *installed* on the org.
  *
  * Because the App is created with `request_oauth_on_install`, GitHub redirects

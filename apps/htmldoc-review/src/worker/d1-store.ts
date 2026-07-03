@@ -10,10 +10,10 @@
 // INTEGERs; the anchor triple is stored as an opaque JSON blob (the DB never
 // parses it — anchoring stays client-side).
 //
-// The comment API is NOT mounted on the Worker in PR3, so nothing imports this
-// from index.ts yet (that is PR4, gated on the physical-home move — see
-// comments-seam.ts). Its round-trips are validated directly against a migrated
-// D1 inside Miniflare.
+// PR4 mounts the comment API on the Worker: index.ts -> handleComments ->
+// handleCommentsRequest drives this store's list/create/resolve/reopen/delete.
+// Its round-trips are also validated directly against a migrated D1 inside
+// Miniflare (see d1-store.workers.test.ts).
 
 import {
   createThread,

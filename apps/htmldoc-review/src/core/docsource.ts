@@ -115,3 +115,47 @@ export async function fetchDoc(
 
   return neutral();
 }
+
+/**
+ * Cheapest possible visibility check for a doc: "can this token read this
+ * `(repo, path, ref)` on GitHub?" Mirrors `fetchDoc`'s URL construction exactly
+ * (`safeSegments`, `cfg.repoOrg`, the present-vs-absent `ref` handling), but
+ * asks for `application/vnd.github.object+json` — the metadata representation,
+ * not the file body — and returns ONLY the HTTP status. The body is never read.
+ *
+ * This is the probe behind `checkAccess`: 200 (or 304 on a future conditional
+ * re-probe) means the caller can see the doc; every other status maps to the
+ * neutral 404 upstream. No `If-None-Match` here — the ETag/304 cache is a
+ * deferred optimization, not needed for the authz decision.
+ *
+ * @throws {InvalidPathError} via `safeSegments` if repo/path is unsafe.
+ */
+export async function probeContents(
+  cfg: Config,
+  token: string,
+  repo: string,
+  path: string,
+  ref?: string
+): Promise<number> {
+  const safeRepo = safeSegments(repo);
+  const safePath = safeSegments(path);
+
+  let url = `https://api.github.com/repos/${cfg.repoOrg}/${safeRepo}/contents/${safePath}`;
+  if (ref !== undefined && ref !== "") {
+    url += `?ref=${encodeURIComponent(ref)}`;
+  }
+
+  const r = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github.object+json",
+      "User-Agent": "htmldoc-review-worker",
+    },
+  });
+
+  // Status line only — we never read r.body (that's what makes this a probe),
+  // but we MUST cancel it: an un-consumed response stream holds the underlying
+  // TCP connection open in the Workers runtime, draining the pool under load.
+  r.body?.cancel();
+  return r.status;
+}

@@ -1,31 +1,25 @@
-// Seam shim — the ONE place the Worker reaches into the htmldocs skill for the
-// shared comment contract (ICommentsStore + domain/op types) and the pure op
-// semantics (thread-ops). d1-store.ts imports ONLY from here, so the single
-// fragile cross-package path lives in exactly one file.
+// Seam shim — the ONE place the Worker reaches into the shared comment code for
+// the store contract (ICommentsStore + domain/op types), the pure op semantics
+// (thread-ops), and the runtime-agnostic API surface (envelope parse + handler).
+// d1-store.ts and worker/comments.ts import ONLY from here, so the app has a
+// single, stable boundary onto the vendored comment tree.
 //
-// ⚠️ ESCAPING IMPORT — READ BEFORE WIRING D1Store INTO THE WORKER.
-// The relative paths below climb ABOVE the app root
-// (../../../../plugins/useful-skills/skills/htmldocs/src/comments/...). vendor.sh
-// copies ONLY apps/htmldoc-review, so in an operator's vendored copy these paths
-// do NOT resolve — the shared sources live above the copy's root and cannot be
-// carried by rsyncing the app directory.
+// GENERATED SOURCES — the imports below resolve to src/comments/, a VENDORED copy
+// of the six DOM-free shared files (review-ux/{types,store}, api/{thread-ops,
+// schemas,handlers,index}). That copy is produced by `npm run sync:comments` from
+// the editable upstream in the htmldocs skill
+// (plugins/useful-skills/skills/htmldocs/src/comments). The skill remains the
+// single source of truth: edit UPSTREAM, then re-run the sync — do NOT hand-edit
+// src/comments/ (the gate's `git diff --exit-code -- src/comments` catches drift).
 //
-// PR3 stays green anyway because:
-//   • d1-store.ts is UNREACHABLE from src/worker/index.ts — wrangler bundles from
-//     the index entry only, so this module never enters the deploy bundle.
-//   • deploy.sh runs no tsc against the app; the typecheck that resolves these
-//     paths only ever runs in-repo (where plugins/ exists).
-//
-// HARD PRECONDITION ON PR4: PR4 mounts D1Store into index.ts, which pulls this
-// module into wrangler's bundle. Before that happens, the plan's deferred
-// "physical-home" phase MUST relocate/vendor these shared comments sources to a
-// path INSIDE the app (a non-escaping import). At that point the import lines
-// below — or this whole shim — are updated. Mounting D1Store before that would
-// break `wrangler deploy` from a vendored copy. See vendor.sh EXCLUDES notes and
-// the PR3 handoff.
+// Why vendored (not an escaping ../../../../plugins import): the Worker bundles
+// from src/worker/index.ts, which now pulls this module (via D1Store and the
+// comment handler) into wrangler's graph. Every import here must stay INSIDE the
+// app root so `wrangler deploy` works from a vendored copy — vendor.sh rsyncs
+// only apps/htmldoc-review and cannot carry a source that lives above it.
 
 // --- Store seam ---
-export type { ICommentsStore } from "../../../../plugins/useful-skills/skills/htmldocs/src/comments/review-ux/store";
+export type { ICommentsStore } from "../comments/review-ux/store";
 
 // --- Domain / op / result types (branded ids, Thread, DocKey, Author, ...) ---
 export type {
@@ -46,13 +40,10 @@ export type {
   Op,
   OpResult,
   OpError,
-} from "../../../../plugins/useful-skills/skills/htmldocs/src/comments/review-ux/types";
+} from "../comments/review-ux/types";
 
 // Branded-id constructors (value exports).
-export {
-  asThreadId,
-  asCommentId,
-} from "../../../../plugins/useful-skills/skills/htmldocs/src/comments/review-ux/types";
+export { asThreadId, asCommentId } from "../comments/review-ux/types";
 
 // --- Pure op semantics — the single source of truth BOTH stores delegate to. ---
 export {
@@ -63,5 +54,20 @@ export {
   NotFoundError,
   isNotFoundError,
   asTimestamp,
-} from "../../../../plugins/useful-skills/skills/htmldocs/src/comments/api/thread-ops";
-export type { Mint } from "../../../../plugins/useful-skills/skills/htmldocs/src/comments/api/thread-ops";
+} from "../comments/api/thread-ops";
+export type { Mint } from "../comments/api/thread-ops";
+
+// --- Runtime-agnostic API surface (envelope validation + op dispatch). The
+// Worker's HTTP adapter (worker/comments.ts) drives handleCommentsRequest; the
+// rest is re-exported so the seam stays the single import boundary. ---
+export {
+  parseEnvelope,
+  applyOp,
+  statusForError,
+  handleCommentsRequest,
+} from "../comments/api";
+export type {
+  ParseResult,
+  CommentsRequest,
+  CommentsResponse,
+} from "../comments/api";

@@ -2272,6 +2272,68 @@ $ (12) git diff --stat -- dist/
           <code>404</code>; probe-count assertion.</li>
       </ul>
     </details>
+    <details class="validation-evidence" open>
+      <summary>Validation evidence — d2/pr4-worker-api-checkaccess (gate green, 0 fix round(s))</summary>
+      <ul>
+        <li><strong>Commands run:</strong> npm install (×2), npm run typecheck (×2), npm test (×2), npx wrangler deploy --dry-run (×2), npm run sync:comments &amp;&amp; git diff --exit-code -- src/comments</li>
+        <li><strong>Code review:</strong> 5 candidate issues surfaced; 3 confirmed at ≥80 confidence (unclosed response body stream in <code>probeContents</code>; two development-timeline PR-marker comments). All 3 fixed.</li>
+        <li><strong>Fable review:</strong> plan-fidelity lens → approve (0 blockers); security lens → approve (0 blockers).</li>
+        <li><strong>Findings fixed:</strong> 3</li>
+      </ul>
+<pre>
+$ npm install (x2)
+up to date, audited 107 packages in 557ms
+found 0 vulnerabilities
+
+$ npm run typecheck (x2)
+&gt; tsc --noEmit
+(no output, exit 0)
+
+$ npm test (run 1)
+ Test Files  6 passed (6)
+       Tests  78 passed (78)
+    Start at  10:49:04
+    Duration  21.35s
+
+$ npx wrangler deploy --dry-run (x2)
+Total Upload: 149.26 KiB / gzip: 34.68 KiB
+Your Worker has access to the following bindings:
+env.SESSIONS (REPLACE_WITH_KV_NAMESPACE_ID)            KV Namespace
+env.COMMENTS_DB (htmldoc-review-comments)              D1 Database
+env.REPO_ORG ("REPLACE_ME_GITHUB_ORG_SLUG")           Environment Variable
+env.GITHUB_CLIENT_ID ("REPLACE_ME_GITHUB_APP_CLIENT_ID") Environment Variable
+env.CALLBACK_URL ("https://REPLACE_ME_DOMAIN/auth/callback") Environment Variable
+--dry-run: exiting now.
+
+$ npm run sync:comments &amp;&amp; git diff --exit-code -- src/comments
+&gt; node scripts/sync-comments.mjs
+synced review-ux/types.ts
+synced review-ux/store.ts
+synced api/thread-ops.ts
+synced api/schemas.ts
+synced api/handlers.ts
+synced api/index.ts
+6 files synced ...
+---EXIT: 0---
+git diff --exit-code -- src/comments ---DIFF EXIT: 0--- (no drift)
+
+$ npm run typecheck (run 2)
+&gt; tsc --noEmit
+---EXIT: 0---
+
+$ npm test (run 2)
+ Test Files  6 passed (6)
+       Tests  78 passed (78)
+    Start at  10:50:08
+    Duration  20.68s
+---EXIT: 0---
+
+$ npx wrangler deploy --dry-run (run 2)
+Total Upload: 149.26 KiB / gzip: 34.68 KiB
+--dry-run: exiting now.
+---EXIT: 0---
+</pre>
+    </details>
   </section>
 
   <section data-kind="pr-card" id="pr5">

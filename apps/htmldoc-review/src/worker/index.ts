@@ -1,7 +1,7 @@
 import { getValidAccessToken, deleteSession } from "../core/session";
 import { beginLogin, completeLogin } from "../core/oauth";
 import { fetchDoc, parseDocRequest, InvalidPathError } from "../core/docsource";
-import { neutral, setupComplete } from "../core/responses";
+import { neutral, setupComplete, unauthorized } from "../core/responses";
 import {
   readCookie,
   clearCookieString,
@@ -12,6 +12,8 @@ import { asSessionId, type SessionId } from "../core/store";
 import type { Config } from "../core/config";
 import { getLogger } from "@logtape/logtape";
 import { KvSessionStore } from "./kv-store";
+import { checkAccess } from "./access";
+import { handleComments } from "./comments";
 import { initWorkerLogging } from "./logging";
 
 const log = getLogger(["htmldoc-review", "worker"]);
@@ -32,10 +34,9 @@ const ROUTES = {
  * param.
  *
  * - `SESSIONS`           KV namespace: `sess:<id>` -> {access_token, refresh_token, expires_at}.
- * - `COMMENTS_DB`        D1 database backing the comment store (D1Store). The
- *                        comment API is not mounted in PR3, so nothing reads
- *                        this binding yet — it is wired for the store round-trip
- *                        tests and PR4's API.
+ * - `COMMENTS_DB`        D1 database backing the comment store (D1Store), read by
+ *                        the `?comments` API branch (handleComments) on an
+ *                        access-checked doc.
  * - `GITHUB_CLIENT_ID`   GitHub App client id (public, not a secret).
  * - `GITHUB_CLIENT_SECRET` GitHub App client secret (via `wrangler secret put`).
  * - `STATE_SIGNING_KEY`  HMAC key for the signed OAuth `state` cookie (secret).
@@ -67,6 +68,19 @@ function loginRedirect(url: URL): Response {
   const login = new URL(ROUTES.login, url.origin);
   login.searchParams.set("return", url.pathname);
   return new Response(null, { status: 302, headers: { Location: login.toString() } });
+}
+
+// Pull a GitHub token out of an `Authorization: Bearer <token>` header (the
+// agent's credential). Returns null when absent/malformed so the caller falls
+// back to the session cookie. The token is used as-is: an agent PAT/installation
+// token is not a session, so there is nothing to refresh.
+function bearerToken(req: Request): string | null {
+  const header = req.headers.get("Authorization");
+  if (!header) return null;
+  const prefix = "Bearer ";
+  if (!header.startsWith(prefix)) return null;
+  const token = header.slice(prefix.length).trim();
+  return token.length > 0 ? token : null;
 }
 
 // Serve a single doc, transparently re-authing once on a 401. The first fetch
@@ -138,14 +152,32 @@ export default {
         }
       }
 
-      // Doc request. No valid session -> redirect to login (never reveals
-      // whether the doc exists).
+      // Everything past the /auth/* switch is either a doc view or a comments
+      // API call on that same doc — one catch-all, forking on ?comments.
+      const isComments = url.searchParams.has("comments");
+
+      // Resolve the caller's GitHub token. An agent presents a bearer header
+      // (used directly, no session/refresh); the widget presents the session
+      // cookie (proactively refreshed on expiry). Bearer wins if both are sent.
+      const bearer = bearerToken(req);
       const sid = readCookie(req, SESSION_COOKIE);
       const sessionId = sid ? asSessionId(sid) : null;
-      const token = sessionId
-        ? await getValidAccessToken(cfg, store, sessionId)
-        : null;
-      if (!token) return loginRedirect(url);
+      let token: string | null;
+      // The session id serveDoc may refresh against — only when the token came
+      // FROM that session (a bearer has no session to refresh).
+      let refreshSid: SessionId | null;
+      if (bearer) {
+        token = bearer;
+        refreshSid = null;
+      } else {
+        token = sessionId
+          ? await getValidAccessToken(cfg, store, sessionId)
+          : null;
+        refreshSid = sessionId;
+      }
+      // No credential: the API surface gets an honest 401; a browser doc view
+      // 302s to login. Both are uniform + pre-probe, so neither leaks existence.
+      if (!token) return isComments ? unauthorized() : loginRedirect(url);
 
       // Repo = first path segment, doc path = remainder; branch/tag/SHA = ?ref=.
       let repo: string;
@@ -156,7 +188,7 @@ export default {
         if (err instanceof InvalidPathError) {
           // Preserve the error (log it) but map it to the neutral 404: an
           // unparseable path can only ever mean "no such doc". safeSegments
-          // throws the same type from inside fetchDoc; it surfaces here too.
+          // throws the same type from inside fetchDoc/probeContents too.
           log.info("invalid doc request", {
             path: url.pathname,
             error: err.message,
@@ -166,10 +198,24 @@ export default {
         throw err;
       }
       // Optional branch/tag/SHA. `URL` has already percent-decoded it; pass the
-      // decoded value to fetchDoc, which re-encodes it for the Contents API.
+      // decoded value on (fetchDoc/probeContents re-encode for the Contents API).
       const ref = url.searchParams.get("ref") ?? undefined;
 
-      return await serveDoc(cfg, store, url, sessionId, token, repo, docPath, ref);
+      // The single post-auth chokepoint: one Contents probe guards BOTH branches
+      // below. Any non-200/304 collapses to the neutral 404 (denialResponse), so
+      // comments never leak a doc's existence and a future verb can't skip it.
+      const access = await checkAccess(cfg, token, repo, ref, docPath);
+      if (!access.ok) return access.denialResponse;
+
+      // The store agrees on the 'default' sentinel for a missing ref; GitHub was
+      // probed with ref-or-undefined (never the literal 'default').
+      return isComments
+        ? await handleComments(env.COMMENTS_DB, req, {
+            repo,
+            ref: ref ?? "default",
+            path: docPath,
+          })
+        : await serveDoc(cfg, store, url, refreshSid, token, repo, docPath, ref);
     } catch (err) {
       // A safeSegments InvalidPathError raised from inside fetchDoc launders to
       // the same neutral 404 as a parse-time one.
