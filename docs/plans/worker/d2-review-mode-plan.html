@@ -1785,7 +1785,7 @@ type OpResult =
     <p>
       <a href="https://github.com/benbuzbee/agent-extensions/pull/6">GitHub PR #6</a> (node-native review server + Mermaid
       <code>noscript</code> fallback) is <strong>orthogonal</strong> to this deliverable — and is unrelated to the
-      <code>PR1&hellip;PR7</code> stack in <a href="#phases">Implementation phases</a>, which are the branches that build
+      <code>PR1&hellip;PR8</code> stack in <a href="#phases">Implementation phases</a>, which are the branches that build
       this deliverable. It moves
       port/arg/file-vs-dir handling out of <code>serve.sh</code> into <code>serve.ts</code>'s yargs
       CLI (so review mode runs anywhere <code>node</code> is on PATH) and adds a Mermaid fallback. It touches only the
@@ -1849,7 +1849,7 @@ type OpResult =
     validate. Every card states its <strong>stack position</strong> (its base branch) up front, so an executor picking
     up one card in isolation still knows exactly what it branches from.
   </p>
-  <p class="lineage"><code>main &lt;- PR0 &lt;- PR1 &lt;- PR2 &lt;- PR3 &lt;- PR4 &lt;- PR5 &lt;- PR6 &lt;- PR7</code></p>
+  <p class="lineage"><code>main &lt;- PR0 &lt;- PR1 &lt;- PR2 &lt;- PR3 &lt;- PR4 &lt;- PR5 &lt;- PR6 &lt;- PR7 &lt;- PR8</code></p>
   <p>
     The stack is authored with <strong>Graphite (<code>gt</code>)</strong>. In Graphite's model each PR is a
     <strong>branch stacked on its parent</strong> above <code>trunk</code> (<code>main</code>): PR1 branches off
@@ -2525,7 +2525,7 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
 
   <section data-kind="pr-card" id="pr7">
     <h3>PR7 — Hosted browser review (widget wiring)</h3>
-    <p class="stack-pos"><strong>Stack position:</strong> layer 7 (top) — branches off <code>PR6</code> (<code>PR6 &lt;- PR7</code>).</p>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 7 — branches off <code>PR6</code> (<code>PR6 &lt;- PR7</code>).</p>
     <p>
       Fill the hosted adapter slice PR6 deferred, so a reviewer in a <em>browser</em> on a hosted doc can comment end
       to end — the gap the stack-wide exit-criteria audit flagged. The shared <a href="#widget"><code>review-ux/</code></a>
@@ -2622,13 +2622,67 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
     </details>
   </section>
 
+  <section data-kind="pr-card" id="pr8">
+    <h3>PR8 — Transport convergence (one client, one API, one recipe)</h3>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 8 (top) — branches off <code>PR7</code> (<code>PR7 &lt;- PR8</code>).</p>
+    <p>
+      Deletion-heavy unification. Both server runtimes already mount the same op-envelope
+      <a href="#api"><code>?comments</code></a> API through the shared <code>handleCommentsRequest</code> (the Worker
+      against D1, the local server against <code>SidecarStore</code>), and PR7's <code>HostedStore</code> is a pure
+      fetch transport with nothing hosted-specific in it — it works verbatim against the local route. So: promote
+      <code>HostedStore</code> to <em>the</em> shared browser HTTP client (rename/move per design; update the vendored
+      copy + sync manifest per the PR4 drift-gate precedent), point <code>buildLocalDeps()</code> at it, and
+      <strong>delete</strong> the legacy path — <code>LocalFileStore</code>, the whole-model
+      <code>PUT /__htmldocs/sidecar/&lt;doc&gt;</code> route, and the browser-side legacy wire conversions. The
+      <strong>on-disk sidecar format is unchanged</strong> (<code>SidecarStore</code> still reads/writes the legacy
+      JSON), so existing <code>*.comments.json</code> files keep working with zero migration. Local mode thereby
+      inherits per-op semantics: no more whole-file last-writer-wins between two tabs (per-op no-clobber — <em>not</em>
+      transactional; do not oversell). The seed-author runtime discriminator survives but now only picks the
+      <em>author</em>; both runtimes build the same store.
+    </p>
+    <p>
+      <strong>Agent recipe migration (User decision):</strong> the documented agent surface for local review moves off
+      disk-reading onto the same <code>?comments</code> API — <em>one minimal, runtime-agnostic recipe</em> that never
+      assumes local vs. hosted: parameterized by the doc URL, bearer token only when hosted. Crafted per
+      prompt-engineering best practices and given a dedicated prompt-quality review. Docs note the sidecar files remain
+      on disk for inspection, but the recipe is the API.
+    </p>
+    <details>
+      <summary>PR8 specifics — deletions, docs sweep, tests</summary>
+      <ul>
+        <li><strong>Deletions (grep-proof):</strong> <code>LocalFileStore</code> + its unit tests + the
+          <code>__LocalFileStore</code> test-handle export; the sidecar <code>PUT</code> route/handler in
+          <code>serve.ts</code>; <code>legacyToThread</code>/<code>threadToLegacy</code> in browser code. Legacy shape
+          survives in exactly one place: <code>SidecarStore</code>'s disk (de)serialization.</li>
+        <li><strong>Docs sweep:</strong> every doc that teaches or mentions the sidecar-PUT / disk-read workflow is
+          updated — <code>references/comments.md</code> (becomes the unified recipe), <code>SKILL.md</code>,
+          <code>docs/hosted_review.html</code>, <code>docs/review_system.html</code>, the adapters'
+          <code>claude.md</code> contracts, and the <code>apps/htmldoc-review</code> README. Grep for stale mentions;
+          plan/history documents stay as history.</li>
+        <li><strong>Tests:</strong> local Playwright specs assert <code>?comments</code> traffic (request shapes)
+          instead of the PUT contract; the smoke test drops its PUT phase for an op round-trip; a pre-existing legacy
+          sidecar fixture loads/mutates/persists format-unchanged; a two-client interleaved-ops test (two stores, one
+          server: create/resolve interleaved — every op lands); runtime-selection tests updated.</li>
+      </ul>
+    </details>
+    <aside data-kind="validation">
+      <strong>Validate.</strong> Grep-proof deletions; full local Playwright regression green with the widget driving
+      every verb over <code>?comments</code>; legacy sidecar fixture round-trips format-unchanged; the interleaved
+      two-client test green; hosted path observably unchanged (full app gate + vendored drift gate green); the
+      rewritten agent recipe passes a prompt-quality review (minimal, runtime-agnostic); both packages' full gates
+      green; dist rebuilt and committed.
+    </aside>
+  </section>
+
   <aside data-kind="exit-criteria">
     <strong>Deliverable 2 done when:</strong> a reviewer on a hosted doc can comment on any DOM region and it persists
     across reloads and users; an agent with a GitHub token can list a doc's comments and <strong>resolve</strong> (or
     <strong>delete</strong>) one by id, and is refused with a neutral <code>404</code> on a doc it can't see; comments
     display real author names; resolved comments are retained (auditable) and <strong>stay visible with a green
-    indicator, never hidden</strong>, while a deleted thread is purged outright; and local review mode still works via
-    the shared widget with no regression.
+    indicator, never hidden</strong>, while a deleted thread is purged outright; local review mode still works via
+    the shared widget with no regression; and (PR8) local and hosted browsers share <strong>one</strong> HTTP client
+    transport over the op-envelope <code>?comments</code> API — the legacy whole-model sidecar <code>PUT</code> path is
+    deleted — with a single runtime-agnostic agent recipe driving list/resolve/delete against either runtime.
   </aside>
   <details class="validation-evidence" open>
     <summary>Stack-wide validation evidence — d2/pr7-hosted-browser-review (gate green, all criteria met)</summary>
