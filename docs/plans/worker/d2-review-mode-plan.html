@@ -1785,7 +1785,7 @@ type OpResult =
     <p>
       <a href="https://github.com/benbuzbee/agent-extensions/pull/6">GitHub PR #6</a> (node-native review server + Mermaid
       <code>noscript</code> fallback) is <strong>orthogonal</strong> to this deliverable — and is unrelated to the
-      <code>PR1&hellip;PR8</code> stack in <a href="#phases">Implementation phases</a>, which are the branches that build
+      <code>PR1&hellip;PR9</code> stack in <a href="#phases">Implementation phases</a>, which are the branches that build
       this deliverable. It moves
       port/arg/file-vs-dir handling out of <code>serve.sh</code> into <code>serve.ts</code>'s yargs
       CLI (so review mode runs anywhere <code>node</code> is on PATH) and adds a Mermaid fallback. It touches only the
@@ -1849,7 +1849,7 @@ type OpResult =
     validate. Every card states its <strong>stack position</strong> (its base branch) up front, so an executor picking
     up one card in isolation still knows exactly what it branches from.
   </p>
-  <p class="lineage"><code>main &lt;- PR0 &lt;- PR1 &lt;- PR2 &lt;- PR3 &lt;- PR4 &lt;- PR5 &lt;- PR6 &lt;- PR7 &lt;- PR8</code></p>
+  <p class="lineage"><code>main &lt;- PR0 &lt;- PR1 &lt;- PR2 &lt;- PR3 &lt;- PR4 &lt;- PR5 &lt;- PR6 &lt;- PR7 &lt;- PR8 &lt;- PR9</code></p>
   <p>
     The stack is authored with <strong>Graphite (<code>gt</code>)</strong>. In Graphite's model each PR is a
     <strong>branch stacked on its parent</strong> above <code>trunk</code> (<code>main</code>): PR1 branches off
@@ -2624,7 +2624,7 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
 
   <section data-kind="pr-card" id="pr8">
     <h3>PR8 — Transport convergence (one client, one API, one recipe)</h3>
-    <p class="stack-pos"><strong>Stack position:</strong> layer 8 (top) — branches off <code>PR7</code> (<code>PR7 &lt;- PR8</code>).</p>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 8 — branches off <code>PR7</code> (<code>PR7 &lt;- PR8</code>).</p>
     <p>
       Deletion-heavy unification. Both server runtimes already mount the same op-envelope
       <a href="#api"><code>?comments</code></a> API through the shared <code>handleCommentsRequest</code> (the Worker
@@ -2744,6 +2744,41 @@ $ git status: D src/comments/adapters/local/local-file-store.ts
 $ grep PUT in src/ -&gt; (zero); serve.ts routes GET/POST over ?comments only.
       </pre>
     </details>
+  </section>
+
+  <section data-kind="pr-card" id="pr9">
+    <h3>PR9 — Agent API helper (<code>comments-api.sh</code>)</h3>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 9 (top) — branches off <code>PR8</code> (<code>PR8 &lt;- PR9</code>).</p>
+    <p>
+      Ship ONE thin shell helper with the skill so agents stop hand-composing curl + token for the
+      <a href="#api"><code>?comments</code></a> API. Pure transport, <code>serve.sh</code>'s read/write twin: it encodes
+      the sanctioned v1 agent surface (<a href="#prompting">list + resolve/reopen + delete — no create</a>) as
+      subcommands, plus a raw-envelope escape hatch. It owns exactly three things the recipe currently teaches by prose —
+      URL composition (<code>?ref=&lt;ref&gt;&amp;comments</code>, ref preserved, bare key), token sourcing
+      (<code>$GITHUB_TOKEN</code> else <code>gh auth token</code>, attached only for non-localhost URLs, <strong>never
+      printed or logged</strong>), and response/exit-code discipline. It knows NOTHING of op semantics beyond the four
+      verbs — no anchor building, no client-side validation (the server's Zod layer is the validator) — so its drift
+      surface is the frozen URL contract only.
+    </p>
+    <p>
+      <strong>Error surfacing is the point (User requirement):</strong> every common failure returns a message
+      actionable by an agent <em>and</em> readable by a human, on stderr, with a distinct non-zero exit: no token
+      available for a hosted URL (say how: <code>gh auth login</code> or <code>GITHUB_TOKEN</code>) detected BEFORE any
+      request; connection refused locally (say: start <code>serve.sh</code>); 401 (token invalid/expired — re-auth);
+      404 (explain the deliberate ambiguity: no access OR doc/thread missing OR the GitHub App isn't installed on the
+      repo — and what to check); an HTML/redirect response where JSON was expected (wrong URL shape or unauthenticated
+      browser path); bad usage (print the subcommand synopsis). Success prints the raw JSON to stdout untouched; a 207
+      batch is success at the transport layer (per-op results are the caller's to inspect). The script is documented in
+      a header comment and in <code>references/comments.md</code>, which shrinks to intent-level usage.
+    </p>
+    <aside data-kind="validation">
+      <strong>Validate.</strong> Automated tests drive the script against the real local server: list/resolve/reopen/
+      delete round-trip green; connection-refused, missing-arg/usage, hosted-URL-without-token, and non-2xx passthrough
+      each produce the documented message + distinct exit code; a token-leak test proves the token never appears on
+      stdout/stderr under any tested path (including <code>set -x</code> style traps); <code>bash -n</code> clean;
+      recipe/SKILL.md updated and the prompt-quality review passes on the rewritten instruction files; full skill gate
+      green. No app changes — the Worker is untouched.
+    </aside>
   </section>
 
   <aside data-kind="exit-criteria">
