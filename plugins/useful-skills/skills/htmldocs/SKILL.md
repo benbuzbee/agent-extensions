@@ -76,7 +76,7 @@ Default to portable: one `<style>` block in `<head>`, no external CSS, JS, or fo
 
 If User wants to leave inline comments on a doc — or several related docs in the same folder — run `bash <htmldocs-skill>/serve.sh path/to/doc.html` via `Bash` with `run_in_background=true` (`<htmldocs-skill>` = this skill's root on disk). The server emits two stdout lines: `URL: …` (hand to User) and `SIDECAR_DIR: …` (an on-disk backup of the comments, for inspection). Read and act on comments over the doc's `?comments` HTTP API — the same call shape locally or hosted; the sidecar files are storage, not the interface. Requires `node` on PATH. Full recipe in `references/comments.md`.
 
-For hosted review 2.0 behind a Cloudflare Worker (org-wide, GitHub-gated, agent-drivable over a `?comments` API), see `docs/hosted_review.html`.
+The review system — the `?comments` API and the injected widget, shared between the local server and the org-wide, GitHub-gated htmldoc-review Cloudflare Worker — is documented in `docs/reviewing.html`. The API and UI are the same either way; only the implementations differ (the doc calls out the local-vs-Worker split, and links the plan doc as the design record).
 
 ## References
 

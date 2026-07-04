@@ -56,6 +56,11 @@ const DOC: DocKey = { repo: REPO, ref: REF, path: DOC_PATH };
 // author (login/name/id), never the PR4 placeholder and never a body-supplied one.
 const SEEDED_IDENTITY = { login: "octocat", name: "Mona Lisa", id: 583231 };
 
+// The identity GitHub returns for the AGENT_TOKEN's owner via GET /user. A bearer
+// MUTATION now resolves this (no session to carry it), so the stamped author is
+// the real agent — not the {login:"agent"} placeholder a non-mutating read uses.
+const AGENT_IDENTITY = { login: "review-bot", name: "Review Bot", id: 424242 };
+
 const sessKey = (id: string) => `sess:${id}`;
 
 // Seed a v2 (identity-bearing) session — the only kind that serves requests
@@ -91,6 +96,24 @@ async function seedV1Session(id: string): Promise<string> {
   return id;
 }
 
+// Queue a single-use mock for a GET /user — the bearer-mutation identity
+// resolution is the only path that hits it (a session request never calls
+// GitHub for identity; its record already carries one).
+function mockUser(identity: { login: string; name: string | null; id: number }) {
+  fetchMock
+    .get("https://api.github.com")
+    .intercept({ method: "GET", path: "/user" })
+    .reply(200, identity, { headers: { "content-type": "application/json" } });
+}
+
+// Queue a single-use FAILING GET /user (non-2xx). fetchIdentity throws on this,
+// which the identity-resolution paths deliberately let propagate.
+function mockUserFail(status = 500) {
+  fetchMock
+    .get("https://api.github.com")
+    .intercept({ method: "GET", path: "/user" })
+    .reply(status, "", { headers: { "content-type": "application/json" } });
+}
 
 /**
  * Queue a single-use mock for the checkAccess probe. The probe hits the GitHub
@@ -389,7 +412,9 @@ describe("reserved ops (reply/edit)", () => {
     expect(res.status).toBe(207);
     expect((await res.json())).toEqual({
       results: [
-        { ok: false, op: "reply", error: { code: "transient", message: "op not yet supported" } },
+        // reply names a threadId → the error echoes it; edit names only a
+        // commentId → no threadId.
+        { ok: false, op: "reply", error: { code: "transient", message: "op not yet supported", threadId: "t1" } },
         { ok: false, op: "edit", error: { code: "transient", message: "op not yet supported" } },
       ],
     });
@@ -473,19 +498,78 @@ describe("credential-less comments request", () => {
 });
 
 describe("agent bearer path", () => {
-  it("bearer, no cookie: probe(200) → op succeeds", async () => {
+  it("bearer create resolves + stamps the token owner's REAL identity via GET /user", async () => {
     mockProbe(200);
+    mockUser(AGENT_IDENTITY); // the bearer-mutation identity resolution
     const res = await call(commentsUrl(), {
       method: "POST",
       headers: { Authorization: `Bearer ${AGENT_TOKEN}` },
-      body: JSON.stringify(createOp("agent comment")),
+      body: JSON.stringify({
+        op: "create",
+        anchor: { exact: "hello" },
+        text: "agent comment",
+        // A body-supplied author MUST be ignored — identity is server-side.
+        author: { login: "attacker", name: "Mallory" },
+      }),
     });
     expect(res.status).toBe(200);
-    expect((await res.json())).toMatchObject({ ok: true, op: "create" });
+    const body = (await res.json()) as {
+      thread: { id: string; root: { author: { login: string; name: string | null } } };
+    };
+    // The real PAT owner's login/name surface on the thread — NOT "agent", NOT the
+    // body-supplied "attacker".
+    expect(body.thread.root.author.login).toBe(AGENT_IDENTITY.login);
+    expect(body.thread.root.author.name).toBe(AGENT_IDENTITY.name);
+
+    const row = await env.COMMENTS_DB.prepare(
+      "SELECT author_login, author_id FROM comments WHERE id = ?",
+    )
+      .bind(body.thread.id)
+      .first<{ author_login: string; author_id: number }>();
+    expect(row?.author_login).toBe(AGENT_IDENTITY.login);
+    expect(row?.author_id).toBe(AGENT_IDENTITY.id);
     expect(await commentCount()).toBe(1);
   });
 
-  it("bearer, no cookie: probe(403) → neutral 404, nothing persisted", async () => {
+  it("bearer GET list makes NO GET /user call (identity is only resolved for mutations)", async () => {
+    // Seed a thread so the list has content.
+    const store = new D1Store(env.COMMENTS_DB);
+    await store.create(DOC, createOp("existing"), PLACEHOLDER);
+
+    // ONLY the access probe is queued — NO /user interceptor. With
+    // disableNetConnect(), any GET /user the read path issued would throw
+    // "Unmocked outbound fetch"; the request completing (and afterEach's
+    // assertNoPendingInterceptors) is the call-log proof that /user was never hit.
+    mockProbe(200);
+    const res = await call(commentsUrl(), {
+      headers: { Authorization: `Bearer ${AGENT_TOKEN}` },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { threads: unknown[] };
+    expect(body.threads).toHaveLength(1);
+  });
+
+  it("bearer mutation with a failing GET /user surfaces as an error, nothing persisted", async () => {
+    // Access is granted (probe 200) but identity resolution fails. fetchIdentity
+    // throws; index.ts's outer catch rethrows anything but InvalidPath/Cookie, so
+    // the handler boundary surfaces it (the edge maps it to 5xx) — mirroring the
+    // session path's getIdentity-failure contract. Author is resolved BEFORE the
+    // store is touched, so no comment is written.
+    mockProbe(200);
+    mockUserFail(500);
+    await expect(
+      call(commentsUrl(), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${AGENT_TOKEN}` },
+        body: JSON.stringify(createOp("must not persist")),
+      }),
+    ).rejects.toThrow();
+    expect(await commentCount()).toBe(0);
+  });
+
+  it("bearer, no cookie: probe(403) → neutral 404, nothing persisted (no /user call)", async () => {
+    // Access is denied BEFORE identity is resolved, so no /user interceptor is
+    // needed — checkAccess short-circuits ahead of resolveAuthor.
     mockProbe(403);
     const res = await call(commentsUrl(), {
       method: "POST",

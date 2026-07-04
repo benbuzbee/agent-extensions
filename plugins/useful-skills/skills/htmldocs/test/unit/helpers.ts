@@ -70,6 +70,16 @@ export class MemoryStore implements ICommentsStore {
   }
 }
 
+/** A store whose `resolve` always fails with an UNTAGGED transient error (an
+ *  arbitrary store/DB fault — NOT a not_found, which already carries a threadId).
+ *  Every other method inherits MemoryStore. Used to prove a transient failure on
+ *  a threadId-bearing op still echoes the op's threadId onto the OpError. */
+export class TransientResolveStore extends MemoryStore {
+  async resolve(_doc: DocKey, _op: ResolveOp, _author: Author): Promise<Thread> {
+    throw new Error('store unavailable');
+  }
+}
+
 /** Records every method call — used to assert the before-any-store-call
  *  contract on a malformed envelope. */
 export class SpyStore implements ICommentsStore {

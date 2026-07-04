@@ -6521,6 +6521,22 @@ function errorToOpError(err) {
   const message = err instanceof Error ? err.message : String(err);
   return { code: "transient", message };
 }
+function opThreadId(op) {
+  switch (op.op) {
+    case "resolve":
+    case "reopen":
+    case "delete":
+    case "reply":
+      return op.threadId;
+    default:
+      return void 0;
+  }
+}
+function withOpThreadId(op, error) {
+  if (error.threadId !== void 0) return error;
+  const threadId = opThreadId(op);
+  return threadId !== void 0 ? { ...error, threadId } : error;
+}
 async function applyOp(store, doc, op, author) {
   try {
     switch (op.op) {
@@ -6542,10 +6558,14 @@ async function applyOp(store, doc, op, author) {
       }
       case "reply":
       case "edit":
-        return { ok: false, op: op.op, error: { code: "transient", message: RESERVED_MESSAGE } };
+        return {
+          ok: false,
+          op: op.op,
+          error: withOpThreadId(op, { code: "transient", message: RESERVED_MESSAGE })
+        };
     }
   } catch (err) {
-    return { ok: false, op: op.op, error: errorToOpError(err) };
+    return { ok: false, op: op.op, error: withOpThreadId(op, errorToOpError(err)) };
   }
 }
 function statusForError(error) {

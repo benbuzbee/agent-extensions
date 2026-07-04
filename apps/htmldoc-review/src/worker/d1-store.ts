@@ -22,6 +22,7 @@ import {
   NotFoundError,
   isNotFoundError,
 } from "@shared/api/thread-ops";
+import { withOpThreadId } from "@shared/api/handlers";
 import { asThreadId, asCommentId, asTimestamp } from "@shared/review-ux/types";
 import type { ICommentsStore } from "@shared/review-ux/store";
 import type {
@@ -252,7 +253,11 @@ export class D1Store implements ICommentsStore {
             break;
         }
       } catch (err) {
-        results.push({ ok: false, op: op.op, error: toOpError(err) });
+        // withOpThreadId echoes the op's threadId onto a transient/no_access
+        // failure (not_found already carries it) so every ok:false element names
+        // its target — the same rule the shared applyOp applies, shared to avoid
+        // drift between this loop and the handler's.
+        results.push({ ok: false, op: op.op, error: withOpThreadId(op, toOpError(err)) });
       }
     }
     return results;

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { handleCommentsRequest } from '../../src/comments/api/handlers';
-import { MemoryStore, SpyStore, TEST_DOC, TEST_AUTHOR } from './helpers';
+import { MemoryStore, SpyStore, TransientResolveStore, TEST_DOC, TEST_AUTHOR } from './helpers';
 
 describe('handleCommentsRequest', () => {
   it('a malformed POST body → 400 with ZERO store calls', async () => {
@@ -59,5 +59,18 @@ describe('handleCommentsRequest', () => {
     });
     expect(res.status).toBe(404);
     expect(res.json).toMatchObject({ ok: false, op: 'resolve', error: { code: 'not_found' } });
+  });
+
+  it('a TRANSIENT store failure on resolve → 500 whose OpError echoes the op threadId', async () => {
+    // not_found already carries a threadId; this proves a transient failure on a
+    // threadId-bearing op does too, so a caller always learns WHICH op failed.
+    const res = await handleCommentsRequest({
+      method: 'POST', body: { op: 'resolve', threadId: 'thr-42' },
+      store: new TransientResolveStore(), doc: TEST_DOC, author: TEST_AUTHOR,
+    });
+    expect(res.status).toBe(500);
+    expect(res.json).toMatchObject({
+      ok: false, op: 'resolve', error: { code: 'transient', threadId: 'thr-42' },
+    });
   });
 });

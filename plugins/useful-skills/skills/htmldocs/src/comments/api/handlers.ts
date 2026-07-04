@@ -4,7 +4,7 @@
 // runtime serializes. The author is a parameter, never read from the body.
 
 import type { ICommentsStore } from '../review-ux/store';
-import type { DocKey, Author, Op, OpResult, OpError, Thread } from '../review-ux/types';
+import type { DocKey, Author, Op, OpResult, OpError, ThreadId, Thread } from '../review-ux/types';
 import { parseEnvelope } from './schemas';
 import { isNotFoundError } from './thread-ops';
 
@@ -19,6 +19,33 @@ function errorToOpError(err: unknown): OpError {
   if (isNotFoundError(err)) return { code: 'not_found', threadId: err.threadId };
   const message = err instanceof Error ? err.message : String(err);
   return { code: 'transient', message };
+}
+
+/** The threadId an op names, or undefined. resolve/reopen/delete/reply each
+ *  target an existing thread by id; create mints its id server-side and edit
+ *  names a commentId, so neither carries a threadId. */
+function opThreadId(op: Op): ThreadId | undefined {
+  switch (op.op) {
+    case 'resolve':
+    case 'reopen':
+    case 'delete':
+    case 'reply':
+      return op.threadId;
+    default:
+      return undefined;
+  }
+}
+
+/** Ensure a failed op's error echoes the threadId the op named. A `not_found`
+ *  already carries it (thread-ops stamps it), but a `transient`/`no_access`
+ *  failure on a threadId-bearing op otherwise wouldn't — so a batch caller
+ *  couldn't tell WHICH op failed. Backfill it (never clobber an existing one) so
+ *  every ok:false element naming a thread reports its target. Exported so the
+ *  hosted D1Store's own batch loop applies the identical rule (no drift). */
+export function withOpThreadId(op: Op, error: OpError): OpError {
+  if (error.threadId !== undefined) return error;
+  const threadId = opThreadId(op);
+  return threadId !== undefined ? { ...error, threadId } : error;
 }
 
 /**
@@ -52,10 +79,14 @@ export async function applyOp(
       }
       case 'reply':
       case 'edit':
-        return { ok: false, op: op.op, error: { code: 'transient', message: RESERVED_MESSAGE } };
+        return {
+          ok: false,
+          op: op.op,
+          error: withOpThreadId(op, { code: 'transient', message: RESERVED_MESSAGE }),
+        };
     }
   } catch (err) {
-    return { ok: false, op: op.op, error: errorToOpError(err) };
+    return { ok: false, op: op.op, error: withOpThreadId(op, errorToOpError(err)) };
   }
 }
 

@@ -39,7 +39,7 @@ Prefer `resolve` over `delete` — resolve keeps the record and is reversible; r
 
 1. **List.** `GET <doc-url>?comments` → `200 {"threads": [...]}`. Each thread carries `id`, `anchor.exact` (the quoted text it pins to), `root.body` (User's note), and `resolvedAt` (`null` = open, a number = already resolved).
 2. **Act.** `POST <doc-url>?comments` with one op object → `200` with the op's result. Address the thread by its `id`. A `404` carrying `{"ok":false,"error":{"code":"not_found"}}` means that `threadId` doesn't exist (it was deleted or you have a stale id — re-list); a bare/neutral `404` (no such JSON body) means the doc itself is unreadable with this credential.
-3. **Batch (optional).** POST a JSON *array* of op objects to close many threads in one call → `207` with `{"results": [...]}`, one result per op in request order. Best-effort: a bad op reports its own error and does not roll back the others.
+3. **Batch (optional).** POST a JSON *array* of op objects to close many threads in one call → `207` with `{"results": [...]}`, one result per op **in request order** — the i-th result is the i-th op. Best-effort: a bad op reports its own error and does not roll back the others. Every op that names a `threadId` (`resolve`/`reopen`/`delete`) echoes it back in its result, including a failed op's `error`, so you can correlate by id as well as by position.
 
 ```bash
 # List, then resolve one thread. -H Authorization only for a hosted doc.
