@@ -3,6 +3,9 @@
 //
 // Branded ids extend the SessionId brand pattern from apps/htmldoc-review/src/core/store.ts.
 // Timestamps are numeric epoch-milliseconds end to end.
+//
+// These types are also the wire shapes: the injected seed and the `?comments`
+// API carry exactly these structures — there is no separate wire layer.
 
 // --- Branded primitives ---
 

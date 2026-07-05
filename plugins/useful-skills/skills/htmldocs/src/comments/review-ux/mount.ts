@@ -310,9 +310,13 @@ export class CommentsMount {
 
   private attachUI(): void {
     if (this.disposed || this.ui) return;
+    // buildPopover/buildGutter append themselves to document.body; buildComposer
+    // returns a detached <dialog> that we append here, so this method owns the
+    // composer's placement and removal (unmount calls composer.remove()).
     const popover = buildPopover();
     const popoverBtn = popover.querySelector('button') as HTMLButtonElement;
     const composer = buildComposer();
+    document.body.appendChild(composer);
     const textarea = composer.querySelector('textarea') as HTMLTextAreaElement;
     const gutter = buildGutter();
 

@@ -154,7 +154,7 @@ async function resolveAuthor(
     // propagate (non-2xx/network -> 5xx) rather than stamping a placeholder onto
     // a real agent — mirroring getIdentity above.
     //
-    // Cost: a bearer mutation now issues TWO upstream GitHub calls — the
+    // Cost: a bearer mutation issues TWO upstream GitHub calls — the
     // checkAccess Contents probe AND this GET /user. They cannot be combined: no
     // GitHub endpoint returns both a Contents authorization check and the
     // caller's identity. The future lever is to cache identity keyed by a hash of

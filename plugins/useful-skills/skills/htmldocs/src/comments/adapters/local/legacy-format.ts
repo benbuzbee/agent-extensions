@@ -22,9 +22,9 @@ export interface LegacyComment {
   created_at: string;
   /**
    * Optional soft-close timestamp (ISO string, mirroring `created_at`).
-   * Absent/omitted == open. Added backward-compatibly: `isWellShapedModel`
-   * tolerates extra fields, and older sidecars simply lack it (they load as
-   * open), so Deliverable 1 sidecars still validate.
+   * Absent/omitted == open. Backward-compatible: `isWellShapedModel`
+   * tolerates extra fields, and older sidecars simply lack it (loading as
+   * open).
    */
   resolved_at?: string;
 }

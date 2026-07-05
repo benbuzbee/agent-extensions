@@ -164,14 +164,14 @@
       <li><code>main.ts</code> — bootstrap + runtime select; hands a built store to the shared mount.</li>
       <li><code>review-ux/mount.ts</code> — the shared lifecycle (slimmed <code>CommentsWidget</code>): highlight rebuild, re-anchor, save, UI attach, unmount, test-handle wiring. It paints straight from the internal <code>{threads}</code> seed.</li>
       <li><code>review-ux/anchor.ts</code> — encode/decode between a DOM <code>Range</code> and the W3C TextQuoteSelector triple (32-char prefix/suffix windows, Hypothesis convention). The encoder also records the ids of every <code>&lt;article&gt;</code> the selection intersects in an <code>anchor.sections</code> array — pure metadata, the decoder always searches the full document and uses prefix/suffix as the disambiguator.</li>
-      <li><code>review-ux/popover.ts</code> — the selection popover and its <code>selectionInDocBody</code> gate (any selection inside the doc body qualifies; the article-only gate is gone).</li>
+      <li><code>review-ux/popover.ts</code> — the selection popover and its <code>selectionInDocBody</code> gate (any selection inside the doc body qualifies, not just inside an &lt;article&gt;).</li>
       <li><code>review-ux/composer.ts</code> — the <code>&lt;dialog&gt;</code> body-text composer.</li>
       <li><code>review-ux/gutter.ts</code> — margin-gutter thread bubbles, with resolved-state styling.</li>
       <li><code>review-ux/highlight.ts</code> — CSS Custom Highlight registration + the injected stylesheet.</li>
       <li><code>review-ux/inject.ts</code> — the shared seed/script-tag markup helpers; the internal <code>{threads}</code> seed and its <code>&lt;/script&gt;</code>-breakout escaping live here.</li>
       <li><code>review-ux/store.ts</code> — the <code>ICommentsStore</code> seam between the shared UX and the adapters.</li>
       <li><code>review-ux/types.ts</code> — <code>Anchor</code>, <code>Comment</code>, <code>Thread</code>, the <code>Op</code> envelope, and branded ids. No legacy shape lives here — the legacy disk format is confined to <code>adapters/local/legacy-format.ts</code>.</li>
-      <li><code>adapters/http-store.ts</code> — <code>HttpCommentsStore</code>, the shared browser HTTP client both runtimes build. Pure fetch transport: it drives every op (create/resolve/reopen/delete, batch) over <code>&lt;doc&gt;?comments</code>, addressing the collection URL derived from <code>location</code>. (The inline JSON seed is parsed by <code>review-ux/mount.ts</code> for the initial paint — the store never touches it.) No whole-model PUT — each op is one request.</li>
+      <li><code>adapters/http-store.ts</code> — <code>HttpCommentsStore</code>, the shared browser HTTP client both runtimes build. Pure fetch transport: it drives every op (create/resolve/reopen/delete, batch) over <code>&lt;doc&gt;?comments</code>, addressing the collection URL derived from <code>location</code>. (The inline JSON seed is parsed by <code>review-ux/mount.ts</code> for the initial paint — the store never touches it.) Each op is one request.</li>
     </ul>
     <p>
       Styles inject via a constructable <code>CSSStyleSheet</code> on
@@ -195,7 +195,7 @@
       static GET is: it must resolve under <code>--root</code> to an
       <code>.html</code> / <code>.htm</code> file. Behind the route the server's
       <code>SidecarStore</code> does an atomic read-modify-write of the sidecar per
-      op, so a crash mid-write cannot truncate it and two tabs no longer clobber
+      op, so a crash mid-write cannot truncate it and two tabs don't clobber
       each other's whole-file state — see <a href="#known-friction">§ Known friction</a>.
     </p>
   </section>
@@ -210,8 +210,7 @@
       <code>sub/bar.html</code> → <code>&lt;SIDECAR_DIR&gt;/sub/bar.comments.json</code>).
       Multi-doc sessions produce one sidecar per doc that received a save; they never
       aggregate. The legacy <code>*.comments.json</code> (de)serialization — reading the
-      on-disk shape in and writing it back out unchanged (<code>resolvedAt</code> now
-      round-trips) — lives only in
+      on-disk shape in and writing it back out unchanged (including <code>resolvedAt</code>) — lives only in
       <code>src/comments/adapters/local/legacy-format.ts</code>, invoked from the
       <code>SidecarStore</code>; every other layer speaks the internal
       <code>{threads}</code> shape.
@@ -276,8 +275,7 @@
     <li>
       <strong>Two-tab writes are per-op, not transactional.</strong> Each save is a
       single op that the server applies with a read-modify-write against the sidecar,
-      so two tabs no longer clobber each other's whole file the way the old
-      whole-model <code>PUT</code> did — every op lands. This is per-op no-clobber,
+      so two tabs don't clobber each other's whole file — every op lands. This is per-op no-clobber,
       not a transaction: there is no cross-op isolation or locking, so a genuinely
       concurrent read-modify-write on the same op could still race. Fine for
       single-user localhost review. See

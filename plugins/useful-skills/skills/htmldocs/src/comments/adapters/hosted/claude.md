@@ -1,4 +1,4 @@
-Hosted (Cloudflare Worker) adapter. Identity + injection placement only — never rendering, and (since PR8) no store of its own: the browser HTTP client is the SHARED `HttpCommentsStore` at `../http-store.ts`, built by BOTH runtimes.
+Hosted (Cloudflare Worker) adapter. Identity + injection placement only — never rendering, and no store of its own: the browser HTTP client is the SHARED `HttpCommentsStore` at `../http-store.ts`, built by BOTH runtimes.
 
 - `deps.ts` — `buildHostedDeps(author)` pairs the shared `HttpCommentsStore` with the real GitHub author `main.ts` read off the injected `__htmldocs_comments` seed (stamped server-side at login).
 - `d1-store.ts`, `inject.ts` — DOC STUBS. The real server-side `D1Store` + `HTMLRewriter` injector live in the Worker app (`apps/htmldoc-review/src/worker/`); these just name the seams the Worker fulfils.
