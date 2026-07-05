@@ -6,8 +6,9 @@
 # `<doc-url>?comments` HTTP API. It is PURE TRANSPORT: it composes the URL,
 # sources a token, sends the request, and translates the outcome into a raw
 # JSON body on stdout plus an actionable diagnostic + distinct exit code on
-# stderr. It knows nothing about op semantics beyond composing four fixed
-# envelopes — the SERVER's Zod layer is the validator, not this script.
+# stderr. It knows nothing about op semantics beyond composing three fixed
+# op envelopes (resolve/reopen/delete) — the SERVER's Zod layer is the
+# validator, not this script.
 #
 # ── Usage ────────────────────────────────────────────────────────────────
 #   comments-api.sh list    <doc-url>
