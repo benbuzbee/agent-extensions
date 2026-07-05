@@ -96,8 +96,8 @@ export class D1Store implements ICommentsStore {
     };
   }
 
-  // Every mutation is scoped to the doc the URL named (the one checkAccess
-  // authorized in PR4), NOT to the threadId alone. The comments table is shared
+  // Every mutation is scoped to the doc the URL named (the doc the request's
+  // access check authorized), NOT to the threadId alone. The comments table is shared
   // across all docs, so `WHERE id = ?` would let a caller with access to doc A
   // resolve/reopen/purge a thread on any other doc B given its id — and threadIds
   // are not capability secrets (they appear in list responses, seeds, DOM, shared
