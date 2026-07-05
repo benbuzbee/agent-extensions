@@ -160,8 +160,8 @@ describe("unified injection (both placements emit the identical fragment)", () =
       .then((appended) => {
         // Local placement: the real local adapter. Its seed carries no author
         // by design, so its parity target is the authorless fragment.
-        const localExpected = injectionFragment(model, COMMENTS_WIDGET_SRC);
-        const spliced = injectIntoHtml(fixture, model);
+        const localExpected = injectionFragment(threads, COMMENTS_WIDGET_SRC);
+        const spliced = injectIntoHtml(fixture, threads);
 
         // Placement differs, the emitted fragment is byte-identical in both.
         expect(appended).toContain(expected);

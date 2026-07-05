@@ -35,7 +35,7 @@ export interface Anchor {
  * Reviewer identity, stamped server-side from the session. `id` is the OPTIONAL
  * stable GitHub numeric id — supplied only on the hosted Worker path (from the
  * captured session identity); the local adapter (fixed "user" author) never
- * sets or reads it, so the local shape and behavior are unchanged.
+ * sets or reads it, so the local JSON carries no id.
  */
 export type Author = { login: string; name: string | null; id?: number };
 
