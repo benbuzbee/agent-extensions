@@ -1,5 +1,4 @@
-// Selection-driven popover. Extracted from ui.ts.
-// The article-only gate is REMOVED; replaced with selectionInDocBody.
+// Selection-driven popover.
 
 /**
  * Builds the floating "comment" affordance shown above an active selection.
@@ -53,7 +52,7 @@ function isInsideWidgetUI(node: Node): boolean {
 }
 
 /**
- * New predicate replacing selectionTouchesArticle. Returns the Range if:
+ * Returns the selection's Range if it is a real, in-document text selection:
  * 1. sel.rangeCount > 0
  * 2. The range is not collapsed
  * 3. Both range.startContainer and range.endContainer are inside document.body

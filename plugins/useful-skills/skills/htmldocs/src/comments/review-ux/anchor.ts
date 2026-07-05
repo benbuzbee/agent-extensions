@@ -82,9 +82,9 @@ function collectTextNodes(root: Node): Text[] {
 // Text-anchored boundaries get a linear-scan node-identity match. Element-
 // anchored boundaries (child-index offsets) use Range.compareBoundaryPoints
 // to sum the lengths of every text node whose start strictly precedes the
-// boundary point — the previous identity-only check missed the case where
-// the child at targetOffset was itself an Element (e.g. `<b>` wrapping
-// text), silently returning the doc-end offset.
+// boundary point. Element-anchored boundaries whose child at targetOffset is
+// itself an Element (e.g. <b> wrapping text) must sum preceding text-node
+// lengths rather than identity-match, or the offset collapses to doc-end.
 function rawOffsetWithin(root: Node, target: Node, targetOffset: number): number {
   if (target.nodeType === Node.TEXT_NODE) {
     let total = 0;

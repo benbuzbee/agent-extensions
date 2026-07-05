@@ -1,5 +1,5 @@
 // Highlight registration + stylesheet for the CSS Custom Highlight API.
-// Extracted from main.ts. Includes resolved-state highlight style.
+// Includes resolved-state highlight style.
 
 export const HIGHLIGHT_NAME = 'htmldocs-cmt';
 

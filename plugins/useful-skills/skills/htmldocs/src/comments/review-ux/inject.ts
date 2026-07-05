@@ -5,8 +5,9 @@
 import type { CommentsModel } from './types';
 
 /**
- * Produce the inline JSON seed `<script>` tag. Escapes `<` as `<` so
- * a `</script>` inside a comment body can't break out of the JSON block.
+ * Produce the inline JSON seed `<script>` tag. Escapes each `<` as the JSON
+ * unicode escape `\u003c` (not an HTML entity like &lt;) so a `</script>`
+ * inside a comment body can't break out of the JSON block.
  */
 export function seedJsonScript(model: CommentsModel): string {
   const json = JSON.stringify(model).replace(/</g, '\\u003c');

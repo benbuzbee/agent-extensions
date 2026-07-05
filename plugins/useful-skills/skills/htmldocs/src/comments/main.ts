@@ -40,26 +40,24 @@ const TEST_MODE = new URLSearchParams(location.search).has('test');
 // Module-load sentinel.
 (window as unknown as { __htmldocsModuleLoaded?: boolean }).__htmldocsModuleLoaded = true;
 
-let activeWidget = new CommentsMount();
+// Build a widget wired to a fresh local adapter. CommentsMount requires its
+// MountDeps (store + author) at construction, so deps are built here and the
+// LocalFileStore reads the current inline seed each time.
+function buildWidget(): CommentsMount {
+  return new CommentsMount(buildLocalDeps());
+}
+
+let activeWidget = buildWidget();
 
 function resetActiveWidget(): void {
   activeWidget.unmount();
-  activeWidget = new CommentsMount();
-}
-
-// Wire MountDeps from the local adapter
-function initWidget(): void {
-  const deps = buildLocalDeps();
-  activeWidget.setDeps(deps);
+  activeWidget = buildWidget();
 }
 
 if (TEST_MODE) {
   const handle: TestHandle = {
     whenReady: () => activeWidget.whenReady(),
-    __init: () => {
-      initWidget();
-      return activeWidget.init();
-    },
+    __init: () => activeWidget.init(),
     __anchor: { fromRange: anchor.fromRange, toRange: anchor.toRange },
     __LocalFileStore: LocalFileStore,
     __resetForTest: () => {
@@ -74,6 +72,5 @@ if (TEST_MODE) {
   window.__htmldocsComments = handle;
 }
 
-// Production path: wire deps and init
-initWidget();
+// Production path: init the widget (deps were wired at construction).
 activeWidget.init().catch((err) => { console.error('[htmldocs-cmt] init failed:', err); });

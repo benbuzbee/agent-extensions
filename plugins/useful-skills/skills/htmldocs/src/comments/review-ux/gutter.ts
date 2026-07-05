@@ -1,5 +1,7 @@
-// Margin-gutter thread bubbles. Extracted from ui.ts.
-// Includes resolved-state bubble class (.htmldocs-cmt-bubble--resolved).
+// Margin-gutter thread bubbles. The gutter is the doc's right-margin strip
+// where one bubble renders per commented range, each aligned to its
+// highlight's midline. Resolved threads' bubbles carry the
+// .htmldocs-cmt-bubble--resolved class (green indicator).
 
 import type { Thread } from './types';
 
@@ -11,9 +13,10 @@ export function buildGutter(): HTMLElement {
 }
 
 /**
- * Render one bubble per resolved highlight, aligned vertically to the
- * highlight's bounding rect. Bubbles for resolved threads get the
- * `.htmldocs-cmt-bubble--resolved` class (green indicator).
+ * Render one bubble per highlight, aligned vertically to the highlight's
+ * bounding rect. Every highlight gets a bubble; a bubble whose thread is
+ * resolved additionally gets the `.htmldocs-cmt-bubble--resolved` class
+ * (green indicator). Degenerate (zero-size) rects are skipped.
  */
 export function renderGutter(
   gutter: HTMLElement,
