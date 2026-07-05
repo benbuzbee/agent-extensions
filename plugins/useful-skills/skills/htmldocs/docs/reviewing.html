@@ -207,9 +207,11 @@ POST https://&lt;host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&amp;comm
   </p>
   <p>
     The agent-facing prompt recipes live in
-    <a href="../references/comments.md"><code>references/comments.md</code></a>: the op shapes and ready-to-run
-    <code>curl</code> forms — the canonical recipe home, with this document
-    as the system reference behind it. The v1 convention is that an agent drives
+    <a href="../references/comments.md"><code>references/comments.md</code></a>: the list → address → resolve loop
+    driven through <a href="../scripts/comments-api.sh"><code>scripts/comments-api.sh</code></a> (the transport
+    helper the recipe is built around), the op shapes, and the raw <code>curl</code> forms kept in its appendix for
+    environments without bash — the canonical recipe home, with this document as the system reference behind it. The
+    v1 convention is that an agent drives
     <code>list</code> / <code>resolve</code> / <code>reopen</code> / <code>delete</code> while <code>create</code> is for
     a human in the browser — a convention, not an enforcement.
   </p>

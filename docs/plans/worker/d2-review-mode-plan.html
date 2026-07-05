@@ -2781,6 +2781,74 @@ $ grep PUT in src/ -&gt; (zero); serve.ts routes GET/POST over ?comments only.
       recipe/SKILL.md updated and the prompt-quality review passes on the rewritten instruction files; full skill gate
       green. No app changes — the Worker is untouched.
     </aside>
+    <details class="validation-evidence" open>
+      <summary>Validation evidence — d2/pr9-agent-api-helper (gate green, 0 fix round(s))</summary>
+      <ul>
+        <li><strong>Commands run:</strong> npm install, playwright install chromium, npm run check (typecheck + build + unit + playwright + smoke + smoke:api), bash -n scripts/comments-api.sh, bash test/smoke/comments-api.sh, npm run check (re-run), git diff --stat -- apps/ (confirms no app changes).</li>
+        <li><strong>Code review:</strong> 2 candidate issues surfaced, 0 confirmed at 80% threshold.</li>
+        <li><strong>Fable review:</strong> plan-fidelity → fix (1 blocker/major); security → fix (1 blocker/major); prompt-quality → fix (4 blockers/majors) — all addressed in-run, 0 fix rounds needed after.</li>
+        <li><strong>Findings fixed:</strong> 6 total.</li>
+        <li><strong>Behavioral-contract coverage</strong> (per <code>test/smoke/comments-api.sh</code>): real local-server round-trip list/resolve/reopen/delete green end-to-end; connection-refused → exit 4 + serve.sh hint; missing-args/usage → exit 2 + synopsis, hostile threadId rejected pre-request; hosted-URL-without-token → exit 3 detected before any request is sent, with <code>gh auth login</code>/<code>GITHUB_TOKEN</code> guidance; non-2xx passthrough (404 on bogus threadId) → exit 6, JSON body untouched on stdout; token never appears on stdout/stderr under <code>bash -x</code> on both local and remote paths; <code>bash -n</code> clean; rewritten <code>references/comments.md</code> reviewed for prompt quality. No <code>apps/</code> changes.</li>
+      </ul>
+      <pre>
+### CMD 1: npm install
+up to date, audited 119 packages in 1s
+40 packages are looking for funding
+1 moderate severity vulnerability
+
+### CMD 2: npx playwright install chromium
+(no output — chromium already installed, exit 0)
+
+### CMD 3: npm run check (typecheck + build + unit + playwright + smoke + smoke:api)
+  78 passed (14.7s)         [playwright]
+&gt; htmldocs@0.1.0 test:smoke
+PASS: serve.sh smoke
+&gt; htmldocs@0.1.0 test:smoke:api
+ok: bash -n clean
+ok: usage errors + hostile threadId → exit 2
+ok: connection refused → exit 4, serve.sh guidance
+ok: hosted URL without token → exit 3 (preflight), actionable fix
+ok: HTML-where-JSON → exit 7, URL anatomy shown
+ok: post create → 200, tid=0c26d3af-f014-4fdf-b5f1-0f61ba491527
+ok: list → 200 contains the thread
+ok: resolve → 200, resolvedAt is a number
+ok: reopen → 200, resolvedAt back to null
+ok: delete bogus → exit 6, JSON body untouched on stdout
+ok: delete real → 200, thread gone from list
+ok: HTML markup inside a JSON comment body does not trip the exit-7 sniff
+ok: ?ref value containing 'comments' still gets the &amp;comments marker
+ok: token never leaks under bash -x (local + remote paths)
+PASS: comments-api.sh smoke
+
+### CMD 4: bash -n scripts/comments-api.sh
+EXIT=0 bash -n clean
+
+### CMD 5: bash test/smoke/comments-api.sh
+ok: bash -n clean
+ok: usage errors + hostile threadId → exit 2
+ok: connection refused → exit 4, serve.sh guidance
+ok: hosted URL without token → exit 3 (preflight), actionable fix
+ok: HTML-where-JSON → exit 7, URL anatomy shown
+ok: post create → 200, tid=bf24b4b4-af12-47d3-9fbe-b9f917158e45
+ok: list → 200 contains the thread
+ok: resolve → 200, resolvedAt is a number
+ok: reopen → 200, resolvedAt back to null
+ok: delete bogus → exit 6, JSON body untouched on stdout
+ok: delete real → 200, thread gone from list
+ok: HTML markup inside a JSON comment body does not trip the exit-7 sniff
+ok: ?ref value containing 'comments' still gets the &amp;comments marker
+ok: token never leaks under bash -x (local + remote paths)
+PASS: comments-api.sh smoke
+EXIT=0
+
+### CMD 6: npm run check (re-run)
+PASS: serve.sh smoke
+PASS: comments-api.sh smoke
+CHECK_EXIT=0
+
+### CMD 7: git diff --stat -- apps/
+(empty output — no apps/ changes) EXIT=0</pre>
+    </details>
   </section>
 
   <aside data-kind="exit-criteria">
@@ -2794,7 +2862,7 @@ $ grep PUT in src/ -&gt; (zero); serve.ts routes GET/POST over ?comments only.
     deleted — with a single runtime-agnostic agent recipe driving list/resolve/delete against either runtime.
   </aside>
   <details class="validation-evidence" open>
-    <summary>Stack-wide validation evidence — d2/pr8-transport-convergence (gate green, all criteria met)</summary>
+    <summary>Stack-wide validation evidence — d2/pr9-agent-api-helper (gate green, all criteria met)</summary>
     <p>
       <strong>Full-stack gate result:</strong> PASS (pass: true, failures: [])
     </p>
@@ -2802,83 +2870,108 @@ $ grep PUT in src/ -&gt; (zero); serve.ts routes GET/POST over ?comments only.
       <strong>Exit-criteria audit verdict:</strong> approve — no unmet criteria
     </p>
     <pre>
-Branch verification:
-$ git branch --show-current
-d2/pr8-transport-convergence
-$ gt log short  (top of stack = d2/pr8-transport-convergence, confirmed TOP branch)
+Branch verified: git branch --show-current -&gt; d2/pr9-agent-api-helper (top of stack, above
+d2/pr8-transport-convergence). gt log short confirms d2/pr9-agent-api-helper is the tip.
 
-[1] apps/htmldoc-review $ npm install
-up to date, audited 107 packages in 484ms
-found 0 vulnerabilities
+[1] apps/htmldoc-review: npm install
+  up to date, audited 107 packages in 404ms
+  found 0 vulnerabilities
 
-[2] apps/htmldoc-review $ npm run typecheck
-&gt; tsc --noEmit
-(clean, no errors)
+[2] apps/htmldoc-review: npm run typecheck (tsc --noEmit)
+  &gt; tsc --noEmit
+  (no output — clean, exit 0)
 
-[3] apps/htmldoc-review $ npm test
- RUN  v4.1.9 /mnt/c/Users/benbu/Documents/Claude/Projects/agent-extensions/apps/htmldoc-review
- Test Files  9 passed (9)
-       Tests  101 passed (101)
-  Duration  25.77s
+[3] apps/htmldoc-review: npm test (vitest run)
+   Test Files  9 passed (9)
+        Tests  103 passed (103)
+     Start at  17:42:15
+     Duration  21.48s
+  (Using secrets defined in .dev.vars — local mocked, no real GitHub)
 
-[4] apps/htmldoc-review $ npx wrangler deploy --dry-run
-Total Upload: 264.86 KiB / gzip: 71.78 KiB
-Bindings: env.SESSIONS (KV), env.COMMENTS_DB (D1 htmldoc-review-comments),
-  env.REPO_ORG, env.GITHUB_CLIENT_ID, env.CALLBACK_URL, env.SESSION_VALID_SINCE
---dry-run: exiting now.
+[4] apps/htmldoc-review: npx wrangler deploy --dry-run
+  ⛅️ wrangler 4.105.0
+  Total Upload: 265.67 KiB / gzip: 71.94 KiB
+  Bindings: env.SESSIONS (KV, REPLACE_WITH_KV_NAMESPACE_ID), env.COMMENTS_DB (D1 htmldoc-review-comments),
+  env.REPO_ORG, env.GITHUB_CLIENT_ID, env.CALLBACK_URL, env.SESSION_VALID_SINCE (0)
+  --dry-run: exiting now.
 
-[5] plugins/useful-skills/skills/htmldocs $ npm install
-up to date, audited 119 packages in 967ms
-1 moderate severity vulnerability (pre-existing, not introduced)
+[5] plugins/useful-skills/skills/htmldocs: npm install
+  up to date, audited 119 packages in 746ms
+  1 moderate severity vulnerability (pre-existing; not introduced by this run)
 
-[6] plugins/useful-skills/skills/htmldocs $ npx playwright install chromium
-EXIT: 0 (chromium already present)
+[6] plugins/useful-skills/skills/htmldocs: npx playwright install chromium
+  (no output — chromium already present; confirmed by chromium specs running in step 7)
 
-[7] plugins/useful-skills/skills/htmldocs $ npm run check
-  77 passed (11.5s)
-&gt; test:smoke  bash test/smoke/serve.sh
-ok[dir]: http://127.0.0.1:8002/index.html → 200
-ok[dir]: http://127.0.0.1:8002/does-not-exist.html → 404
-ok[op]: POST create → 200
-ok[op]: GET list contains the created thread
-ok[op]: sidecar landed with expected body
-ok[op]: served tree unchanged by the op
-PASS: serve.sh smoke</pre>
+[7] plugins/useful-skills/skills/htmldocs: npm run check
+  Playwright: 78 passed (6.3s)  [chromium]
+  test:smoke (serve.sh):
+    ok[dir]: 200 / 404 neutral, sidecar isolation ok
+    ok[op]: POST create → 200, GET list contains thread, sidecar landed, served tree unchanged
+    PASS: serve.sh smoke
+  test:smoke:api (comments-api.sh):
+    ok: usage/hostile threadId → exit 2; connection refused → exit 4; hosted-no-token → exit 3 (preflight);
+        HTML-where-JSON → exit 7; create/list/resolve/reopen/delete → 200; token never leaks under bash -x
+    PASS: comments-api.sh smoke
+
+All 7 steps green. Offline guardrails respected: only --dry-run used for wrangler; no deploy/provision/push/submit;
+tests mocked outbound fetch. Neutral-404 non-leak contract exercised and passing (serve.sh 404 + comments-api
+exit-3/exit-7 token-non-leak checks).</pre>
     <p>
       <strong>Exit-criteria audit — verdict: approve, no unmet criteria.</strong>
-      Audited on d2/pr8-transport-convergence @ 5dbfa71 (top of stack, working tree clean).
-      All gates re-run live, not vibes: apps/htmldoc-review typecheck clean + 101/101
-      workers+core tests; skills/htmldocs <code>npm run check</code> exit 0 (62 unit, 77
-      Playwright, serve.sh smoke PASS); fresh dist builds + sync-comments left git clean
-      (zero drift). Every exit criterion including the PR8 clause verified in code + passing
-      tests: single <code>HttpCommentsStore</code> shared by <code>buildLocalDeps</code>/<code>buildHostedDeps</code>,
-      legacy sidecar PUT route deleted from <code>serve.ts</code>, one runtime-agnostic recipe
-      in <code>references/comments.md</code>.
+      Audit basis: d2/pr9-agent-api-helper @ 1e91478 (top of stack, tree clean; two commits past the previously
+      audited 5dbfa71). Note the WSL junction — <code>/mnt/c/Users/benbu/projects/agent-extensions</code> and
+      <code>/mnt/c/Users/benbu/Documents/Claude/Projects/agent-extensions</code> are the same checkout. All gates
+      re-run live: apps/htmldoc-review typecheck clean + 103/103 vitest (workers+core, Miniflare-migrated D1);
+      skills/htmldocs <code>npm run check</code> exit 0 (65 unit, 78 Playwright, serve.sh smoke PASS,
+      comments-api.sh smoke PASS incl. token-leak guard); sync:comments left git clean (zero cross-copy drift);
+      wrangler deploy --dry-run builds (265.67 KiB).
+    </p>
+    <p>
+      All criteria met in code + tests: any-DOM-region commenting via <code>selectionInDocBody</code>
+      (document.body minus widget chrome, both endpoints checked) + anchor model with block/inline Playwright
+      specs; persistence is D1 keyed by (repo, ref, path) — user-independent — with seed-level
+      create→reload→resolve e2e in <code>inject.workers.test.ts</code>. Bearer token → <code>checkAccess</code>
+      single chokepoint → <code>handleComments</code>; probe 403/404 collapse to byte-identical neutral
+      <code>404</code> (tested, incl. malformed-envelope ordering: 400 never precedes the gate); D1 mutations
+      doc-scoped so a foreign-doc threadId behaves as not_found; <code>comments-api.sh</code> gives
+      list/resolve/reopen/delete by id. <code>completeLogin</code> captures <code>{login,name,id}</code> via
+      <code>GET /user</code> onto session KV; v1 sessions lazy-upgrade (tested); author stamped server-side only
+      (body-supplied author rejected — tested); bearer mutations resolve the real PAT owner (tested). Names
+      surface in API responses/seed/audit logs; the v1 widget deliberately has no thread-view pane (plan's
+      minimal-UX decision), so display is at the data/API layer — matching PR5's own validation criterion.
+      <code>resolve</code> keeps the row (workerd test "resolve soft-closes (row stays visible)"); the gutter
+      renders every anchored thread's bubble and adds <code>.htmldocs-cmt-bubble--resolved</code> (green,
+      light+dark CSS); Playwright spec "resolved bubble stays visible"; delete hard-purges the row (tested gone
+      from list). Local mode green across the full check incl. legacy sidecar roundtrip + serve-multi-doc +
+      sidecar-dir-flag specs. PR8 clause: one <code>HttpCommentsStore</code> built by both
+      <code>buildLocalDeps</code>/<code>buildHostedDeps</code> (author is the only difference);
+      <code>serve.ts</code> exposes only GET/POST on <code>?comments</code>, non-GET/HEAD otherwise 405 — no
+      legacy PUT route remains; one runtime-agnostic recipe in <code>references/comments.md</code> driving
+      <code>comments-api.sh</code> against local or hosted URLs.
     </p>
     <p>
       <strong>Human + live-infra manual checklist (plan-sanctioned deferrals — not failures):</strong>
     </p>
     <ol>
-      <li>First real deploy: run <code>apps/htmldoc-review/scripts/setup/deploy.sh</code> — KV namespace create-once, <code>wrangler secret put</code> (GITHUB_CLIENT_SECRET, STATE_SIGNING_KEY), <code>wrangler deploy</code>, GitHub App install. Only <code>wrangler deploy --dry-run</code> has ever been exercised.</li>
+      <li>First real deploy: run <code>apps/htmldoc-review/scripts/setup/deploy.sh</code> — KV namespace create-once, <code>wrangler secret put</code> (GITHUB_CLIENT_SECRET, STATE_SIGNING_KEY), <code>wrangler deploy</code>, GitHub App install. Only <code>wrangler deploy --dry-run</code> has ever been exercised; <code>wrangler.toml</code> still carries <code>REPLACE_WITH_KV_NAMESPACE_ID</code> / <code>REPLACE_ME_GITHUB_ORG_SLUG</code> / <code>REPLACE_ME_GITHUB_APP_CLIENT_ID</code> / <code>REPLACE_ME_DOMAIN</code> placeholders.</li>
       <li>D1 create-once: <code>wrangler d1 create htmldoc-review-comments</code>; confirm the UUID parse + in-place <code>wrangler.toml</code> wiring against real CLI output (only dry-run/Miniflare tested).</li>
       <li>Remote migrations: <code>wrangler d1 migrations apply htmldoc-review-comments --remote</code>; confirm <code>0001_create_comments.sql</code> applies and <code>d1_migrations</code> tracking behaves as authored.</li>
       <li>Live probe semantics with the App installed: unauthorized/private doc → neutral 404 byte-identical to a missing doc; authorized doc serves with seed injected and the widget bundle actually loads at <code>/__htmldocs/comments.mjs</code> (only mocked GitHub tested).</li>
-      <li>Live browser review: real OAuth login → comment via the widget on a deployed doc → reload persists → a second user sees it (hosted path tested only against Miniflare + stubbed transport; cross-user is proven structurally, not live).</li>
-      <li>Live agent recipe: bearer PAT against the deployed URL — GET list, POST resolve/delete by id, batch 207 — per the now-converged single recipe (<code>references/comments.md</code> / <code>docs/hosted_review.html</code>), against both the deployed Worker and a local serve to confirm runtime-agnosticism end to end.</li>
+      <li>Live browser review: real OAuth login → widget comment on a deployed doc → reload persists → a second user sees it (cross-user proven structurally, not live).</li>
+      <li>Live agent recipe: <code>comments-api.sh</code> with a real PAT (<code>$GITHUB_TOKEN</code> / <code>gh auth token</code>) against the deployed URL — list, resolve + delete by id, batch 207; repeat against a local serve to confirm runtime agnosticism end to end.</li>
       <li>Live identity: real GET /user stamps login/name on a created comment; a surviving pre-identity v1 KV session lazy-upgrades in place without re-auth.</li>
     </ol>
     <p>
       <strong>Plan verify-badge risks still unverified (by design):</strong>
-      D1 free-tier pricing numbers, exact remote-migrations syntax, DROP COLUMN support (feeds checklist items 2–3);
-      probe-cache short-TTL lever (documented, not built);
-      ETag/If-None-Match conditional re-probe with token-identity cache key (deferred open decision);
-      D1 row aging / cron DELETE lever (not built);
-      live integration-test tier (plan-flagged deferred);
-      PR6 docs open item — click-confirm external references in shipped docs.
-      Previously-open verify items now <strong>closed in code</strong>: anchor rendering across block/inline boundaries
-      + widget-chrome self-exclusion; <code>'default'</code> ref sentinel route/store agreement;
-      <code>&lt;/script&gt;</code> breakout escaping confined to shared <code>seedJsonScript</code>/<code>widgetScriptTag</code>
-      with worker-vs-local injection parity asserted in both tiers.
+      current D1 free-tier pricing numbers; exact <code>wrangler d1 migrations --remote</code> syntax and DROP
+      COLUMN support (feeds checklist items 2–3); probe-cache short-TTL lever (documented, not built);
+      ETag/If-None-Match conditional re-probe with token-identity cache key (open decision); D1 row-aging / cron
+      DELETE lever (not built); live integration-test tier (plan-flagged deferred); PR6 open item — click-confirm
+      external references in shipped docs.
+      Previously-open verify items now <strong>closed in code</strong>: anchor rendering across block/inline
+      boundaries + widget-chrome self-exclusion; <code>'default'</code> ref sentinel route/store agreement;
+      script-breakout escaping confined to shared <code>seedJsonScript</code>/<code>widgetScriptTag</code> with
+      worker-vs-local injection parity asserted in both test tiers.
     </p>
   </details>
 </article>
