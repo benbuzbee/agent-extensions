@@ -50,13 +50,25 @@ const TEST_MODE = new URLSearchParams(location.search).has('test');
 // Module-load sentinel.
 (window as unknown as { __htmldocsModuleLoaded?: boolean }).__htmldocsModuleLoaded = true;
 
-let activeWidget = new CommentsMount();
-let activeDeps: MountDeps | null = null;
+// Wire MountDeps from the adapter the injected seed selects: a seeded author
+// means a hosted doc (HostedStore over the ?comments API); its absence is the
+// unchanged local path (LocalFileStore). Local behavior stays byte-identical.
+// chooseDeps constructs the store, so deps are always fully built here and the
+// widget is constructed with them (never nullable, never re-wired after).
+function buildDeps(): MountDeps {
+  return chooseDeps(seededAuthor(), buildHostedDeps, buildLocalDeps);
+}
 
+let activeDeps: MountDeps = buildDeps();
+let activeWidget = new CommentsMount(activeDeps);
+
+// Re-mount with fresh deps re-read from the current DOM seed. Tests inject the
+// seed one tick after module load (see hosted-store.spec.js), so reset is where
+// the hosted-vs-local selection actually gets exercised.
 function resetActiveWidget(): void {
   activeWidget.unmount();
-  activeWidget = new CommentsMount();
-  activeDeps = null;
+  activeDeps = buildDeps();
+  activeWidget = new CommentsMount(activeDeps);
 }
 
 // Read the reviewer identity off the injected JSON seed. The hosted Worker
@@ -77,15 +89,6 @@ function seededAuthor(): Author | null {
   return null;
 }
 
-// Wire MountDeps from the adapter the injected seed selects: a seeded author
-// means a hosted doc (HostedStore over the ?comments API); its absence is the
-// unchanged local path (LocalFileStore). Local behavior stays byte-identical.
-function initWidget(): void {
-  const deps = chooseDeps(seededAuthor(), buildHostedDeps, buildLocalDeps);
-  activeDeps = deps;
-  activeWidget.setDeps(deps);
-}
-
 if (TEST_MODE) {
   const handle: TestHandle = {
     whenReady: () => activeWidget.whenReady(),
@@ -97,7 +100,7 @@ if (TEST_MODE) {
       resetActiveWidget();
     },
     getModel: () => activeWidget.getModel(),
-    getStore: () => (activeDeps ? activeDeps.store : null),
+    getStore: () => activeDeps.store,
     getHighlights: () => activeWidget.getHighlights(),
     getOrphanCount: () => activeWidget.getOrphanCount(),
     saveComment: (r: Range, b: string) => activeWidget.saveComment(r, b),
