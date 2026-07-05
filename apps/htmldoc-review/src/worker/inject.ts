@@ -1,7 +1,7 @@
 // Hosted widget injection — the REAL HTMLRewriter placement (the skill's
 // adapters/hosted/inject.ts is a documentation stub; HTMLRewriter is a Worker
 // global the skill can't type or test, so the injector lives here, mirroring
-// PR3's D1Store placement). It imports the SHARED markup helper through the
+// the D1Store placement). It imports the SHARED markup helper through the
 // comments-seam (a vendored copy of review-ux/inject.ts), so the fragment it
 // appends is byte-identical to the one local serve.ts string-splices.
 
@@ -11,7 +11,7 @@ import type { CommentsModel, Thread, Author } from "../core/comments-seam";
 // The widget bundle path the injected <script> points at. Placeholder for now:
 // actually serving that bundle over the hosted Worker (plus the hosted browser
 // HTTP store and main.ts runtime selection) is a DEFERRED, human-in-the-loop
-// follow-up. PR6 locks and tests only the injected markup contract.
+// follow-up. This layer locks and tests only the injected markup contract.
 export const WIDGET_SRC = "/__htmldocs/comments.mjs";
 
 /**
