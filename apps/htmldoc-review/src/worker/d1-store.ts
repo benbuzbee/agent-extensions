@@ -10,7 +10,7 @@
 // INTEGERs; the anchor triple is stored as an opaque JSON blob (the DB never
 // parses it — anchoring stays client-side).
 //
-// PR4 mounts the comment API on the Worker: index.ts -> handleComments ->
+// The Worker mounts the comment API: index.ts -> handleComments ->
 // handleCommentsRequest drives this store's list/create/resolve/reopen/delete.
 // Its round-trips are also validated directly against a migrated D1 inside
 // Miniflare (see d1-store.workers.test.ts).

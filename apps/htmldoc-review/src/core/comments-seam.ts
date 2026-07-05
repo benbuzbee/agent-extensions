@@ -13,7 +13,7 @@
 // src/comments/ (the gate's `git diff --exit-code -- src/comments` catches drift).
 //
 // Why vendored (not an escaping ../../../../plugins import): the Worker bundles
-// from src/worker/index.ts, which now pulls this module (via D1Store and the
+// from src/worker/index.ts, which pulls this module (via D1Store and the
 // comment handler) into wrangler's graph. Every import here must stay INSIDE the
 // app root so `wrangler deploy` works from a vendored copy — vendor.sh rsyncs
 // only apps/htmldoc-review and cannot carry a source that lives above it.
