@@ -1,5 +1,5 @@
 Runtime-agnostic comment API — pure business logic. Every file here is imported
-by the local Node server (serve.ts) today and the Cloudflare Worker in PR4;
+by both the local Node server (serve.ts) and the hosted Cloudflare Worker;
 it is NOT part of main.ts's widget-bundle graph, so `zod` never enters
 dist/comments.mjs.
 

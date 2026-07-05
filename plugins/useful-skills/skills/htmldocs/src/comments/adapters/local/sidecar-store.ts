@@ -29,8 +29,8 @@ import { applyOp } from '../../api/handlers';
 /**
  * The seam SidecarStore persists through — one bound sidecar file. The local
  * server wires this to its existing readSidecar/writeSidecarAtomic helpers.
- * Keyed by the bound file, so the DocKey tuple is ignored (matches the PR1
- * ledger: one sidecar per page).
+ * Keyed by the bound file, so the DocKey tuple is ignored (one sidecar per
+ * page).
  */
 export interface SidecarPersistence {
   load(): Promise<CommentsModel>;

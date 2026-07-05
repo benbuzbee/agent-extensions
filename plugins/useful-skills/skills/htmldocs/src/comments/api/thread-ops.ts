@@ -111,5 +111,6 @@ export function deleteThread(
   return { threads: out, threadId: op.threadId };
 }
 
-// Re-export for stores that need to stamp their own timestamps.
+// Re-exported but currently unused: both stores import asTimestamp from
+// review-ux/types directly instead. Left as-is pending a decision on removal.
 export { asTimestamp };

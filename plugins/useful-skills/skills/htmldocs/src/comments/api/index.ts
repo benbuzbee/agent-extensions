@@ -1,5 +1,5 @@
 // Barrel re-export for the runtime-agnostic comment API. serve.ts (local) and
-// the Worker (PR4) import from here.
+// the hosted Worker import from here.
 
 export { parseEnvelope } from './schemas';
 export type { ParseResult } from './schemas';
