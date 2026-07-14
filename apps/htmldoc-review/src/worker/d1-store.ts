@@ -120,12 +120,14 @@ export class D1Store implements ICommentsStore {
       .first<CommentRow>();
   }
 
-  // Q1 — the hot path: list a doc's threads in created order.
+  // Q1 — the hot path: list a doc's threads in created order. The id tiebreaker
+  // makes same-millisecond creates deterministic (and matches idx_comments_doc,
+  // so the whole query is one ordered index scan).
   async list(doc: DocKey): Promise<Thread[]> {
     const ref = this.normalizeRef(doc.ref);
     const { results } = await this.db
       .prepare(
-        "SELECT * FROM comments WHERE repo = ? AND ref = ? AND path = ? ORDER BY created_at",
+        "SELECT * FROM comments WHERE repo = ? AND ref = ? AND path = ? ORDER BY created_at, id",
       )
       .bind(doc.repo, ref, doc.path)
       .all<CommentRow>();
@@ -166,6 +168,24 @@ export class D1Store implements ICommentsStore {
     return thread;
   }
 
+  // Shared UPDATE for resolve/reopen: doc-scoped like every mutation (see
+  // getRow) and CHECKED — a row that vanished between the SELECT and this
+  // UPDATE (concurrent delete) changes zero rows, which must surface as
+  // not_found, never as a phantom success.
+  private async setResolvedAt(
+    doc: DocKey,
+    id: ThreadId,
+    resolvedAt: number | null,
+  ): Promise<void> {
+    const res = await this.db
+      .prepare(
+        "UPDATE comments SET resolved_at = ? WHERE id = ? AND repo = ? AND ref = ? AND path = ?",
+      )
+      .bind(resolvedAt, id, doc.repo, this.normalizeRef(doc.ref), doc.path)
+      .run();
+    if (res.meta.changes === 0) throw new NotFoundError(id);
+  }
+
   // Q2 — soft-close. SELECT the target (zero rows -> not_found), let thread-ops
   // decide the transition (idempotent when already resolved), UPDATE only on a
   // real change so the original resolved_at is never overwritten.
@@ -175,10 +195,7 @@ export class D1Store implements ICommentsStore {
     const current = this.rowToThread(row);
     const { thread } = resolveThread([current], op, asTimestamp(Date.now()));
     if (thread.resolvedAt !== current.resolvedAt) {
-      await this.db
-        .prepare("UPDATE comments SET resolved_at = ? WHERE id = ?")
-        .bind(thread.resolvedAt, op.threadId)
-        .run();
+      await this.setResolvedAt(doc, op.threadId, thread.resolvedAt);
     }
     return thread;
   }
@@ -191,10 +208,7 @@ export class D1Store implements ICommentsStore {
     const current = this.rowToThread(row);
     const { thread } = reopenThread([current], op);
     if (thread.resolvedAt !== current.resolvedAt) {
-      await this.db
-        .prepare("UPDATE comments SET resolved_at = ? WHERE id = ?")
-        .bind(thread.resolvedAt, op.threadId)
-        .run();
+      await this.setResolvedAt(doc, op.threadId, thread.resolvedAt);
     }
     return thread;
   }

@@ -64,6 +64,37 @@ function newStore(): D1Store {
   return new D1Store(env.COMMENTS_DB);
 }
 
+// A duck-typed D1 facade that reproduces the SELECT -> UPDATE race
+// deterministically: any UPDATE on the comments table is preceded by a hard
+// DELETE of the victim row (through the real db), so the UPDATE matches zero
+// rows — exactly what a concurrent delete between the store's lookup and its
+// write produces. Everything else passes straight through.
+function deleteBeforeUpdate(db: D1Database, victimId: string): D1Database {
+  return {
+    prepare(sql: string) {
+      const stmt = db.prepare(sql);
+      if (!sql.startsWith("UPDATE comments")) return stmt;
+      return new Proxy(stmt, {
+        get(target, prop, receiver) {
+          if (prop !== "bind") return Reflect.get(target, prop, receiver);
+          return (...args: unknown[]) => {
+            const bound = target.bind(...args);
+            return new Proxy(bound, {
+              get(boundTarget, boundProp, boundReceiver) {
+                if (boundProp !== "run") return Reflect.get(boundTarget, boundProp, boundReceiver);
+                return async () => {
+                  await db.prepare("DELETE FROM comments WHERE id = ?").bind(victimId).run();
+                  return boundTarget.run();
+                };
+              },
+            });
+          };
+        },
+      });
+    },
+  } as unknown as D1Database;
+}
+
 describe("D1Store round-trips", () => {
   it("create -> list preserves author, body, anchor, timestamps", async () => {
     const store = newStore();
@@ -113,6 +144,36 @@ describe("D1Store round-trips", () => {
     for (let i = 1; i < threads.length; i++) {
       expect(threads[i]!.root.createdAt).toBeGreaterThanOrEqual(threads[i - 1]!.root.createdAt);
     }
+  });
+
+  it("orders equal created_at ties by id", async () => {
+    // Raw INSERTs (not create()) pin an IDENTICAL created_at on every row, so
+    // only the id tiebreaker can produce the expected order — ids are inserted
+    // deliberately out of order to catch an insertion-order accident too.
+    const ts = Date.now();
+    for (const id of ["c-tie", "a-tie", "b-tie"]) {
+      await env.COMMENTS_DB.prepare(
+        "INSERT INTO comments" +
+          " (id, repo, ref, path, anchor, body, author_login, author_name, author_id, created_at, resolved_at)" +
+          " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
+      )
+        .bind(
+          id,
+          DOC.repo,
+          DOC.ref,
+          DOC.path,
+          JSON.stringify({ exact: "x", prefix: "", suffix: "", sections: [] }),
+          `body of ${id}`,
+          AUTHOR.login,
+          AUTHOR.name,
+          AUTHOR.id,
+          ts,
+        )
+        .run();
+    }
+
+    const threads = await newStore().list(DOC);
+    expect(threads.map((t) => t.id)).toEqual(["a-tie", "b-tie", "c-tie"]);
   });
 
   it("resolve stamps resolved_at and keeps the row visible in list", async () => {
@@ -194,6 +255,26 @@ describe("D1Store round-trips", () => {
     await sleep(2);
     const second = await store.resolve(DOC, { op: "resolve", threadId: created.id }, AUTHOR);
     expect(second.resolvedAt).toBe(first.resolvedAt);
+  });
+
+  it("resolve: a thread hard-deleted between lookup and UPDATE rejects not_found (no phantom success)", async () => {
+    const created = await newStore().create(DOC, createOp("race me"), AUTHOR);
+    const racing = new D1Store(deleteBeforeUpdate(env.COMMENTS_DB, created.id));
+
+    await expect(
+      racing.resolve(DOC, { op: "resolve", threadId: created.id }, AUTHOR),
+    ).rejects.toSatisfy(isNotFoundError);
+  });
+
+  it("reopen: a thread hard-deleted between lookup and UPDATE rejects not_found", async () => {
+    const store = newStore();
+    const created = await store.create(DOC, createOp("race me too"), AUTHOR);
+    await store.resolve(DOC, { op: "resolve", threadId: created.id }, AUTHOR);
+    const racing = new D1Store(deleteBeforeUpdate(env.COMMENTS_DB, created.id));
+
+    await expect(
+      racing.reopen(DOC, { op: "reopen", threadId: created.id }, AUTHOR),
+    ).rejects.toSatisfy(isNotFoundError);
   });
 });
 

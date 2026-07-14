@@ -12,10 +12,12 @@ CREATE TABLE comments (
   body         TEXT NOT NULL,
   author_login TEXT NOT NULL,                  -- GitHub login, from the session (snapshot)
   author_name  TEXT,                           -- display name, from the session (nullable, snapshot)
-  author_id    INTEGER NOT NULL,               -- stable GitHub numeric id, captured now; NOT resolved at render
+  author_id    INTEGER NOT NULL,               -- stable GitHub numeric id when the captured identity carries one; 0 when it doesn't (bearer/agent placeholder). Snapshot; NOT resolved at render
   created_at   INTEGER NOT NULL,               -- epoch-ms; the same number crosses JSON unchanged (no ISO)
   resolved_at  INTEGER                         -- nullable epoch-ms; NULL == open
 );
 
--- Covers Q1 exactly (repo, ref, path) and keeps the per-load list an index scan.
-CREATE INDEX idx_comments_doc ON comments (repo, ref, path);
+-- Covers Q1's predicate (repo, ref, path) AND its ORDER BY (created_at, id), so
+-- list() is a single ordered index scan — no post-sort, deterministic on
+-- created_at ties (id, the PK, breaks them).
+CREATE INDEX idx_comments_doc ON comments (repo, ref, path, created_at, id);
