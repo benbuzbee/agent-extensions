@@ -110,7 +110,7 @@
 <body>
 
 <h1>Plan: Deliverable 2 — hosted review mode (comments)</h1>
-<p class="meta" data-updated="2026-07-01" data-status="proposed">Last updated 2026-07-01 · proposed · builds on shipped Deliverable 1 · covers the shared widget + <code>ICommentsStore</code>, DB design, resolve semantics, and the <code>?comments</code> route</p>
+<p class="meta" data-updated="2026-07-14" data-status="proposed">Last updated 2026-07-14 · proposed · builds on shipped Deliverable 1 · covers the shared widget + <code>ICommentsStore</code>, DB design, resolve semantics, and the <code>?comments</code> route</p>
 
 <aside data-kind="naming">
   <strong>Naming, to avoid a collision up front:</strong> "<strong>Deliverable 1 / D1</strong>" is the shipped proxy+auth
@@ -1849,7 +1849,7 @@ type OpResult =
     validate. Every card states its <strong>stack position</strong> (its base branch) up front, so an executor picking
     up one card in isolation still knows exactly what it branches from.
   </p>
-  <p class="lineage"><code>main &lt;- PR0 &lt;- PR1 &lt;- PR2 &lt;- PR3 &lt;- PR4 &lt;- PR5 &lt;- PR6 &lt;- PR7 &lt;- PR8 &lt;- PR9</code></p>
+  <p class="lineage"><code>main &lt;- PR0 &lt;- PR1 &lt;- PR2 &lt;- PR3 &lt;- PR4 &lt;- PR5 &lt;- PR6 &lt;- PR7 &lt;- PR8 &lt;- PR9 &lt;- PR10</code></p>
   <p>
     The stack is authored with <strong>Graphite (<code>gt</code>)</strong>. In Graphite's model each PR is a
     <strong>branch stacked on its parent</strong> above <code>trunk</code> (<code>main</code>): PR1 branches off
@@ -2750,7 +2750,7 @@ $ grep PUT in src/ -&gt; (zero); serve.ts routes GET/POST over ?comments only.
 
   <section data-kind="pr-card" id="pr9">
     <h3>PR9 — Agent API helper (<code>comments-api.sh</code>)</h3>
-    <p class="stack-pos"><strong>Stack position:</strong> layer 9 (top) — branches off <code>PR8</code> (<code>PR8 &lt;- PR9</code>).</p>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 9 — branches off <code>PR8</code> (<code>PR8 &lt;- PR9</code>).</p>
     <p>
       Ship ONE thin shell helper with the skill so agents stop hand-composing curl + token for the
       <a href="#api"><code>?comments</code></a> API. Pure transport, <code>serve.sh</code>'s read/write twin: it encodes
@@ -2849,6 +2849,50 @@ CHECK_EXIT=0
 ### CMD 7: git diff --stat -- apps/
 (empty output — no apps/ changes) EXIT=0</pre>
     </details>
+  </section>
+
+  <section data-kind="pr-card" id="pr10">
+    <h3>PR10 — Prebuilt vendoring + shared-source alias <span class="badge open">packaging</span></h3>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 10 (top) — branches off <code>PR9</code> (<code>PR9 &lt;- PR10</code>).</p>
+    <p>
+      Kill the vendored-source scheme. The Worker's copied <code>src/comments/</code> tree, its
+      <code>sync:comments</code> script, and the <code>comments-seam</code> re-export shim are deleted; the app imports
+      the skill's DOM-free shared sources directly through a tsconfig <code>"paths"</code> alias
+      (<code>@shared/* → plugins/…/htmldocs/src/comments/*</code>), which wrangler forwards to esbuild, tsc resolves
+      natively, and the worker vitest config mirrors as a Vite <code>resolve.alias</code>. One editable copy —
+      <span class="rec">the drift class is gone by construction</span> (the copy had already drifted:
+      <code>Mint</code> vs upstream's <code>IdFactory</code>; upstream wins). The widget bundle keeps riding as
+      <code>src/worker/comments.mjs.txt</code>, now refreshed by a one-line <code>sync:widget</code> copy and enforced
+      by a byte-equality test against the skill's committed <code>dist/comments.mjs</code>.
+    </p>
+    <p>
+      <strong>vendor.sh ships a prebuilt Worker, not source.</strong> It builds first
+      (<code>wrangler deploy --dry-run --outdir</code> into a fresh temp dir), then ships <code>dist/</code> (index.js +
+      the content-hashed widget Text module + sourcemap), <code>migrations/</code>, the setup scripts, and a minimal
+      generated <code>package.json</code> (wrangler + <code>open</code>) — and emits the operator
+      <code>wrangler.toml</code> transformed to <code>main = "dist/index.js"</code>, <code>no_bundle</code>,
+      <code>find_additional_modules</code>, and an explicit <code>Text</code> rule; the sidecar re-vendor comparison runs
+      against the <em>transformed</em> output so the only-nag-when-changed semantics survive. The monorepo's own
+      <code>wrangler.toml</code> stays source-based for dev/tests. <code>deploy.sh</code> drops typegen/.dev.vars seeding
+      (they served the shipped-source model) and its preflight becomes a plain <code>--dry-run</code>. Also folds in the
+      <a href="#store">store</a> review findings: <code>resolve</code>/<code>reopen</code> run a doc-scoped UPDATE
+      checked for <code>changes==0 → not_found</code> (closing the lookup/update race), <code>list()</code> orders by
+      <code>(created_at, id)</code>, and migration 0001 — editable in place, <span class="rec">nothing is deployed
+      anywhere</span> — gets a truthful <code>author_id</code> comment and the covering index
+      <code>(repo, ref, path, created_at, id)</code>.
+    </p>
+    <aside data-kind="validation">
+      <strong>Validate.</strong> Skill: fresh <code>npm run build</code> leaves committed <code>dist/</code> unchanged.
+      App: <code>sync:widget</code> is a no-op against git; <code>tsc --noEmit</code> now compiles the skill's shared
+      files under the app's strict flags; full vitest run (core + worker) green including the new race
+      (<code>resolve</code>/<code>reopen</code> of a concurrently-deleted thread → <code>not_found</code>), tie-order,
+      and widget-freshness tests; <code>wrangler deploy --dry-run</code> green in source mode; and the new
+      <code>vendor:smoke</code> gate vendors into a temp dir, asserts the shipped shape (no <code>src/</code>,
+      <code>dist/</code> tracked), passes an operator-side <code>--dry-run</code> against the
+      <code>no_bundle</code> toml, and proves a re-vendor neither overwrites the operator's config nor false-nags a
+      sidecar. Grep sweep: zero <code>comments-seam</code>/<code>sync-comments</code> references outside historical plan
+      logs. Offline-only, as ever.
+    </aside>
   </section>
 
   <aside data-kind="exit-criteria">
