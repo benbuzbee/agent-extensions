@@ -124,4 +124,24 @@ describe('comment API over HTTP', () => {
     const body = await res.json();
     expect(Array.isArray(body.threads)).toBe(true);
   });
+
+  it('empty ?ref= collapses to the default sentinel (no error, still lists)', async () => {
+    const res = await fetch(`${handle.url}/${DOC}?ref=&comments`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.threads)).toBe(true);
+  });
+
+  it('HEAD ?comments → 405 JSON + Allow, never the injected doc', async () => {
+    const res = await fetch(api(), { method: 'HEAD' });
+    expect(res.status).toBe(405);
+    expect(res.headers.get('allow')).toBe('GET, POST');
+    expect(res.headers.get('content-type')).toContain('application/json');
+  });
+
+  it('PUT ?comments (not a sidecar path) → 405, not a fall-through write', async () => {
+    const res = await fetch(api(), { method: 'PUT', body: '{}' });
+    expect(res.status).toBe(405);
+    expect(res.headers.get('allow')).toBe('GET, POST');
+  });
 });

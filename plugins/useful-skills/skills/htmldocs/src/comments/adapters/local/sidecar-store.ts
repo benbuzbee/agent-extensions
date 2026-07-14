@@ -12,6 +12,7 @@
 // failing op simply doesn't save. There is no long-lived in-memory state and no
 // cross-request locking — fine for single-user localhost review.
 
+import { randomUUID } from 'node:crypto';
 import type { ICommentsStore } from '../../review-ux/store';
 import type {
   Thread, ThreadId, Comment, DocKey, Author,
@@ -49,7 +50,7 @@ export class SidecarStore implements ICommentsStore {
   constructor(
     private readonly persistence: SidecarPersistence,
     private readonly docLabel: string,
-    private readonly mint: () => string = () => crypto.randomUUID(),
+    private readonly mint: () => string = randomUUID,
   ) {}
 
   private async loadThreads(): Promise<Thread[]> {

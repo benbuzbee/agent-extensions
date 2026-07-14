@@ -64,7 +64,7 @@ import * as fs from "node:fs/promises";
 import * as fsSync from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import * as crypto2 from "node:crypto";
+import * as crypto from "node:crypto";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // node_modules/yargs/lib/platform-shims/esm.mjs
@@ -6629,6 +6629,7 @@ async function handleCommentsRequest(req) {
 }
 
 // src/comments/adapters/local/sidecar-store.ts
+import { randomUUID } from "node:crypto";
 function tagNotFound(err) {
   if (isNotFoundError(err)) {
     throw Object.assign(new Error("thread not found"), { opError: { code: "not_found", threadId: err.threadId } });
@@ -6636,7 +6637,7 @@ function tagNotFound(err) {
   throw err;
 }
 var SidecarStore = class {
-  constructor(persistence, docLabel, mint = () => crypto.randomUUID()) {
+  constructor(persistence, docLabel, mint = randomUUID) {
     this.persistence = persistence;
     this.docLabel = docLabel;
     this.mint = mint;
@@ -6808,7 +6809,7 @@ async function writeSidecarAtomic(sidecarPath, model) {
   const dir = path.dirname(sidecarPath);
   await fs.mkdir(dir, { recursive: true });
   const json = JSON.stringify(model, null, 2) + "\n";
-  const tmpPath = path.join(dir, path.basename(sidecarPath) + "." + crypto2.randomUUID() + ".tmp");
+  const tmpPath = path.join(dir, path.basename(sidecarPath) + "." + crypto.randomUUID() + ".tmp");
   await fs.writeFile(tmpPath, json, "utf-8");
   try {
     await fs.rename(tmpPath, sidecarPath);
@@ -6978,7 +6979,7 @@ async function handleCommentsApi(req, res, root, sidecarDir, urlPath, params, me
   );
   const doc = {
     repo: "",
-    ref: params.get("ref") ?? "default",
+    ref: params.get("ref") || "default",
     path: stripQueryHash(urlPath)
   };
   let body;
@@ -7013,8 +7014,8 @@ async function handleCommentsApi(req, res, root, sidecarDir, urlPath, params, me
   });
   sendJson(res, status, json);
 }
-function sendJson(res, status, json) {
-  send(res, status, JSON.stringify(json), { "Content-Type": MIME[".json"] });
+function sendJson(res, status, json, extraHeaders = {}) {
+  send(res, status, JSON.stringify(json), { "Content-Type": MIME[".json"], ...extraHeaders });
 }
 function createServer2(cfg) {
   return http.createServer((req, res) => {
@@ -7030,7 +7031,11 @@ function createServer2(cfg) {
     }
     const query = url.indexOf("?");
     const params = new URLSearchParams(query === -1 ? "" : url.slice(query + 1));
-    if (params.has("comments") && (method === "GET" || method === "POST")) {
+    if (params.has("comments")) {
+      if (method !== "GET" && method !== "POST") {
+        sendJson(res, 405, { error: "method not allowed" }, { Allow: "GET, POST" });
+        return;
+      }
       handleCommentsApi(req, res, cfg.root, cfg.sidecarDir, urlPath, params, method).catch((err) => {
         console.error("[serve] comments API failed:", err);
         if (!res.headersSent) sendJson(res, 500, { error: "internal error" });

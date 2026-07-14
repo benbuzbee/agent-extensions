@@ -311,12 +311,13 @@ async function handleCommentsApi(
     docLabel,
   );
 
-  // The local route has NO <repo> segment; a missing ?ref= is the literal
-  // 'default' sentinel. SidecarStore ignores the tuple (one sidecar per page)
-  // but the shape stays identical to the hosted seam.
+  // The local route has NO <repo> segment; a missing OR empty ?ref= is the
+  // literal 'default' sentinel (|| so ?ref= collapses to it too). SidecarStore
+  // ignores the tuple (one sidecar per page) but the shape stays identical to
+  // the hosted seam.
   const doc: DocKey = {
     repo: '',
-    ref: params.get('ref') ?? 'default',
+    ref: params.get('ref') || 'default',
     path: stripQueryHash(urlPath),
   };
 
@@ -345,8 +346,13 @@ async function handleCommentsApi(
   sendJson(res, status, json);
 }
 
-function sendJson(res: http.ServerResponse, status: number, json: unknown): void {
-  send(res, status, JSON.stringify(json), { 'Content-Type': MIME['.json']! });
+function sendJson(
+  res: http.ServerResponse,
+  status: number,
+  json: unknown,
+  extraHeaders: Record<string, string> = {},
+): void {
+  send(res, status, JSON.stringify(json), { 'Content-Type': MIME['.json']!, ...extraHeaders });
 }
 
 // --- public API -----------------------------------------------------------
@@ -374,7 +380,14 @@ export function createServer(cfg: ServerConfig): http.Server {
     // collection, the body names the op. Detected via ?comments (bare or =1).
     const query = url.indexOf('?');
     const params = new URLSearchParams(query === -1 ? '' : url.slice(query + 1));
-    if (params.has('comments') && (method === 'GET' || method === 'POST')) {
+    if (params.has('comments')) {
+      // Claim ?comments for EVERY method so a HEAD/PUT/etc. can't fall through
+      // to the doc handler and receive injected HTML. GET/POST are the only real
+      // verbs; anything else is a JSON 405 with an Allow header.
+      if (method !== 'GET' && method !== 'POST') {
+        sendJson(res, 405, { error: 'method not allowed' }, { Allow: 'GET, POST' });
+        return;
+      }
       handleCommentsApi(req, res, cfg.root, cfg.sidecarDir, urlPath, params, method).catch((err) => {
         console.error('[serve] comments API failed:', err);
         if (!res.headersSent) sendJson(res, 500, { error: 'internal error' });
