@@ -25,9 +25,9 @@ export function isNotFoundError(err: unknown): err is NotFoundError {
   return !!err && typeof err === 'object' && (err as { notFound?: unknown }).notFound === true;
 }
 
-/** Mint a fresh unique id. Callers inject this so tests can seed deterministic
- *  ids; the runtimes pass crypto.randomUUID. */
-export type Mint = () => string;
+/** Produces a fresh unique id. Callers inject this so tests can seed
+ *  deterministic ids; the runtimes pass crypto.randomUUID. */
+export type IdFactory = () => string;
 
 /**
  * Create a new thread (server mints id, stamps author + createdAt). Returns the
@@ -37,10 +37,10 @@ export function createThread(
   threads: Thread[],
   op: CreateOp,
   author: Author,
-  mint: Mint,
+  newId: IdFactory,
   now: Timestamp,
 ): { threads: Thread[]; thread: Thread } {
-  const id = asThreadId(mint());
+  const id = asThreadId(newId());
   const thread: Thread = {
     id,
     anchor: op.anchor as Anchor,

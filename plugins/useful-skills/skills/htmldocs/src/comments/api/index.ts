@@ -17,4 +17,4 @@ export {
   NotFoundError,
   isNotFoundError,
 } from './thread-ops';
-export type { Mint } from './thread-ops';
+export type { IdFactory } from './thread-ops';

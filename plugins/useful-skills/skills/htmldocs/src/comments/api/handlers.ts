@@ -74,16 +74,27 @@ export function statusForError(error: OpError): number {
 
 export interface CommentsRequest {
   method: string;
-  /** Already JSON-parsed request body (undefined for GET / empty body). */
+  /** The already JSON-parsed request body (undefined for GET / empty body).
+   *  `unknown` on purpose: it is untrusted, caller-supplied input that MUST go
+   *  through parseEnvelope before any field is read. */
   body?: unknown;
   store: ICommentsStore;
   doc: DocKey;
   author: Author;
 }
 
+/** Every JSON body handleCommentsRequest can return. The runtime only
+ *  serializes this, so the union stays a closed enumeration of the shapes the
+ *  handler actually emits (see handleCommentsRequest's doc-comment). */
+export type CommentsResponseBody =
+  | { threads: Thread[] }
+  | { results: OpResult[] }
+  | { error: string }
+  | OpResult;
+
 export interface CommentsResponse {
   status: number;
-  json: unknown;
+  json: CommentsResponseBody;
 }
 
 /**

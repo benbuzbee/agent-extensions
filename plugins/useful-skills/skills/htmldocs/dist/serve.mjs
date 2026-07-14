@@ -6392,39 +6392,57 @@ function legacyToThread(comment) {
 
 // src/comments/api/schemas.ts
 var anchorSchema = object({
+  // the exact quoted text the comment anchors to
   exact: string2(),
+  // text just before the quote, to disambiguate the anchor
   prefix: optional(string2()),
+  // text just after the quote, to disambiguate the anchor
   suffix: optional(string2()),
+  // article section labels the anchor falls under (metadata)
   sections: optional(array(string2()))
 });
 var createSchema = object({
   op: literal("create"),
+  // prose span the new thread pins to
   anchor: anchorSchema,
+  // body of the root comment
   text: string2(),
+  // caller-supplied idempotency key
   clientOpId: optional(string2())
 });
 var resolveSchema = object({
   op: literal("resolve"),
+  // id of the thread to soft-close
   threadId: string2()
 });
 var reopenSchema = object({
   op: literal("reopen"),
+  // id of the thread to reopen
   threadId: string2()
 });
 var deleteSchema = object({
   op: literal("delete"),
+  // id of the thread to purge
   threadId: string2()
 });
 var replySchema = object({
   op: literal("reply"),
+  // id of the thread being replied to
   threadId: string2(),
+  // body of the reply comment
   text: string2(),
+  // caller-supplied idempotency key
   clientOpId: optional(string2())
 });
 var editSchema = object({
   op: literal("edit"),
+  // id of the comment to edit
   commentId: string2(),
-  patch: object({ body: string2() })
+  // fields to change on the comment
+  patch: object({
+    // replacement comment body
+    body: string2()
+  })
 });
 var opSchema = discriminatedUnion("op", [
   createSchema,
@@ -6489,8 +6507,8 @@ var NotFoundError = class extends Error {
 function isNotFoundError(err) {
   return !!err && typeof err === "object" && err.notFound === true;
 }
-function createThread(threads, op, author, mint, now) {
-  const id = asThreadId(mint());
+function createThread(threads, op, author, newId, now) {
+  const id = asThreadId(newId());
   const thread = {
     id,
     anchor: op.anchor,
