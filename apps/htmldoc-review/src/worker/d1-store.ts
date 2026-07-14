@@ -51,10 +51,11 @@ const REF_DEFAULT = "default";
 // the shared api/handlers reserves so a batch surfaces it as a per-op transient.
 const RESERVED_MESSAGE = "op not yet supported";
 
-// author_id is NOT NULL. A session-authored create supplies a real numeric id
-// (from the captured identity), but a bearer/agent create stamps the
-// {login:"agent"} placeholder with no id — "no agent-create" is deliberately
-// unenforced in v1, so that path does reach this fallback.
+// author_id is NOT NULL. Every create normally carries a real numeric id: a
+// session create uses the captured identity, and a bearer mutation resolves the
+// caller's via GET /user (failure there is a 5xx, never a placeholder). The one
+// id-less author that reaches this fallback is the {login:"unknown"} stamped
+// when a session's identity record is missing.
 const AUTHOR_ID_PLACEHOLDER = 0;
 
 // One persisted row. `author_name` and `resolved_at` are the only nullable
