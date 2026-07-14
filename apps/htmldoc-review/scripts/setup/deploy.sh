@@ -23,7 +23,7 @@ set -euo pipefail
 #   pre) ensure deps installed + wrangler authenticated (logs in if needed)
 #   1) read REPO_ORG from wrangler.toml (fail fast if still the placeholder)
 #   2) create KV namespace SESSIONS, wire its id into wrangler.toml (skipped if set)
-#   3) generate types + preflight build/config validation (dry-run)
+#   3) preflight: validate config + the prebuilt artifact set (dry-run)
 #   4) learner deploy IF CALLBACK_URL is still the placeholder -> parse the deployed
 #      URL, derive CALLBACK_URL = <url>/auth/callback, write it into wrangler.toml
 #   5) GitHub App via the manifest flow, passing --callback-url (skipped if id set);
@@ -120,18 +120,12 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 3) preflight: generate types, then bundle + config validation (no upload/creds)
+# 3) preflight: validate config + the prebuilt artifact set (no upload, no creds)
 # ---------------------------------------------------------------------------
-# `wrangler types` reads .dev.vars to emit the secret keys into the Env type, so
-# .dev.vars must exist BEFORE typegen or tsc/tests fail on a missing Env field.
-# These are FAKE local values (real secrets are pushed in step 6); see
-# .dev.vars.example. On a fresh vendored copy .dev.vars won't exist yet.
-[ -f .dev.vars ] || { [ -f .dev.vars.example ] && cp .dev.vars.example .dev.vars; }
-echo "==> Generating Worker types (wrangler types)..."
-npx wrangler types
-
-echo "==> Preflight (dry-run) build/config check..."
-npx wrangler deploy --dry-run --outdir dist
+# No --outdir here: the vendored copy's dist/ IS the shipped Worker (vendor.sh
+# built it), and writing a dry-run's output there would clobber it.
+echo "==> Preflight (dry-run) config/artifact check..."
+npx wrangler deploy --dry-run
 
 # ---------------------------------------------------------------------------
 # 4) learner deploy: if CALLBACK_URL is still the placeholder, deploy once to learn

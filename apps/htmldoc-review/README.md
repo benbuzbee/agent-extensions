@@ -18,7 +18,7 @@ From an upstream checkout:
 ./scripts/setup/vendor.sh ~/infrastructure/htmldocs-app
 ```
 
-This copies the app (excluding `node_modules`/`dist`/secrets) into your repo and writes `PROVENANCE.md` recording the exact upstream commit. To update, re-run `vendor.sh` from a newer upstream checkout. Vendoring is required because your real config and ownership belong in your repo, and `deploy.sh` edits `wrangler.toml` in place — so it must run against your copy, not the template.
+This builds the Worker and ships the compiled `dist/`, the D1 migrations, and the setup scripts into your repo — no TypeScript source — plus a `PROVENANCE.md` recording the exact upstream commit. Your copy deploys the prebuilt artifacts as-is (its `wrangler.toml` points `main` at `dist/index.js` with `no_bundle`), so it needs nothing from this monorepo. To update, re-run `vendor.sh` from a newer upstream checkout (it rebuilds and refreshes everything except your `wrangler.toml`). Vendoring is required because your real config and ownership belong in your repo, and `deploy.sh` edits `wrangler.toml` in place — so it must run against your copy, not the template.
 
 ### 2. Configure
 
