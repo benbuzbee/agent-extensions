@@ -4,8 +4,8 @@
 // Why there and not here: HTMLRewriter is a Cloudflare Worker global the skill
 // package has no types for and cannot unit-test, so the injector that wraps a
 // doc Response and appends inside <body> must live in the app (mirroring the
-// D1Store placement). It imports the shared markup helper through the app's
-// comments-seam (a vendored copy of review-ux/inject.ts).
+// D1Store placement). It imports the shared markup helper from review-ux/inject.ts
+// directly, via the app's @shared/* tsconfig path alias.
 //
 // The contract both runtimes honor: place the SINGLE shared fragment,
 //   injectionFragment(model, src, author?)   // review-ux/inject.ts

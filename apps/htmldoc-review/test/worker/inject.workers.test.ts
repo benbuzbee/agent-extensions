@@ -15,13 +15,9 @@ import {
 import { beforeAll, beforeEach, afterEach, afterAll, describe, it, expect } from "vitest";
 import worker, { type Env } from "../../src/worker/index";
 import { buildSeedModel, injectWidget, WIDGET_SRC } from "../../src/worker/inject";
-import {
-  injectionFragment,
-  asThreadId,
-  asCommentId,
-  asTimestamp,
-} from "../../src/core/comments-seam";
-import type { Thread, Author, CommentsModel } from "../../src/core/comments-seam";
+import { injectionFragment } from "@shared/review-ux/inject";
+import { asThreadId, asCommentId, asTimestamp } from "@shared/review-ux/types";
+import type { Thread, Author, CommentsModel } from "@shared/review-ux/types";
 import { fetchMock } from "./fetch-mock";
 
 declare module "cloudflare:test" {

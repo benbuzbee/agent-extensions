@@ -1,12 +1,12 @@
 // Hosted widget injection — the REAL HTMLRewriter placement (the skill's
 // adapters/hosted/inject.ts is a documentation stub; HTMLRewriter is a Worker
 // global the skill can't type or test, so the injector lives here, mirroring
-// the D1Store placement). It imports the SHARED markup helper through the
-// comments-seam (a vendored copy of review-ux/inject.ts), so the fragment it
-// appends is byte-identical to the one local serve.ts string-splices.
+// the D1Store placement). It imports the SHARED markup helper, so the fragment
+// it appends is byte-identical to the one local serve.ts string-splices.
 
-import { injectionFragment, threadToLegacy } from "../core/comments-seam";
-import type { CommentsModel, Thread, Author } from "../core/comments-seam";
+import { injectionFragment } from "@shared/review-ux/inject";
+import { threadToLegacy } from "@shared/review-ux/types";
+import type { CommentsModel, Thread, Author } from "@shared/review-ux/types";
 
 // The widget bundle path the injected <script> points at. Placeholder for now:
 // actually serving that bundle over the hosted Worker (plus the hosted browser
