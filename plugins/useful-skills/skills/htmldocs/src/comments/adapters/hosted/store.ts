@@ -45,13 +45,13 @@ export class HostedStore implements ICommentsStore {
 
   async resolve(_doc: DocKey, op: ResolveOp, _author: Author): Promise<Thread> {
     const result = await this.postOp(op);
-    if (result.ok && (result.op === 'resolve' || result.op === 'reopen')) return result.thread;
+    if (result.ok && result.op === 'resolve') return result.thread;
     throw this.tagged('transient');
   }
 
   async reopen(_doc: DocKey, op: ReopenOp, _author: Author): Promise<Thread> {
     const result = await this.postOp(op);
-    if (result.ok && (result.op === 'resolve' || result.op === 'reopen')) return result.thread;
+    if (result.ok && result.op === 'reopen') return result.thread;
     throw this.tagged('transient');
   }
 
@@ -97,25 +97,38 @@ export class HostedStore implements ICommentsStore {
 
   // Map a non-2xx response to the tagged Error the shared handler/caller
   // expects. A structured single-op OpResult body (404 not_found carrying a
-  // threadId, or a 5xx transient) drives the code + threadId; a bodyless /
-  // neutral text 404 (the access-deny path) is no_access; anything else is a
-  // transient failure.
+  // threadId, or a 5xx transient) drives the code + threadId, and its message
+  // (when present) survives into the thrown Error. A 401 is authentication —
+  // the session died or was never there — so it maps to no_access with a hint
+  // that reloading the page re-enters login; retrying the op cannot succeed. A
+  // bodyless / neutral text 404 (the access-deny path) is no_access; anything
+  // else is a transient failure.
   private async toError(res: Response): Promise<Error> {
     const text = await res.text();
     let parsed: unknown = null;
     try { parsed = JSON.parse(text); } catch { /* neutral text body — not JSON */ }
     const opResult = parsed as { ok?: boolean; error?: OpError } | null;
     if (opResult && opResult.ok === false && opResult.error && typeof opResult.error.code === 'string') {
-      return this.tagged(opResult.error.code, opResult.error.threadId);
+      return this.tagged(opResult.error.code, opResult.error.threadId, opResult.error.message);
+    }
+    if (res.status === 401) {
+      return this.tagged('no_access', undefined, 'authentication required — reload the page to sign in again');
     }
     return this.tagged(res.status === 404 ? 'no_access' : 'transient');
   }
 
-  // Build the `.opError`-tagged Error the shared handler/caller reads. A 2xx
-  // whose arm doesn't match the op we sent lands here as 'transient' too — a
-  // server contract breach, surfaced rather than returned as a wrong value.
-  private tagged(code: OpError['code'], threadId?: ThreadId): Error {
-    const opError: OpError = threadId !== undefined ? { code, threadId } : { code };
-    return Object.assign(new Error(code), { opError });
+  // Build the `.opError`-tagged Error the shared handler/caller reads. The
+  // Error.message carries the server's message when one exists — the code is
+  // only the fallback — so a failure surfaces its diagnostics, not the bare
+  // word 'transient'. A 2xx whose arm doesn't match the op we sent lands here
+  // as 'transient' too — a server contract breach, surfaced rather than
+  // returned as a wrong value.
+  private tagged(code: OpError['code'], threadId?: ThreadId, message?: string): Error {
+    const opError: OpError = {
+      code,
+      ...(message !== undefined ? { message } : {}),
+      ...(threadId !== undefined ? { threadId } : {}),
+    };
+    return Object.assign(new Error(message ?? code), { opError });
   }
 }

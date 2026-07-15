@@ -7,11 +7,11 @@
 import { injectionFragment } from "@shared/review-ux/inject";
 import { threadToLegacy } from "@shared/review-ux/types";
 import type { CommentsModel, Thread, Author } from "@shared/review-ux/types";
-// The checked-in widget bundle, vendored from the skill's dist/comments.mjs into
-// src/worker/comments.mjs.txt by scripts/sync-comments.mjs. The `.txt` extension
-// makes Wrangler import it as a string via its DEFAULT Text-module rule (no
-// wrangler.toml [[rules]] entry — see modules.d.ts). index.ts serves these bytes
-// at COMMENTS_WIDGET_SRC.
+// The checked-in widget bundle — a byte-for-byte copy of the skill's
+// dist/comments.mjs (refresh with `npm run sync:widget`; a core test enforces
+// equality). The `.txt` extension makes Wrangler import it as a string via its
+// DEFAULT Text-module rule (no wrangler.toml [[rules]] entry — see
+// modules.d.ts). index.ts serves these bytes at COMMENTS_WIDGET_SRC.
 import widgetBundle from "./comments.mjs.txt";
 
 // The widget bundle path the injected <script> points at is the SHARED

@@ -10,6 +10,7 @@
 // (linguist-generated, checked in). Edit the .ts; rebuild with `npm run build`.
 
 import type { Comment, CommentsModel, Author } from './review-ux/types';
+import { parseAuthor } from './review-ux/types';
 import type { AnchorAPI } from './review-ux/anchor';
 import type { MountDeps, ICommentsStore } from './review-ux/store';
 import * as anchor from './review-ux/anchor';
@@ -83,8 +84,7 @@ function seededAuthor(): Author | null {
   if (!text.trim()) return null;
   try {
     const parsed = JSON.parse(text) as { author?: unknown };
-    const author = parsed.author as Author | undefined;
-    if (author && typeof author.login === 'string') return author;
+    return parseAuthor(parsed.author);
   } catch { /* malformed seed — treat as no author (local) */ }
   return null;
 }
