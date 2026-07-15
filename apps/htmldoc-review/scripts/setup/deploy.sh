@@ -212,6 +212,16 @@ fi
 #    GITHUB_CLIENT_ID now written into wrangler.toml (the learner deploy in step 4
 #    ran with the placeholders). Deploy is idempotent — it replaces the version.
 # ---------------------------------------------------------------------------
+# Belt-and-suspenders: every REPLACE_ placeholder should have been resolved above
+# (REPO_ORG fails fast; the KV/D1 ids, CALLBACK_URL, and client id are filled in).
+# Assert none slipped through before we ship — this also catches a wrangler.toml
+# that reached a real deploy without going through the fill-in steps.
+if grep -qE 'REPLACE_(ME|WITH)' wrangler.toml; then
+  echo "ERROR: wrangler.toml still has unresolved placeholders — refusing to deploy:" >&2
+  grep -nE 'REPLACE_(ME|WITH)' wrangler.toml >&2
+  exit 1
+fi
+
 echo "==> Final deploy (with real CALLBACK_URL + client id)..."
 npx wrangler deploy
 

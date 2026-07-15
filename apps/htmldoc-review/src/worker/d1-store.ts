@@ -3,8 +3,9 @@
 // `D1Database` global — the same boundary that puts kv-store.ts here and keeps
 // core/ portable.
 //
-// It owns ONLY persistence (SELECT/INSERT/UPDATE/DELETE) and the ref sentinel.
-// Op semantics — id minting, author/createdAt stamping, resolve/reopen
+// It owns the specifics of SQL storage (the table shape, SELECT/INSERT/UPDATE/
+// DELETE), including mapping a missing ref to the string 'default' on store and
+// load. Op semantics — id minting, author/createdAt stamping, resolve/reopen
 // idempotency, not_found — are delegated to the shared api/thread-ops so this
 // store and the local sidecar store can never drift. Timestamps are epoch-ms
 // INTEGERs; the anchor triple is stored as an opaque JSON blob (the DB never
@@ -43,19 +44,20 @@ import type {
   OpError,
 } from "@shared/review-ux/types";
 
-// The literal `?ref=` sentinel: a missing/empty ref is stored AND queried as
-// this exact string so route and store agree (never '' or NULL).
+// A missing/empty ref maps to this exact string, applied on both store and load
+// (normalizeRef), so this store is the single owner of the default — the route
+// forwards the raw ref and never substitutes it. Never '' or NULL in the table.
 const REF_DEFAULT = "default";
 
 // Thrown by the reserved (v1-unsupported) reply/edit ops. Matches the message
 // the shared api/handlers reserves so a batch surfaces it as a per-op transient.
 const RESERVED_MESSAGE = "op not yet supported";
 
-// author_id is NOT NULL. Every create normally carries a real numeric id: a
+// author_id is NOT NULL. Every Worker create carries a real numeric id: a
 // session create uses the captured identity, and a bearer mutation resolves the
-// caller's via GET /user (failure there is a 5xx, never a placeholder). The one
-// id-less author that reaches this fallback is the {login:"unknown"} stamped
-// when a session's identity record is missing.
+// caller's via GET /user (failure there is a 5xx, never a placeholder). The
+// fallback exists only because the shared Author type leaves `id` optional
+// (the local adapter's fixed author has none); no Worker path stamps one.
 const AUTHOR_ID_PLACEHOLDER = 0;
 
 // One persisted row. `author_name` and `resolved_at` are the only nullable

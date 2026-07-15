@@ -12,7 +12,7 @@ CREATE TABLE comments (
   body         TEXT NOT NULL,
   author_login TEXT NOT NULL,                  -- GitHub login, from the session (snapshot)
   author_name  TEXT,                           -- display name, from the session (nullable, snapshot)
-  author_id    INTEGER NOT NULL,               -- stable GitHub numeric id from the resolved identity (session capture, or GET /user for a bearer mutation); 0 only for the identity-less {login:"unknown"} session fallback. Snapshot; NOT resolved at render
+  author_id    INTEGER NOT NULL,               -- stable GitHub numeric id from the resolved identity (session capture, or GET /user for a bearer mutation); 0 only if an id-less author ever reaches the store (no Worker path stamps one). Snapshot; NOT resolved at render
   created_at   INTEGER NOT NULL,               -- epoch-ms; the same number crosses JSON unchanged (no ISO)
   resolved_at  INTEGER                         -- nullable epoch-ms; NULL == open
 );

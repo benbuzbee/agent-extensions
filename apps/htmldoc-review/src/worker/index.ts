@@ -319,8 +319,9 @@ export default {
       }
       if (!access.ok) return access.denialResponse;
 
-      // The store agrees on the 'default' sentinel for a missing ref; GitHub was
-      // probed with ref-or-undefined (never the literal 'default').
+      // The store owns the missing-ref default: normalizeRef maps an empty/absent
+      // ref to 'default' on store and load, so the route forwards it as-is (empty
+      // when absent). GitHub was probed with ref-or-undefined (never 'default').
       if (isComments) {
         // Stamp the author server-side (never read from the body). A dead
         // session (record vanished since token resolution) is unauthorized —
@@ -336,7 +337,7 @@ export default {
         return await handleComments(
           env.COMMENTS_DB,
           req,
-          { repo, ref: ref ?? "default", path: docPath },
+          { repo, ref: ref ?? "", path: docPath },
           author,
           refreshSid,
           actor,
@@ -355,7 +356,7 @@ export default {
 
       const threads = await new D1Store(env.COMMENTS_DB).list({
         repo,
-        ref: ref ?? "default",
+        ref: ref ?? "",
         path: docPath,
       });
       // A dead session here (record vanished since token resolution) must not
