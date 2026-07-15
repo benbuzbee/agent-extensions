@@ -12,14 +12,15 @@
 import { env, applyD1Migrations, type D1Migration } from "cloudflare:test";
 import { beforeAll, beforeEach, describe, it, expect } from "vitest";
 import { D1Store } from "../../src/worker/d1-store";
-import { asThreadId, asCommentId, isNotFoundError } from "../../src/core/comments-seam";
+import { isNotFoundError } from "@shared/api/thread-ops";
+import { asThreadId, asCommentId } from "@shared/review-ux/types";
 import type {
   DocKey,
   Author,
   CreateOp,
   Op,
   OpResult,
-} from "../../src/core/comments-seam";
+} from "@shared/review-ux/types";
 
 // TEST_MIGRATIONS is injected as a JSON binding by vitest.config.ts; COMMENTS_DB
 // comes from wrangler.toml's [[d1_databases]] block.

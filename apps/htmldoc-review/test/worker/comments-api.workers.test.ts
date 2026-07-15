@@ -23,8 +23,8 @@ import {
 import { beforeAll, beforeEach, afterEach, afterAll, describe, it, expect } from "vitest";
 import worker, { type Env } from "../../src/worker/index";
 import { D1Store } from "../../src/worker/d1-store";
-import { asThreadId } from "../../src/core/comments-seam";
-import type { CreateOp, DocKey, Author } from "../../src/core/comments-seam";
+import { asThreadId } from "@shared/review-ux/types";
+import type { CreateOp, DocKey, Author } from "@shared/review-ux/types";
 import { fetchMock } from "./fetch-mock";
 
 declare module "cloudflare:test" {

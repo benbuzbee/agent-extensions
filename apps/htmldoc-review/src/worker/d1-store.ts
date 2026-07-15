@@ -21,12 +21,10 @@ import {
   reopenThread,
   NotFoundError,
   isNotFoundError,
-  asTimestamp,
-  asThreadId,
-  asCommentId,
-} from "../core/comments-seam";
+} from "@shared/api/thread-ops";
+import { asThreadId, asCommentId, asTimestamp } from "@shared/review-ux/types";
+import type { ICommentsStore } from "@shared/review-ux/store";
 import type {
-  ICommentsStore,
   Thread,
   ThreadId,
   Comment,
@@ -42,7 +40,7 @@ import type {
   Op,
   OpResult,
   OpError,
-} from "../core/comments-seam";
+} from "@shared/review-ux/types";
 
 // The literal `?ref=` sentinel: a missing/empty ref is stored AND queried as
 // this exact string so route and store agree (never '' or NULL).

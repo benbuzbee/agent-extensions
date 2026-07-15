@@ -26,7 +26,15 @@
 
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+
+    // Shared comment sources live in the htmldocs skill — the single editable
+    // copy. Wrangler forwards this tsconfig (and its paths) to esbuild, so the
+    // alias resolves identically for typecheck, `wrangler dev`, and deploy;
+    // the worker vitest config mirrors it as a Vite resolve.alias.
+    "paths": {
+      "@shared/*": ["../../plugins/useful-skills/skills/htmldocs/src/comments/*"]
+    }
   },
   "include": ["src", "test"]
 }

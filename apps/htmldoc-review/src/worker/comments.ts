@@ -1,13 +1,13 @@
 // HTTP adapter for the comments API on the Worker. Thin by design: it does the
 // Cloudflare/HTTP-specific work (parse the JSON body, build D1Store from the
 // binding, serialize the handler's {status, json} to a Response) and delegates
-// ALL comment semantics to the runtime-agnostic handleCommentsRequest behind the
-// seam. The doc key is already parsed + access-checked upstream (checkAccess ran
+// ALL comment semantics to the shared, runtime-agnostic handleCommentsRequest.
+// The doc key is already parsed + access-checked upstream (checkAccess ran
 // before the fork), so this function assumes the caller may see the doc.
 
 import { D1Store } from "./d1-store";
-import { handleCommentsRequest } from "../core/comments-seam";
-import type { Author, DocKey } from "../core/comments-seam";
+import { handleCommentsRequest } from "@shared/api/handlers";
+import type { Author, DocKey } from "@shared/review-ux/types";
 
 // GitHub identity is not captured yet — capturing the session/token-derived
 // {login, name, id} is a later concern. Until then every write is stamped with

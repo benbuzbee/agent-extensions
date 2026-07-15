@@ -7,7 +7,6 @@
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "sync:comments": "node scripts/sync-comments.mjs",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
@@ -18,6 +17,7 @@
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.16.20",
+    "@types/node": "^26.1.1",
     "open": "^10.2.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9",
