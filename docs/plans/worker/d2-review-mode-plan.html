@@ -2243,7 +2243,11 @@ $ (12) git diff --stat -- dist/
       <a href="#api-route"><code>?comments</code> body-op action</a> layers onto the existing doc route, and the
       <a href="#authz"><code>checkAccess</code></a> chokepoint probes <code>(repo, ref, path)</code> <strong>once per
       request or batch</strong> before any op runs, mapping any non-200 to the neutral <code>404</code>; the deny value
-      is named <code>denialResponse</code>. This is the agent-facing surface — list + resolve, single or batch. Comment
+      is named <code>denialResponse</code>. The Worker consumes the skill's DOM-free shared comment sources (schemas,
+      handlers, thread ops) in place through a tsconfig <code>"paths"</code> alias
+      (<code>@shared/* → plugins/…/htmldocs/src/comments/*</code>) — tsc resolves it natively, wrangler forwards it to
+      esbuild, and the worker vitest config mirrors it as a Vite <code>resolve.alias</code>; one editable copy, no
+      vendored duplicate. This is the agent-facing surface — list + resolve, single or batch. Comment
       writes stamp their <code>Author</code> from the session through the seam PR1 defined; PR4 runs on a
       <strong>placeholder identity</strong> that satisfies the <code>author_login</code>/<code>author_id</code>
       <code>NOT NULL</code> columns, and real captured names arrive in PR5 — so nothing here reaches forward to identity
@@ -2275,7 +2279,7 @@ $ (12) git diff --stat -- dist/
     <details class="validation-evidence" open>
       <summary>Validation evidence — d2/pr4-worker-api-checkaccess (gate green, 0 fix round(s))</summary>
       <ul>
-        <li><strong>Commands run:</strong> npm install (×2), npm run typecheck (×2), npm test (×2), npx wrangler deploy --dry-run (×2), npm run sync:comments &amp;&amp; git diff --exit-code -- src/comments</li>
+        <li><strong>Commands run:</strong> npm install (×2), npm run typecheck (×2), npm test (×2), npx wrangler deploy --dry-run (×2)</li>
         <li><strong>Code review:</strong> 5 candidate issues surfaced; 3 confirmed at ≥80 confidence (unclosed response body stream in <code>probeContents</code>; two development-timeline PR-marker comments). All 3 fixed.</li>
         <li><strong>Fable review:</strong> plan-fidelity lens → approve (0 blockers); security lens → approve (0 blockers).</li>
         <li><strong>Findings fixed:</strong> 3</li>
@@ -2291,7 +2295,7 @@ $ npm run typecheck (x2)
 
 $ npm test (run 1)
  Test Files  6 passed (6)
-       Tests  78 passed (78)
+       Tests  80 passed (80)
     Start at  10:49:04
     Duration  21.35s
 
@@ -2305,25 +2309,13 @@ env.GITHUB_CLIENT_ID ("REPLACE_ME_GITHUB_APP_CLIENT_ID") Environment Variable
 env.CALLBACK_URL ("https://REPLACE_ME_DOMAIN/auth/callback") Environment Variable
 --dry-run: exiting now.
 
-$ npm run sync:comments &amp;&amp; git diff --exit-code -- src/comments
-&gt; node scripts/sync-comments.mjs
-synced review-ux/types.ts
-synced review-ux/store.ts
-synced api/thread-ops.ts
-synced api/schemas.ts
-synced api/handlers.ts
-synced api/index.ts
-6 files synced ...
----EXIT: 0---
-git diff --exit-code -- src/comments ---DIFF EXIT: 0--- (no drift)
-
 $ npm run typecheck (run 2)
 &gt; tsc --noEmit
 ---EXIT: 0---
 
 $ npm test (run 2)
  Test Files  6 passed (6)
-       Tests  78 passed (78)
+       Tests  80 passed (80)
     Start at  10:50:08
     Duration  20.68s
 ---EXIT: 0---
@@ -2369,7 +2361,7 @@ Total Upload: 149.26 KiB / gzip: 34.68 KiB
     <details class="validation-evidence" open>
       <summary>Validation evidence — d2/pr5-identity-capture (gate green, 2 fix round(s))</summary>
       <ul>
-        <li><strong>Commands run:</strong> npm install, tsc --noEmit (×2), vitest run (×2), wrangler deploy --dry-run (×2), npm run sync:comments, git diff --exit-code on synced files, npm run check (htmldocs skill).</li>
+        <li><strong>Commands run:</strong> npm install, tsc --noEmit (×2), vitest run (×2), wrangler deploy --dry-run (×2), npm run check (htmldocs skill).</li>
         <li><strong>Code review:</strong> 6 candidate issues surfaced; 1 confirmed at ≥80 confidence — TOCTOU race in <code>getIdentity</code>'s lazy backfill write-back (snapshot A read before async <code>fetchIdentity</code>, then written back; a concurrent refresh could overwrite a stale record). Fixed in 2 rounds.</li>
         <li><strong>Fable review:</strong> plan-fidelity lens → approve (0 blockers); security lens → fix (1 blocker, addressed). Both resolved before gate green.</li>
         <li><strong>Behavioral contracts verified:</strong> <code>persist()</code> is the sole <code>SessionData</code> writer; <code>iat</code> pinned across refresh; v1→v2 upgrade in-place on read; <code>SESSION_VALID_SINCE</code> cutoff deletes-on-read; created comment carries real captured session identity (not a body-supplied attacker value).</li>
@@ -2383,7 +2375,7 @@ CMD2 `npm run typecheck` (tsc --noEmit): exit 0, no output (clean).
 
 CMD3 `npm test` (vitest run):
  Test Files  7 passed (7)
-       Tests  90 passed (90)
+       Tests  92 passed (92)
     Duration  17.18s
 
 CMD4 `npx wrangler deploy --dry-run`:
@@ -2392,25 +2384,18 @@ Total Upload: 152.88 KiB / gzip: 35.74 KiB
 env.SESSIONS / env.COMMENTS_DB / env.REPO_ORG / env.GITHUB_CLIENT_ID / env.CALLBACK_URL / env.SESSION_VALID_SINCE (0)
 --dry-run: exiting now.
 
-CMD5 `npm run sync:comments`:
-synced review-ux/types.ts, review-ux/store.ts, api/thread-ops.ts, api/schemas.ts, api/handlers.ts, api/index.ts
-6 files synced from plugins/useful-skills/skills/htmldocs/src/comments into apps/htmldoc-review/src/comments
+CMD5 `npm run typecheck` (re-run): exit 0, no output (clean).
 
-CMD6 `git diff --exit-code -- apps/htmldoc-review/src/comments`:
-EXIT=0  (no drift)
-
-CMD7 `npm run typecheck` (re-run): exit 0, no output (clean).
-
-CMD8 `npm test` (re-run):
+CMD6 `npm test` (re-run):
  Test Files  7 passed (7)
-       Tests  90 passed (90)
+       Tests  92 passed (92)
     Duration  17.57s
 
-CMD9 `npx wrangler deploy --dry-run` (re-run):
+CMD7 `npx wrangler deploy --dry-run` (re-run):
 Total Upload: 152.88 KiB / gzip: 35.74 KiB
 --dry-run: exiting now.
 
-CMD10 `npm run check` (plugins/useful-skills/skills/htmldocs):
+CMD8 `npm run check` (plugins/useful-skills/skills/htmldocs):
   83 passed (8.6s)   [playwright chromium]
 &gt; test:smoke &gt; bash test/smoke/serve.sh
 ok[dir]: .../index.html → 200 ; ok[dir]: does-not-exist.html → 404
@@ -2466,8 +2451,8 @@ BEHAVIORAL CONTRACT VERIFICATION:
     <details class="validation-evidence" open>
       <summary>Validation evidence — d2/pr6-injection-docs (gate green, 2 fix round(s))</summary>
       <ul>
-        <li><strong>Commands run:</strong> npm install (worker + skill), tsc --noEmit, vitest run (worker full suite + inject-specific tests ×2), wrangler deploy --dry-run, playwright install chromium, npm run check (skill), node scripts/sync-comments.mjs + git diff --exit-code, npm run build + git diff --exit-code on dist/serve.mjs.</li>
-        <li><strong>Code review:</strong> 4 candidate issues surfaced; 1 confirmed at ≥80 confidence — comment in <code>comments-seam.ts</code> line 8 cited six DOM-free shared files but PR6 adds <code>review-ux/inject.ts</code> as a seventh vendored file, making the count and enumeration stale. Fixed.</li>
+        <li><strong>Commands run:</strong> npm install (worker + skill), tsc --noEmit, vitest run (worker full suite + inject-specific tests ×2), wrangler deploy --dry-run, playwright install chromium, npm run check (skill), npm run build + git diff --exit-code on dist/serve.mjs.</li>
+        <li><strong>Code review:</strong> 4 candidate issues surfaced; 1 confirmed at ≥80 confidence. Fixed.</li>
         <li><strong>Fable review:</strong> plan-fidelity lens → approve (1 blocker, addressed); security lens → approve (0 blockers). Both resolved before gate green.</li>
         <li><strong>Findings fixed:</strong> 2</li>
       </ul>
@@ -2481,7 +2466,7 @@ found 0 vulnerabilities
 
 3. npm test (worker):
  Test Files  8 passed (8)
-       Tests  94 passed (94)
+       Tests  96 passed (96)
     Duration  22.26s
 
 4. npx wrangler deploy --dry-run:
@@ -2502,21 +2487,17 @@ up to date, audited 119 packages in 1s
 ok[put]: served tree unchanged by PUT
 PASS: serve.sh smoke
 
-8. node scripts/sync-comments.mjs &amp;&amp; git diff --exit-code -- src/comments:
-7 files synced ...
-EXIT=0  (git diff clean, no drift)
-
-9. npx vitest run test/worker/inject.workers.test.ts:
+8. npx vitest run test/worker/inject.workers.test.ts:
  Test Files  1 passed (1)
        Tests  4 passed (4)
     Duration  10.40s
 
-10. npx vitest run --config test/vitest.config.ts test/unit/inject.test.ts:
+9. npx vitest run --config test/vitest.config.ts test/unit/inject.test.ts:
  Test Files  1 passed (1)
        Tests  7 passed (7)
     Duration  1.53s
 
-11. npm run build &amp;&amp; git diff --exit-code -- dist/serve.mjs:
+10. npm run build &amp;&amp; git diff --exit-code -- dist/serve.mjs:
   dist/comments.mjs  136.3kb  ⚡ Done in 121ms
   dist/serve.mjs  272.3kb  ⚡ Done in 494ms
 EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
@@ -2543,9 +2524,11 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
     <details>
       <summary>PR7 specifics — the calls the design must settle</summary>
       <ul>
-        <li><strong>Bundle bytes at deploy time:</strong> <code>vendor.sh</code> cannot carry files above the app root
-          (the PR3/PR4 vendoring lesson) — settle how the deployed Worker gets <code>comments.mjs</code>; the PR4
-          precedent is a sync script + <code>git diff --exit-code</code> drift gate.</li>
+        <li><strong>Bundle bytes at deploy time:</strong> the shared sources are imported in place via the
+          <code>@shared</code> alias, but the deployed Worker still needs the built widget bytes — they ride as a
+          checked-in Text module, <code>src/worker/comments.mjs.txt</code>, refreshed by a one-line
+          <code>sync:widget</code> copy and pinned byte-for-byte to the skill's committed <code>dist/comments.mjs</code>
+          by a test.</li>
         <li><strong>Bundle-route auth posture:</strong> the route serves generic widget code, not doc data — settle
           whether it requires a session, and prove it cannot interact with the neutral-404 non-leak contract either
           way.</li>
@@ -2568,7 +2551,7 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
     <details class="validation-evidence" open>
       <summary>Validation evidence — d2/pr7-hosted-browser-review (gate green, 0 fix round(s))</summary>
       <ul>
-        <li><strong>Commands run:</strong> apps/htmldoc-review: npm install, tsc --noEmit, vitest run (9 files / 101 tests), wrangler deploy --dry-run, node scripts/sync-comments.mjs + git diff --exit-code (drift gate). plugins/useful-skills/skills/htmldocs: npm install, playwright install chromium, npm run check (typecheck + build + test:unit + playwright + smoke), npm run build.</li>
+        <li><strong>Commands run:</strong> apps/htmldoc-review: npm install, tsc --noEmit, vitest run (9 files / 103 tests), wrangler deploy --dry-run, npm run sync:widget + git diff --exit-code (widget drift gate). plugins/useful-skills/skills/htmldocs: npm install, playwright install chromium, npm run check (typecheck + build + test:unit + playwright + smoke), npm run build.</li>
         <li><strong>Code review:</strong> 1 finding confirmed (score 80) — PR7's diff did not add the per-card gate-green evidence block that every prior card (PR0–PR6) carries; this block is the fix.</li>
         <li><strong>Fable review:</strong> plan-fidelity approve (0 blockers), security approve (0 blockers).</li>
         <li><strong>Findings fixed:</strong> 1</li>
@@ -2582,7 +2565,7 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
 
 3. apps/htmldoc-review $ npm test  (vitest run)
     Test Files  9 passed (9)
-         Tests  101 passed (101)
+         Tests  103 passed (103)
       Duration  23.64s
 
 4. apps/htmldoc-review $ npx wrangler deploy --dry-run
@@ -2614,11 +2597,9 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
    dist/comments.mjs  156.7kb  ⚡ Done in 129ms
    dist/serve.mjs     272.3kb  ⚡ Done in 555ms
 
-9. apps/htmldoc-review $ node scripts/sync-comments.mjs &amp;&amp; git diff --exit-code -- src/comments src/worker/comments.mjs.txt
-   synced review-ux/types.ts, store.ts, inject.ts; api/thread-ops.ts, schemas.ts, handlers.ts, index.ts
-   synced widget bundle -&gt; src/worker/comments.mjs.txt
-   7 comment sources + 1 widget bundle synced
-   EXIT=0   (git diff --exit-code found NO drift after fresh build+sync)</pre>
+9. apps/htmldoc-review $ npm run sync:widget &amp;&amp; git diff --exit-code -- src/worker/comments.mjs.txt
+   cp ../../plugins/useful-skills/skills/htmldocs/dist/comments.mjs src/worker/comments.mjs.txt
+   EXIT=0   (widget bundle byte-identical to the skill's dist — no drift after fresh build+sync)</pre>
     </details>
   </section>
 
@@ -2630,8 +2611,9 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
       <a href="#api"><code>?comments</code></a> API through the shared <code>handleCommentsRequest</code> (the Worker
       against D1, the local server against <code>SidecarStore</code>), and PR7's <code>HostedStore</code> is a pure
       fetch transport with nothing hosted-specific in it — it works verbatim against the local route. So: promote
-      <code>HostedStore</code> to <em>the</em> shared browser HTTP client (rename/move per design; update the vendored
-      copy + sync manifest per the PR4 drift-gate precedent), point <code>buildLocalDeps()</code> at it, and
+      <code>HostedStore</code> to <em>the</em> shared browser HTTP client (rename/move per design — it lives with the
+      skill's shared sources, which the Worker imports via the <code>@shared</code> alias), point
+      <code>buildLocalDeps()</code> at it, and
       <strong>delete</strong> the legacy path — <code>LocalFileStore</code>, the whole-model
       <code>PUT /__htmldocs/sidecar/&lt;doc&gt;</code> route, and the browser-side legacy wire conversions. The
       <strong>on-disk sidecar format is unchanged</strong> (<code>SidecarStore</code> still reads/writes the legacy
@@ -2670,15 +2652,15 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
     <aside data-kind="validation">
       <strong>Validate.</strong> Grep-proof deletions; full local Playwright regression green with the widget driving
       every verb over <code>?comments</code>; legacy sidecar fixture round-trips format-unchanged; the interleaved
-      two-client test green; hosted path observably unchanged (full app gate + vendored drift gate green); the
+      two-client test green; hosted path observably unchanged (full app gate + widget drift gate green); the
       rewritten agent recipe passes a prompt-quality review (minimal, runtime-agnostic); both packages' full gates
       green; dist rebuilt and committed.
     </aside>
     <details class="validation-evidence" open>
       <summary>Validation evidence — d2/pr8-transport-convergence (gate green, 1 fix round(s))</summary>
       <ul>
-        <li><strong>Commands run:</strong> npm install, tsc --noEmit, vitest (101 tests), wrangler deploy --dry-run, playwright (77 tests), smoke test — all across both packages.</li>
-        <li><strong>Code review:</strong> in-run pass was degraded — 3 of 5 angles (git-history, prior-PRs, code-comments) died on API 529; the surviving 2 (claude-md, bug-scan) found 0 issues. A post-run supplementary re-run of the 3 missing angles found <strong>1 behavioral regression</strong> (directory-index docs — trailing-slash URLs — could view but not save: the deleted client-side <code>index.html</code> normalization had no server-side counterpart in <code>handleCommentsApi</code>; fixed by mirroring <code>handleGet</code>'s directory rewrite, with a new Playwright regression test) plus 8 stale comment/doc references to the deleted transport (all fixed). All prior-PR contracts (vendored sync, seam, injection parity, seed-forcing) verified holding.</li>
+        <li><strong>Commands run:</strong> npm install, tsc --noEmit, vitest (105 tests), wrangler deploy --dry-run, playwright (77 tests), smoke test — all across both packages.</li>
+        <li><strong>Code review:</strong> in-run pass was degraded — 3 of 5 angles (git-history, prior-PRs, code-comments) died on API 529; the surviving 2 (claude-md, bug-scan) found 0 issues. A post-run supplementary re-run of the 3 missing angles found <strong>1 behavioral regression</strong> (directory-index docs — trailing-slash URLs — could view but not save: the deleted client-side <code>index.html</code> normalization had no server-side counterpart in <code>handleCommentsApi</code>; fixed by mirroring <code>handleGet</code>'s directory rewrite, with a new Playwright regression test) plus 8 stale comment/doc references to the deleted transport (all fixed). All prior-PR contracts (widget byte-pin, shared-alias imports, injection parity, seed-forcing) verified holding.</li>
         <li><strong>Fable review:</strong> plan-fidelity → approve (0 blockers); security → approve (0 blockers); prompt-quality → fix (6 blockers found and fixed).</li>
         <li><strong>Findings fixed:</strong> 6 in-run (prompt-quality blockers; 1 fix round) + 9 from the supplementary code-review re-run (amended into this commit; both full gates re-run green after).</li>
         <li><strong>Deletion sweep:</strong> grep for <code>LocalFileStore</code>, <code>local-file-store</code>, <code>sidecar-route</code> — zero hits in src after cleanup. Deleted files confirmed via git status.</li>
@@ -2696,7 +2678,7 @@ $ (2) npm run typecheck [apps/htmldoc-review]
 $ (3) npm test [apps/htmldoc-review]
  RUN  v4.1.9 .../apps/htmldoc-review
  Test Files  9 passed (9)
-       Tests  101 passed (101)
+       Tests  105 passed (105)
     Duration  24.68s
 
 $ (4) npx wrangler deploy --dry-run [apps/htmldoc-review]
@@ -2852,22 +2834,12 @@ CHECK_EXIT=0
   </section>
 
   <section data-kind="pr-card" id="pr10">
-    <h3>PR10 — Prebuilt vendoring + shared-source alias <span class="badge open">packaging</span></h3>
+    <h3>PR10 — Prebuilt vendoring <span class="badge open">packaging</span></h3>
     <p class="stack-pos"><strong>Stack position:</strong> layer 10 (top) — branches off <code>PR9</code> (<code>PR9 &lt;- PR10</code>).</p>
     <p>
-      Kill the vendored-source scheme. The Worker's copied <code>src/comments/</code> tree, its
-      <code>sync:comments</code> script, and the <code>comments-seam</code> re-export shim are deleted; the app imports
-      the skill's DOM-free shared sources directly through a tsconfig <code>"paths"</code> alias
-      (<code>@shared/* → plugins/…/htmldocs/src/comments/*</code>), which wrangler forwards to esbuild, tsc resolves
-      natively, and the worker vitest config mirrors as a Vite <code>resolve.alias</code>. One editable copy —
-      <span class="rec">the drift class is gone by construction</span> (the copy had already drifted:
-      <code>Mint</code> vs upstream's <code>IdFactory</code>; upstream wins). The widget bundle needs no copy at all: the
-      Worker imports the skill&rsquo;s committed <code>dist/comments.mjs</code> directly as a string (the scoped
-      <code>[[rules]]</code> Text entry in <code>wrangler.toml</code>), so there is nothing to refresh and nothing to
-      gate.
-    </p>
-    <p>
-      <strong>vendor.sh ships a prebuilt Worker, not source.</strong> It builds first
+      <strong>vendor.sh ships a prebuilt Worker, not source.</strong> The app imports the skill's shared sources in
+      place via the <code>@shared</code> alias, so a source vendor would strand imports above the app root; shipping
+      build output dissolves that. It builds first
       (<code>wrangler deploy --dry-run --outdir</code> into a fresh temp dir), then ships <code>dist/</code> (index.js +
       the content-hashed widget Text module + sourcemap), <code>migrations/</code>, the setup scripts, and a minimal
       generated <code>package.json</code> (wrangler + <code>open</code>) — and emits the operator
@@ -2884,15 +2856,13 @@ CHECK_EXIT=0
     </p>
     <aside data-kind="validation">
       <strong>Validate.</strong> Skill: fresh <code>npm run build</code> leaves committed <code>dist/</code> unchanged.
-      App: <code>tsc --noEmit</code> now compiles the skill's shared
-      files under the app's strict flags; full vitest run (core + worker) green including the new race
+      App: full vitest run (core + worker) green including the new race
       (<code>resolve</code>/<code>reopen</code> of a concurrently-deleted thread → <code>not_found</code>) and
       tie-order tests; <code>wrangler deploy --dry-run</code> green in source mode; and the new
       <code>vendor:smoke</code> gate vendors into a temp dir, asserts the shipped shape (no <code>src/</code>,
       <code>dist/</code> tracked), passes an operator-side <code>--dry-run</code> against the
       <code>no_bundle</code> toml, and proves a re-vendor neither overwrites the operator's config nor false-nags a
-      sidecar. Grep sweep: zero <code>comments-seam</code>/<code>sync-comments</code> references outside historical plan
-      logs. Offline-only, as ever.
+      sidecar. Offline-only, as ever.
     </aside>
   </section>
 
@@ -2928,7 +2898,7 @@ d2/pr8-transport-convergence). gt log short confirms d2/pr9-agent-api-helper is 
 
 [3] apps/htmldoc-review: npm test (vitest run)
    Test Files  9 passed (9)
-        Tests  103 passed (103)
+        Tests  105 passed (105)
      Start at  17:42:15
      Duration  21.48s
   (Using secrets defined in .dev.vars — local mocked, no real GitHub)
@@ -2966,9 +2936,9 @@ exit-3/exit-7 token-non-leak checks).</pre>
       Audit basis: d2/pr9-agent-api-helper @ 1e91478 (top of stack, tree clean; two commits past the previously
       audited 5dbfa71). Note the WSL junction — <code>/mnt/c/Users/benbu/projects/agent-extensions</code> and
       <code>/mnt/c/Users/benbu/Documents/Claude/Projects/agent-extensions</code> are the same checkout. All gates
-      re-run live: apps/htmldoc-review typecheck clean + 103/103 vitest (workers+core, Miniflare-migrated D1);
+      re-run live: apps/htmldoc-review typecheck clean + 105/105 vitest (workers+core, Miniflare-migrated D1);
       skills/htmldocs <code>npm run check</code> exit 0 (65 unit, 78 Playwright, serve.sh smoke PASS,
-      comments-api.sh smoke PASS incl. token-leak guard); sync:comments left git clean (zero cross-copy drift);
+      comments-api.sh smoke PASS incl. token-leak guard); sync:widget left git clean (widget bundle byte-identical to the skill's dist);
       wrangler deploy --dry-run builds (265.67 KiB).
     </p>
     <p>
