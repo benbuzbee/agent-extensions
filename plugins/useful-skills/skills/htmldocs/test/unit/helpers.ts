@@ -8,6 +8,7 @@ import type {
 import { asTimestamp } from '../../src/comments/review-ux/types';
 import {
   createThread, resolveThread, reopenThread, deleteThread, isNotFoundError,
+  NotImplementedError,
 } from '../../src/comments/api/thread-ops';
 import { applyOp } from '../../src/comments/api/handlers';
 
@@ -37,7 +38,7 @@ export class MemoryStore implements ICommentsStore {
     return thread;
   }
   async reply(_doc: DocKey, _op: ReplyOp, _author: Author): Promise<Comment> {
-    throw new Error('op not yet supported');
+    throw new NotImplementedError();
   }
   async resolve(_doc: DocKey, op: ResolveOp, _author: Author): Promise<Thread> {
     try {
@@ -61,7 +62,7 @@ export class MemoryStore implements ICommentsStore {
     } catch (err) { tagNotFound(err); }
   }
   async edit(_doc: DocKey, _op: EditOp, _author: Author): Promise<Comment> {
-    throw new Error('op not yet supported');
+    throw new NotImplementedError();
   }
   async batch(doc: DocKey, ops: Op[], author: Author): Promise<OpResult[]> {
     const out: OpResult[] = [];

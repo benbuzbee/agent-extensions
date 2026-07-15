@@ -27,6 +27,22 @@ export function isNotFoundError(err: unknown): err is NotFoundError {
   return !!err && typeof err === 'object' && (err as { notFound?: unknown }).notFound === true;
 }
 
+/** Thrown by the reserved (v1-unsupported) reply/edit ops. Stores throw it and a
+ *  batch maps it to a transient OpError carrying its message. Tagged so a catch
+ *  can recognize it by type rather than by matching the message text. */
+export class NotImplementedError extends Error {
+  readonly notImplemented = true as const;
+  constructor() {
+    super('op not yet supported');
+    this.name = 'NotImplementedError';
+  }
+}
+
+export function isNotImplementedError(err: unknown): err is NotImplementedError {
+  return !!err && typeof err === 'object'
+    && (err as { notImplemented?: unknown }).notImplemented === true;
+}
+
 /** Produces a fresh unique id. Callers inject this so tests can seed
  *  deterministic ids; the runtimes pass crypto.randomUUID. */
 export type IdFactory = () => string;

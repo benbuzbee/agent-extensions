@@ -11,6 +11,7 @@ import type {
   Thread, ThreadId, Comment, DocKey, Author,
   CreateOp, ReplyOp, ResolveOp, ReopenOp, DeleteOp, EditOp, Op, OpResult, OpError,
 } from '../review-ux/types';
+import { NotImplementedError } from '../api/thread-ops';
 
 export class HttpCommentsStore implements ICommentsStore {
   // The collection URL for the doc hosting the widget: the current path with
@@ -38,7 +39,7 @@ export class HttpCommentsStore implements ICommentsStore {
   }
 
   async reply(_doc: DocKey, _op: ReplyOp, _author: Author): Promise<Comment> {
-    throw new Error('op not yet supported');
+    throw new NotImplementedError();
   }
 
   async resolve(_doc: DocKey, op: ResolveOp, _author: Author): Promise<Thread> {
@@ -60,7 +61,7 @@ export class HttpCommentsStore implements ICommentsStore {
   }
 
   async edit(_doc: DocKey, _op: EditOp, _author: Author): Promise<Comment> {
-    throw new Error('op not yet supported');
+    throw new NotImplementedError();
   }
 
   // A batch is ONE POST of a JSON array of op envelopes; the server runs them

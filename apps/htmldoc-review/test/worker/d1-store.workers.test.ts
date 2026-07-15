@@ -12,7 +12,7 @@
 import { env, applyD1Migrations, type D1Migration } from "cloudflare:test";
 import { beforeAll, beforeEach, describe, it, expect } from "vitest";
 import { D1Store } from "../../src/worker/d1-store";
-import { isNotFoundError } from "@shared/api/thread-ops";
+import { isNotFoundError, NotImplementedError } from "@shared/api/thread-ops";
 import { asThreadId, asCommentId } from "@shared/review-ux/types";
 import type {
   DocKey,
@@ -349,5 +349,15 @@ describe("D1Store batch", () => {
       { ok: false, op: "reply", error: { code: "transient", message: "op not yet supported", threadId: asThreadId("t1") } },
       { ok: false, op: "edit", error: { code: "transient", message: "op not yet supported" } },
     ]);
+  });
+
+  it("reply/edit reject with the shared NotImplementedError type", async () => {
+    const store = newStore();
+    await expect(
+      store.reply(DOC, { op: "reply", threadId: asThreadId("t1"), text: "hi" }, AUTHOR),
+    ).rejects.toBeInstanceOf(NotImplementedError);
+    await expect(
+      store.edit(DOC, { op: "edit", commentId: asCommentId("c1"), patch: { body: "x" } }, AUTHOR),
+    ).rejects.toBeInstanceOf(NotImplementedError);
   });
 });
