@@ -38,8 +38,9 @@ export async function handleComments(
   let body: unknown;
   if (method === "POST") {
     const text = await req.text();
-    // An empty POST body parses as "no ops" downstream; only non-empty,
-    // syntactically-broken JSON is a 400 here.
+    // An empty POST body stays undefined and fails envelope validation
+    // downstream (parseEnvelope -> the envelope 400, before any store call);
+    // the 400 HERE is only for a non-empty body that is not syntactic JSON.
     if (text.length > 0) {
       try {
         body = JSON.parse(text);
