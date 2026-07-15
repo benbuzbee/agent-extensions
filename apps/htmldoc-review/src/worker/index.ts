@@ -9,7 +9,7 @@ import {
   SESSION_COOKIE,
 } from "../core/cookies";
 import { asSessionId, type SessionId } from "../core/store";
-import type { Author } from "../core/comments-seam";
+import type { Author } from "@shared/review-ux/types";
 import type { Config } from "../core/config";
 import { getLogger } from "@logtape/logtape";
 import { KvSessionStore } from "./kv-store";
