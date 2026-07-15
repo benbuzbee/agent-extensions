@@ -680,6 +680,69 @@ describe("session cookie shape + KV storage after callback", () => {
 });
 
 // ===========================================================================
+// checkAccess probe 401: a session token GitHub rejects (revoked/rotated
+// server-side) while its stored expiry still looks valid must force ONE
+// refresh and re-probe — not collapse straight to the neutral 404. A bearer
+// has no session to refresh, so its 401 probe IS the neutral 404.
+// ===========================================================================
+describe("checkAccess probe 401 (locally-valid session token GitHub rejects)", () => {
+  it("probe 401 -> one refresh -> re-probe 200 -> doc served, rotated pair in KV", async () => {
+    // Locally valid (unexpired) session whose token GitHub no longer accepts:
+    // the clock check passes, so no proactive refresh runs before the probe.
+    await seedSession("sess-probe-401", {
+      access_token: "revoked_access",
+      refresh_token: "r1",
+    });
+
+    // Order matters (fetch-mock is a FIFO per origin+method+path): the first
+    // probe consumes the 401, the token POST refreshes, the second probe sees
+    // 200 with the fresh token, then serveDoc fetches the doc body.
+    mockProbe(401);
+    mockTokenEndpoint(200, {
+      access_token: "fresh_access",
+      refresh_token: "r2",
+      expires_in: 28800,
+      refresh_token_expires_in: 15897600,
+      token_type: "bearer",
+    });
+    mockProbe(200);
+    mockContents(200, "<h1>re-authed</h1>");
+
+    // fetchWorker so the KV write-back in ctx.waitUntil flushes.
+    const res = await fetchWorker(`${ORIGIN}/${DOC_URL}`, {
+      headers: { cookie: "sid=sess-probe-401" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.clone().text()).toBe("<h1>re-authed</h1>");
+
+    // The forced refresh persisted the NEW access token and ROTATED refresh
+    // token; afterEach's assertNoPendingInterceptors enforces "exactly one
+    // refresh POST" (and exactly two probes).
+    const storedRaw = await env.SESSIONS.get(sessKey("sess-probe-401"));
+    expect(storedRaw).not.toBeNull();
+    const stored = JSON.parse(storedRaw!);
+    expect(stored.access_token).toBe("fresh_access");
+    expect(stored.refresh_token).toBe("r2");
+    await assertNoTokenLeak(res, "fresh_access");
+  });
+
+  it("bearer probe 401 -> neutral 404, no token endpoint call", async () => {
+    // A bearer credential has no session to refresh: the single 401 probe is
+    // the only outbound call (no token mock queued — a refresh attempt would
+    // fail net-connect/afterEach), and the caller gets the uniform neutral 404.
+    mockProbe(401);
+
+    const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
+      headers: { Authorization: "Bearer gho_agent_rejected" },
+    });
+
+    expect(res.status).toBe(404);
+    expect(await res.text()).toMatch(/not found or no access/i);
+  });
+});
+
+// ===========================================================================
 // /auth/logout: deletes the KV session and clears the cookie (Max-Age=0).
 // ===========================================================================
 describe("/auth/logout", () => {

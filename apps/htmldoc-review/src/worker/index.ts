@@ -204,7 +204,19 @@ export default {
       // The single post-auth chokepoint: one Contents probe guards BOTH branches
       // below. Any non-200/304 collapses to the neutral 404 (denialResponse), so
       // comments never leak a doc's existence and a future verb can't skip it.
-      const access = await checkAccess(cfg, token, repo, ref, docPath);
+      let access = await checkAccess(cfg, token, repo, ref, docPath);
+      // A 401 probe means GitHub rejected the CREDENTIAL, not the doc — a
+      // session token can be invalidated server-side while its stored expiry
+      // still looks valid (revoked grant, concurrent rotation). Force ONE
+      // refresh and re-probe, mirroring serveDoc's in-flight retry; a dead
+      // grant bounces exactly like the no-token path. A bearer has no session
+      // to refresh, so it falls through to the uniform neutral 404.
+      if (!access.ok && access.status === 401 && refreshSid) {
+        const fresh = await getValidAccessToken(cfg, store, refreshSid, true);
+        if (!fresh) return isComments ? unauthorized() : loginRedirect(url);
+        token = fresh;
+        access = await checkAccess(cfg, token, repo, ref, docPath);
+      }
       if (!access.ok) return access.denialResponse;
 
       // The store agrees on the 'default' sentinel for a missing ref; GitHub was
