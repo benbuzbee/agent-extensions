@@ -80,36 +80,7 @@ Do not rename these:
 | Secret | `GITHUB_CLIENT_SECRET` | GitHub App client secret (`wrangler secret put`) |
 | Secret | `STATE_SIGNING_KEY` | HMAC key for the signed OAuth `state` nonce (`wrangler secret put`) |
 | KV binding | `SESSIONS` | server-side session store |
-| D1 binding | `COMMENTS_DB` | comment store for the review API (Deliverable 2); database `htmldoc-review-comments`, schema from `migrations/` |
-
-## Comment review API (Deliverable 2)
-
-On top of the doc proxy, the Worker exposes a durable comment layer backed by **Cloudflare D1** (`COMMENTS_DB`, one shared database, schema migrated from day one via `migrations/0001_create_comments.sql`). Comments are addressed as **body-ops over one collection URL** — the doc's own URL with a `?comments` marker:
-
-```
-GET  https://<host>/<repo>/<doc-path>?ref=<ref>&comments   → 200 { threads: [...] }   (open AND resolved)
-POST https://<host>/<repo>/<doc-path>?ref=<ref>&comments   → a single op object, or a JSON array (batch)
-```
-
-Omit `?ref=` for the default branch (stored/queried as the literal `default`). The op set:
-
-| op | Effect |
-| --- | --- |
-| `create` | new anchored thread (reviewer/browser only in v1) |
-| `resolve` | soft-close: stamp `resolvedAt`, keep the row, indicator turns green, **stays visible** |
-| `reopen` | clear `resolvedAt` (idempotent) |
-| `delete` | hard purge by `threadId` |
-| `reply` / `edit` | envelope-**reserved**: parsed then rejected `400 "op not yet supported"` |
-
-A single op returns `200`/`404` with the `OpResult`; a batch array returns `207 { results }` in request order, best-effort per op (no cross-op transaction). Timestamps are epoch-**milliseconds numbers** end to end.
-
-**Auth:** the browser widget presents the session cookie (`sid`); an **agent** presents `Authorization: Bearer <github-token>` (bearer wins if both are sent). The author is stamped server-side from the identity, never from the body; a credential-less request gets `401`. The agent surface is **list + resolve/reopen + delete — not create**.
-
-**Access gate + neutral 404:** before serving a doc or touching the store, one GitHub Contents probe (once per request/batch) decides visibility; any non-200 — both `403` and `404` — collapses to the same neutral `404` (`Not found or no access`), so comments never leak a doc's existence. The neutral-404 path emits no widget or seed.
-
-**Doc-view injection:** a `200 text/html` doc view has the review widget + an inline JSON seed of the doc's comments (open and resolved) appended to `<body>` via `HTMLRewriter`, so the page paints with its comments and no extra round trip.
-
-Agent-facing walkthrough (list → address → resolve, curl recipes): the skill's [`hosted_review.html`](../../plugins/useful-skills/skills/htmldocs/docs/hosted_review.html). Full design and PR stack: [`d2-review-mode-plan.html`](../../docs/plans/worker/d2-review-mode-plan.html).
+| D1 binding | `COMMENTS_DB` | comment store for the review API; database `htmldoc-review-comments`, schema from `migrations/` — API design in [`d2-review-mode-plan.html`](../../docs/plans/worker/d2-review-mode-plan.html), agent walkthrough in the skill's [`hosted_review.html`](../../plugins/useful-skills/skills/htmldocs/docs/hosted_review.html) |
 
 ## Running tests
 
@@ -120,7 +91,7 @@ npm test                          # full proxy + auth + comment-API suite
 npm run typecheck                 # tsc --noEmit
 ```
 
-- The comment-API and D1-store suites run **inside the Workers runtime** (`@cloudflare/vitest-pool-workers` / Miniflare) against a real migrated D1 — the `*.workers.test.ts` files (e.g. `test/worker/comments-api.workers.test.ts`, `inject.workers.test.ts`, `d1-store.workers.test.ts`). Migrations are read Node-side with `readD1Migrations` and applied in-test via `applyD1Migrations`.
+- Components with a Cloudflare Worker implementation are tested **inside the Workers runtime** via `@cloudflare/vitest-pool-workers` (the `*.workers.test.ts` files, against real Miniflare KV/D1).
 - Tests never hit real GitHub and need no real credentials — all GitHub fetches are mocked (`test/worker/fetch-mock.ts`).
 - Do **not** add `nodejs_compat` to `wrangler.toml` — `arctic` runs on Workers-native Fetch + Web Crypto.
 

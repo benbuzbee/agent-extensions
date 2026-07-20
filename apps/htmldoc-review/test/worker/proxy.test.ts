@@ -46,9 +46,9 @@ beforeAll(async () => {
   // Since PR6, a 200 doc view reads this doc's comments from D1 to seed the
   // widget, so the comments table must exist even in this proxy suite. The
   // Deliverable-1 doc fixtures are body-less, so HTMLRewriter appends nothing
-  // and the verbatim-body assertions below are unaffected. (getIdentity's
-  // legacy-session GET /user is best-effort and swallowed, so no /user mock is
-  // needed here either.)
+  // and the verbatim-body assertions below are unaffected. (No /user mock is
+  // needed either: identity is read straight off the session record, and
+  // GitHub is only called during login and refresh.)
   await applyD1Migrations(env.COMMENTS_DB, env.TEST_MIGRATIONS);
   fetchMock.activate();
   fetchMock.disableNetConnect();

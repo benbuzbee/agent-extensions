@@ -3,7 +3,7 @@
 // NO markup string construction — the local seed carries no author, so its
 // output stays byte-identical to Deliverable 1.
 
-import { injectionFragment } from '../../review-ux/inject';
+import { injectionFragment, COMMENTS_WIDGET_SRC } from '../../review-ux/inject';
 import type { CommentsModel } from '../../review-ux/types';
 
 /**
@@ -11,7 +11,7 @@ import type { CommentsModel } from '../../review-ux/types';
  * injection fragment (seed JSON + widget script tag) before </body>.
  */
 export function injectIntoHtml(html: string, model: CommentsModel): string {
-  const blocks = injectionFragment(model, '/__htmldocs/comments.mjs');
+  const blocks = injectionFragment(model, COMMENTS_WIDGET_SRC);
   const idx = html.lastIndexOf('</body>');
   if (idx === -1) return html + '\n' + blocks;
   return html.slice(0, idx) + blocks + html.slice(idx);

@@ -5414,6 +5414,8 @@ var Yargs = YargsFactory(esm_default);
 var yargs_default = Yargs;
 
 // src/comments/review-ux/inject.ts
+var WIDGET_BASE = "/__htmldocs";
+var COMMENTS_WIDGET_SRC = `${WIDGET_BASE}/comments.mjs`;
 function seedJsonScript(model, author) {
   const seed = author === void 0 ? model : { ...model, author };
   const json = JSON.stringify(seed).replace(/</g, "\\u003c");
@@ -5428,7 +5430,7 @@ function injectionFragment(model, src, author) {
 
 // src/comments/adapters/local/inject.ts
 function injectIntoHtml(html, model) {
-  const blocks = injectionFragment(model, "/__htmldocs/comments.mjs");
+  const blocks = injectionFragment(model, COMMENTS_WIDGET_SRC);
   const idx = html.lastIndexOf("</body>");
   if (idx === -1) return html + "\n" + blocks;
   return html.slice(0, idx) + blocks + html.slice(idx);
@@ -7050,7 +7052,7 @@ function createServer2(cfg) {
       send(res, 405, "method not allowed", { Allow: "GET, HEAD, PUT" });
       return;
     }
-    if (urlPath === "/__htmldocs/comments.mjs") {
+    if (urlPath === COMMENTS_WIDGET_SRC) {
       handleGetBundle(res).catch((err) => {
         console.error("[serve] bundle read failed:", err);
         if (!res.headersSent) send(res, 500, "bundle read failed");

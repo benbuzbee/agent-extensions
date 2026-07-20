@@ -21,6 +21,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import type { CommentsModel, LegacyComment, Author, DocKey } from './review-ux/types.js';
 import { injectIntoHtml } from './adapters/local/inject.js';
+import { COMMENTS_WIDGET_SRC } from './review-ux/inject.js';
 import { handleCommentsRequest } from './api/index.js';
 import { SidecarStore } from './adapters/local/sidecar-store.js';
 
@@ -400,7 +401,7 @@ export function createServer(cfg: ServerConfig): http.Server {
       return;
     }
 
-    if (urlPath === '/__htmldocs/comments.mjs') {
+    if (urlPath === COMMENTS_WIDGET_SRC) {
       handleGetBundle(res).catch((err) => {
         console.error('[serve] bundle read failed:', err);
         if (!res.headersSent) send(res, 500, 'bundle read failed');

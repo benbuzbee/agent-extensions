@@ -8,11 +8,13 @@ import { injectionFragment } from "@shared/review-ux/inject";
 import { threadToLegacy } from "@shared/review-ux/types";
 import type { CommentsModel, Thread, Author } from "@shared/review-ux/types";
 
-// The widget bundle path the injected <script> points at. Placeholder for now:
-// actually serving that bundle over the hosted Worker (plus the hosted browser
-// HTTP store and main.ts runtime selection) is a DEFERRED, human-in-the-loop
+// The widget bundle path the injected <script> points at is the SHARED
+// COMMENTS_WIDGET_SRC (WIDGET_BASE + "/comments.mjs"), re-exported so this
+// Worker and the local server can never point at different paths. Actually
+// serving that bundle over the hosted Worker (plus the hosted browser HTTP
+// store and main.ts runtime selection) is a DEFERRED, human-in-the-loop
 // follow-up. This layer locks and tests only the injected markup contract.
-export const WIDGET_SRC = "/__htmldocs/comments.mjs";
+export { COMMENTS_WIDGET_SRC } from "@shared/review-ux/inject";
 
 /**
  * Build the inline JSON seed model from a doc's threads. Carries BOTH open and

@@ -4,6 +4,12 @@
 
 import type { CommentsModel, Author } from './types';
 
+/** URL base every htmldocs widget asset lives under, in both runtimes. */
+export const WIDGET_BASE = '/__htmldocs';
+
+/** The comments widget bundle URL — the src the injected <script> points at. */
+export const COMMENTS_WIDGET_SRC = `${WIDGET_BASE}/comments.mjs`;
+
 /**
  * Produce the inline JSON seed `<script>` tag. Escapes each `<` as the JSON
  * unicode escape `\u003c` (not an HTML entity like &lt;) so a `</script>`

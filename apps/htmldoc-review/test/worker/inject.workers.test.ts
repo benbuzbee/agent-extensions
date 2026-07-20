@@ -14,8 +14,9 @@ import {
 } from "cloudflare:test";
 import { beforeAll, beforeEach, afterEach, afterAll, describe, it, expect } from "vitest";
 import worker, { type Env } from "../../src/worker/index";
-import { buildSeedModel, injectWidget, WIDGET_SRC } from "../../src/worker/inject";
+import { buildSeedModel, injectWidget, COMMENTS_WIDGET_SRC } from "../../src/worker/inject";
 import { injectionFragment } from "@shared/review-ux/inject";
+import { injectIntoHtml } from "@shared/adapters/local/inject";
 import { asThreadId, asCommentId, asTimestamp } from "@shared/review-ux/types";
 import type { Thread, Author, CommentsModel } from "@shared/review-ux/types";
 import { fetchMock } from "./fetch-mock";
@@ -149,24 +150,25 @@ describe("unified injection (both placements emit the identical fragment)", () =
     expect(model.comments.find((c) => c.id === "t-done")!.resolved_at).toBeTruthy();
 
     const author: Author = { login: "octocat", name: "Mona", id: 7 };
-    const expected = injectionFragment(model, WIDGET_SRC, author);
+    const expected = injectionFragment(model, COMMENTS_WIDGET_SRC, author);
 
     // Hosted placement: HTMLRewriter append inside <body>.
     const fixture = "<html><body><p>hi</p></body></html>";
     const res = new Response(fixture, { headers: { "Content-Type": "text/html" } });
-    return injectWidget(res, model, WIDGET_SRC, author)
+    return injectWidget(res, model, COMMENTS_WIDGET_SRC, author)
       .text()
       .then((appended) => {
-        // Local placement: string-splice before </body>.
-        const idx = fixture.lastIndexOf("</body>");
-        const spliced = fixture.slice(0, idx) + expected + fixture.slice(idx);
+        // Local placement: the real local adapter. Its seed carries no author
+        // by design, so its parity target is the authorless fragment.
+        const localExpected = injectionFragment(model, COMMENTS_WIDGET_SRC);
+        const spliced = injectIntoHtml(fixture, model);
 
         // Placement differs, the emitted fragment is byte-identical in both.
         expect(appended).toContain(expected);
-        expect(spliced).toContain(expected);
+        expect(spliced).toContain(localExpected);
         // And the </script> breakout escaping survives HTMLRewriter verbatim.
         expect(appended).toContain('id="__htmldocs_comments"');
-        expect(appended).toContain('<script type="module" src="' + WIDGET_SRC + '">');
+        expect(appended).toContain('<script type="module" src="' + COMMENTS_WIDGET_SRC + '">');
       });
   });
 });
@@ -201,7 +203,7 @@ describe("hosted-injection e2e (create -> reload -> resolve, seed-level)", () =>
     // The captured session author rides on the seed for the future MountDeps.
     expect(seed1.author).toEqual(SEEDED_IDENTITY);
     // The widget script tag is injected too.
-    expect(html1).toContain('<script type="module" src="' + WIDGET_SRC + '">');
+    expect(html1).toContain('<script type="module" src="' + COMMENTS_WIDGET_SRC + '">');
 
     // 3. Resolve it.
     mockProbe(200);
