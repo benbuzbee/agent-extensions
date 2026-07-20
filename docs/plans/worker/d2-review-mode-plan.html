@@ -557,13 +557,22 @@ npx wrangler d1 migrations apply "$DB_NAME" --remote</code></pre>
     When a comment is created, the API stamps <code>author_login</code>/<code>author_name</code> from the session — the
     browser never supplies its own identity, so it can't spoof another reviewer.
   </p>
+  <aside id="identity-capture-fatal" data-kind="decision-lead">
+    <strong>Decision.</strong> <span class="rec">Identity capture is fatal at login.</span> If that
+    <code>GET /user</code> fails, the login fails: nothing is persisted, no session cookie is set, and the callback
+    returns a <code>303</code> to <code>/auth/error</code> — a refresh-safe retry page (<code>loginFailed</code>,
+    <code>502</code>) whose link re-enters <code>/auth/login</code> carrying the original destination.
+    <code>createSession</code> takes an <code>Identity</code> by type, so a session is never minted without knowing who
+    it belongs to. Every read site downstream can then treat a live session's identity as present, not as something to
+    re-derive.
+  </aside>
   <ul>
     <li>One extra GitHub call per login only (never per request); identity is cached on the session for its lifetime.</li>
     <li>Keep it minimal — login, display name, numeric <code>id</code>. No email, no avatar in v1. The numeric
       <code>id</code> is the stable key: logins can be renamed on GitHub, so <code>id</code> is what we'd match on if we
       ever reconcile.</li>
-    <li>The record carries a <code>version</code> field (see below) so this and any later identity fields can evolve
-      without a flag day.</li>
+    <li>The record carries a <code>version</code> field (see below), stamped on every write, so its shape is explicit for
+      later evolution.</li>
   </ul>
   <p>
     For the <strong>agent</strong>, identity comes from <em>its</em> GitHub token the same way — the access probe in
@@ -595,62 +604,46 @@ npx wrangler d1 migrations apply "$DB_NAME" --remote</code></pre>
   <section id="identity-existing-sessions">
     <h3>Existing sessions when identity becomes required</h3>
     <p>
-      Deliverable 1 shipped live, so <strong>there are already valid session records in KV that predate this field.</strong>
-      They must not break, and we need a deliberate answer for them rather than discovering it in production.
+      Deliverable 1 shipped live, so <strong>there are already valid session records in KV that predate the identity
+      field.</strong> They must not break, and they need a deliberate answer rather than a surprise in production.
     </p>
     <p>
-      KV values are opaque blobs with no enforced schema: adding <code>{ login, name, id }</code> to the record shape
-      leaves every existing record physically unchanged, so a naive read of an old session simply finds those fields
-      absent. Two ways to handle that:
+      KV values are opaque blobs with no enforced schema, so a record written before identity capture simply lacks the
+      <code>{ login, name, id }</code> fields. Any such record — a pre-capture <code>version: 1</code> record, or an early
+      <code>version: 2</code> one whose <code>identity</code> is <code>null</code> — is <strong>deleted on read</strong>:
+      <code>getValidAccessToken</code> finds no identity, deletes the record, and returns <code>null</code>, already the
+      universal "send this browser through login" signal. That browser makes one fresh login and returns with identity
+      captured.
     </p>
-    <table>
-      <thead><tr><th>Approach</th><th>What happens to existing sessions</th><th>Cost</th></tr></thead>
-      <tbody>
-        <tr>
-          <td class="k">Lazy on-read upgrade <span class="badge ok">chosen</span></td>
-          <td>On the next authenticated request, if the record lacks identity, call <code>GET /user</code> with the
-            session's stored token, write <code>{ login, name, id }</code> + bump <code>version</code> back to the same
-            key. Old sessions silently self-heal; nobody is logged out.</td>
-          <td>One extra GitHub call the first time each stale session is used, then cached.</td>
-        </tr>
-        <tr>
-          <td class="k">Forced re-login</td>
-          <td>Invalidate all sessions so everyone re-authenticates through the normal <code>completeLogin</code> path.
-            The lever is an <code>iat</code> cutoff: set <code>SESSION_VALID_SINCE</code> (a ms timestamp in
-            <code>wrangler.toml [vars]</code>) to "now" and redeploy; <code>getValidAccessToken</code> deletes-on-read
-            any record whose login-time <code>iat</code> predates the cutoff. Bumping the KV namespace is a cruder
-            alternative. See <a href="#identity-writer">the session writer</a>.</td>
-          <td>Every current user is logged out once.</td>
-        </tr>
-      </tbody>
-    </table>
+    <aside data-kind="decision-lead">
+      <strong>Decision.</strong> <span class="rec">Force one re-login for identity-less records; no lazy backfill.</span>
+      Identity is captured at login and is <a href="#identity-capture-fatal">fatal there</a>, so every read site past
+      token resolution may assume a live session knows who it belongs to. Deleting the handful of pre-capture records on
+      read keeps that invariant absolute — no placeholder authors, no <code>{ login: "unknown" }</code> fallback, and no
+      on-read <code>GET /user</code> machinery threaded through the request path. It reuses the exact delete-on-read step
+      the <a href="#identity-writer"><code>SESSION_VALID_SINCE</code> cutoff</a> already performs; an identity-less record
+      is just a second reason a record fails to resolve. Sessions are short-lived under their native TTL, so the
+      pre-capture population drains on its own and the one-click re-login is a bounded, one-time cost.
+    </aside>
     <p>
-      <span class="rec">Decision: lazy on-read upgrade.</span> We already hold each session's token server-side, so
-      identity <em>is</em> derivable for a live session without bothering the user — the on-read <code>GET /user</code>
-      is the same call <code>completeLogin</code> will now make, just deferred. Forced re-login is the fallback
-      <strong>only</strong> if a future required field can't be derived from what the session already holds (e.g.
-      something the token can't fetch); for identity it can, so we take the graceful path.
-    </p>
-    <p>
-      To make this and future changes routine, the session record gains an explicit <strong><code>version</code> field
-      now</strong> (identity capture ships as <code>version: 2</code>; pre-identity records are treated as
-      <code>version: 1</code>). Read logic branches on <code>version</code>, upgrades in place, and writes the record
-      back — the standard KV schema-evolution pattern. That keeps every later session-shape change a lazy upgrade
-      instead of a migration event. (There's no bulk backfill job: sessions are short-lived under their native TTL, so
-      any record that's never read again simply ages out.)
+      The session record still carries an explicit <strong><code>version</code> field</strong> (identity capture ships as
+      <code>version: 2</code>; pre-capture records read as <code>version: 1</code>), stamped on every write by the single
+      session writer. It records the record's shape as an explicit checkpoint for later evolution, kept orthogonal to
+      <code>iat</code>: <code>version</code> tracks <em>record shape</em>, <code>iat</code> tracks <em>grant validity and
+      age</em>.
     </p>
     <section id="identity-writer">
       <h3>One writer for the session record</h3>
       <p>
-        <span class="rec">Decision: every write path — new login, token refresh, and lazy identity backfill — goes
+        <span class="rec">Decision: every write path — new login and token refresh — goes
         through a single <code>persist()</code> chokepoint in <code>session.ts</code>, the only constructor of a
-        <code>SessionData</code>.</span> Callers hand it a token <code>Grant</code> (plus, optionally, a fresher
+        <code>SessionData</code>.</span> Callers hand it a token <code>Grant</code> (plus, at login, the captured
         <code>identity</code>); they never hand-build the record. That one writer enforces the schema and fixes each
         field's provenance: <strong>stamped</strong> fields are re-set on every write (<code>version</code>);
         <strong>pinned</strong> fields are set once at login and carried unchanged forever (<code>iat</code>, the
         login instant in ms, and <code>identity</code>); <strong>supplied</strong> fields arrive fresh from GitHub on
         each write (the <code>access_token</code> / <code>refresh_token</code> / <code>expires_at</code> triple). A
-        single writer keeps these from drifting apart across the three call sites.
+        single writer keeps these from drifting apart across both call sites.
       </p>
       <p>
         Pinning <code>iat</code> is the crux: <code>persist()</code> mints it via <code>prior?.iat ?? Date.now()</code>,
@@ -665,7 +658,7 @@ npx wrangler d1 migrations apply "$DB_NAME" --remote</code></pre>
       </p>
       <p>
         <code>iat</code> and <code>version</code> stay orthogonal: <code>version</code> tracks <em>record shape</em>
-        (schema evolution → the lazy in-place upgrade above), <code>iat</code> tracks <em>grant validity and age</em>
+        (schema evolution), <code>iat</code> tracks <em>grant validity and age</em>
         (time-based invalidation). Neither overloads the other. The sketch below is the intended structure, to be
         verified against the exact arctic field extraction, config plumbing, and TTL handling at implementation time.
       </p>
@@ -708,12 +701,12 @@ async function persist(store, id, grant: Grant, prior: SessionData | null, ident
 
 // login:   persist(store, id, grant, null, identity)
 // refresh: persist(store, id, grantFromArctic(tokens), s)
-// upgrade: persist(store, id, grantFrom(s), s, fetchedIdentity)
 
 async function getValidAccessToken(cfg, store, id, forceRefresh = false) {
   const s = await store.get(id);
   if (!s) return null;
-  if (s.iat &lt; cfg.session_valid_since) { await store.delete(id); return null; }  // forced re-login
+  if (s.iat &lt; cfg.session_valid_since) { await store.delete(id); return null; }  // forced re-login (cutoff)
+  if (!s.identity)                      { await store.delete(id); return null; }  // pre-capture: force one re-login
   if (!forceRefresh &amp;&amp; Date.now() &lt; s.expires_at - SKEW_MS) return s.access_token;
   return doRefresh(cfg, store, id, s);   // whole record, so refresh carries pinned fields
 }</code></pre>
@@ -721,9 +714,9 @@ async function getValidAccessToken(cfg, store, id, forceRefresh = false) {
     </section>
     <aside data-kind="decision-lead">
       <strong>Decision.</strong> <span class="rec">The session record carries an explicit <code>version</code> field</span>
-      (identity capture = <code>version: 2</code>, pre-identity = <code>version: 1</code>) rather than relying on a plain
-      presence check. The explicit version keeps later session-shape changes clean, and a missing/older version simply
-      triggers a backfill on next refresh.
+      (identity capture = <code>version: 2</code>, pre-capture = <code>version: 1</code>) rather than relying on a plain
+      presence check. The explicit version makes a record's shape self-describing; a pre-capture record without an
+      identity is deleted on read, forcing that browser through one fresh login.
     </aside>
     <aside data-kind="storage-note">
       <strong>Note — this is KV, not Cloudflare D1.</strong> The versioning above is for the <em>session</em> records in
@@ -2329,33 +2322,38 @@ Total Upload: 149.26 KiB / gzip: 34.68 KiB
   </section>
 
   <section data-kind="pr-card" id="pr5">
-    <h3>PR5 — Identity capture + session migration</h3>
+    <h3>PR5 — Identity capture at login</h3>
     <p class="stack-pos"><strong>Stack position:</strong> layer 5 — branches off <code>PR4</code> (<code>PR4 &lt;- PR5</code>).</p>
     <p>
       Give comments real author names. <a href="#identity"><code>completeLogin</code></a> calls <code>GET /user</code>
-      once and persists <code>{ login, name, id }</code> plus a <code>version</code> field on the session record; older
-      sessions self-heal via a <strong>lazy on-read upgrade</strong> with no forced re-auth. All writes go through the
-      single <a href="#identity-writer"><code>persist()</code></a> chokepoint, and the comment API's author stamp
-      switches from the PR4 placeholder to the captured identity.
+      once and persists <code>{ login, name, id }</code> plus a <code>version</code> field on the session record;
+      <a href="#identity-capture-fatal">capture is fatal</a> — if the call fails the login fails, nothing is persisted,
+      and the callback returns a <code>303</code> to <code>/auth/error</code>. A pre-capture record without an identity is
+      deleted on read, so that browser makes one fresh login. All writes go through the single
+      <a href="#identity-writer"><code>persist()</code></a> chokepoint, and the comment API's author stamp switches from
+      the PR4 placeholder to the captured identity.
     </p>
     <aside data-kind="validation">
-      <strong>Validate.</strong> Unit tests for the single-writer / lazy-migration path (pinned <code>iat</code>,
-      version branch, in-place upgrade); a workerd test that a real author name surfaces on a created comment.
+      <strong>Validate.</strong> Unit tests for the delete-on-read guards (the <code>SESSION_VALID_SINCE</code> cutoff and
+      the identity-less record), the fatal-capture callback path (<code>303</code> to <code>/auth/error</code>, nothing
+      persisted), and pinned <code>iat</code>; a workerd test that a real author name surfaces on a created comment.
     </aside>
     <details>
-      <summary>PR5 specifics — single writer, migration, tests</summary>
+      <summary>PR5 specifics — single writer, pre-capture records, tests</summary>
       <ul>
         <li><strong>Writer:</strong> <code>persist()</code> is the only constructor of a <code>SessionData</code>;
           <code>iat</code> is pinned (minted once, carried on refresh), <code>version</code> is stamped every write —
           see the <a href="#identity-writer">session-writer sketch</a>.</li>
-        <li><strong>Migration:</strong> identity capture ships as <code>version: 2</code>; a pre-identity record
-          (<code>version: 1</code>) triggers an on-read <code>GET /user</code> backfill using the stored token; nobody is
-          logged out.</li>
+        <li><strong>Pre-capture records:</strong> identity capture ships as <code>version: 2</code>; a pre-capture record
+          (<code>version: 1</code>, or a <code>null</code> identity) is deleted on read by
+          <code>getValidAccessToken</code> — the same delete-on-read step as the <code>SESSION_VALID_SINCE</code> cutoff —
+          forcing that browser through one fresh login. Fresh logins always carry identity because capture is fatal.</li>
         <li><strong>Stamping:</strong> the comment API now reads <code>author_login</code>/<code>author_name</code>/<code>author_id</code>
           from the session, never the body — snapshot, not a live join (see <a href="#identity-snapshot">snapshot</a>) —
           replacing PR4's placeholder.</li>
-        <li><strong>Tests:</strong> unit coverage of the migration branch and pinned <code>iat</code>; a workerd test
-          asserting the stamped author name appears on the created comment.</li>
+        <li><strong>Tests:</strong> unit coverage of the delete-on-read guards (cutoff and identity-less) and the fatal
+          callback path (<code>303</code> to <code>/auth/error</code>; nothing persisted); pinned <code>iat</code>; a
+          workerd test asserting the stamped author name appears on the created comment.</li>
       </ul>
     </details>
     <details class="validation-evidence" open>
@@ -2375,7 +2373,7 @@ CMD2 `npm run typecheck` (tsc --noEmit): exit 0, no output (clean).
 
 CMD3 `npm test` (vitest run):
  Test Files  7 passed (7)
-       Tests  92 passed (92)
+       Tests  100 passed (100)
     Duration  17.18s
 
 CMD4 `npx wrangler deploy --dry-run`:
@@ -2388,7 +2386,7 @@ CMD5 `npm run typecheck` (re-run): exit 0, no output (clean).
 
 CMD6 `npm test` (re-run):
  Test Files  7 passed (7)
-       Tests  92 passed (92)
+       Tests  100 passed (100)
     Duration  17.57s
 
 CMD7 `npx wrangler deploy --dry-run` (re-run):
@@ -2466,7 +2464,7 @@ found 0 vulnerabilities
 
 3. npm test (worker):
  Test Files  8 passed (8)
-       Tests  96 passed (96)
+       Tests  104 passed (104)
     Duration  22.26s
 
 4. npx wrangler deploy --dry-run:
@@ -2551,7 +2549,7 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
     <details class="validation-evidence" open>
       <summary>Validation evidence — d2/pr7-hosted-browser-review (gate green, 0 fix round(s))</summary>
       <ul>
-        <li><strong>Commands run:</strong> apps/htmldoc-review: npm install, tsc --noEmit, vitest run (9 files / 103 tests), wrangler deploy --dry-run, npm run sync:widget + git diff --exit-code (widget drift gate). plugins/useful-skills/skills/htmldocs: npm install, playwright install chromium, npm run check (typecheck + build + test:unit + playwright + smoke), npm run build.</li>
+        <li><strong>Commands run:</strong> apps/htmldoc-review: npm install, tsc --noEmit, vitest run (9 files / 111 tests), wrangler deploy --dry-run, npm run sync:widget + git diff --exit-code (widget drift gate). plugins/useful-skills/skills/htmldocs: npm install, playwright install chromium, npm run check (typecheck + build + test:unit + playwright + smoke), npm run build.</li>
         <li><strong>Code review:</strong> 1 finding confirmed (score 80) — PR7's diff did not add the per-card gate-green evidence block that every prior card (PR0–PR6) carries; this block is the fix.</li>
         <li><strong>Fable review:</strong> plan-fidelity approve (0 blockers), security approve (0 blockers).</li>
         <li><strong>Findings fixed:</strong> 1</li>
@@ -2565,7 +2563,7 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
 
 3. apps/htmldoc-review $ npm test  (vitest run)
     Test Files  9 passed (9)
-         Tests  103 passed (103)
+         Tests  111 passed (111)
       Duration  23.64s
 
 4. apps/htmldoc-review $ npx wrangler deploy --dry-run
@@ -2659,7 +2657,7 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
     <details class="validation-evidence" open>
       <summary>Validation evidence — d2/pr8-transport-convergence (gate green, 1 fix round(s))</summary>
       <ul>
-        <li><strong>Commands run:</strong> npm install, tsc --noEmit, vitest (105 tests), wrangler deploy --dry-run, playwright (77 tests), smoke test — all across both packages.</li>
+        <li><strong>Commands run:</strong> npm install, tsc --noEmit, vitest (113 tests), wrangler deploy --dry-run, playwright (77 tests), smoke test — all across both packages.</li>
         <li><strong>Code review:</strong> in-run pass was degraded — 3 of 5 angles (git-history, prior-PRs, code-comments) died on API 529; the surviving 2 (claude-md, bug-scan) found 0 issues. A post-run supplementary re-run of the 3 missing angles found <strong>1 behavioral regression</strong> (directory-index docs — trailing-slash URLs — could view but not save: the deleted client-side <code>index.html</code> normalization had no server-side counterpart in <code>handleCommentsApi</code>; fixed by mirroring <code>handleGet</code>'s directory rewrite, with a new Playwright regression test) plus 8 stale comment/doc references to the deleted transport (all fixed). All prior-PR contracts (widget byte-pin, shared-alias imports, injection parity, seed-forcing) verified holding.</li>
         <li><strong>Fable review:</strong> plan-fidelity → approve (0 blockers); security → approve (0 blockers); prompt-quality → fix (6 blockers found and fixed).</li>
         <li><strong>Findings fixed:</strong> 6 in-run (prompt-quality blockers; 1 fix round) + 9 from the supplementary code-review re-run (amended into this commit; both full gates re-run green after).</li>
@@ -2678,7 +2676,7 @@ $ (2) npm run typecheck [apps/htmldoc-review]
 $ (3) npm test [apps/htmldoc-review]
  RUN  v4.1.9 .../apps/htmldoc-review
  Test Files  9 passed (9)
-       Tests  105 passed (105)
+       Tests  113 passed (113)
     Duration  24.68s
 
 $ (4) npx wrangler deploy --dry-run [apps/htmldoc-review]
@@ -2898,7 +2896,7 @@ d2/pr8-transport-convergence). gt log short confirms d2/pr9-agent-api-helper is 
 
 [3] apps/htmldoc-review: npm test (vitest run)
    Test Files  9 passed (9)
-        Tests  105 passed (105)
+        Tests  113 passed (113)
      Start at  17:42:15
      Duration  21.48s
   (Using secrets defined in .dev.vars — local mocked, no real GitHub)
@@ -2936,7 +2934,7 @@ exit-3/exit-7 token-non-leak checks).</pre>
       Audit basis: d2/pr9-agent-api-helper @ 1e91478 (top of stack, tree clean; two commits past the previously
       audited 5dbfa71). Note the WSL junction — <code>/mnt/c/Users/benbu/projects/agent-extensions</code> and
       <code>/mnt/c/Users/benbu/Documents/Claude/Projects/agent-extensions</code> are the same checkout. All gates
-      re-run live: apps/htmldoc-review typecheck clean + 105/105 vitest (workers+core, Miniflare-migrated D1);
+      re-run live: apps/htmldoc-review typecheck clean + 113/113 vitest (workers+core, Miniflare-migrated D1);
       skills/htmldocs <code>npm run check</code> exit 0 (65 unit, 78 Playwright, serve.sh smoke PASS,
       comments-api.sh smoke PASS incl. token-leak guard); sync:widget left git clean (widget bundle byte-identical to the skill's dist);
       wrangler deploy --dry-run builds (265.67 KiB).
