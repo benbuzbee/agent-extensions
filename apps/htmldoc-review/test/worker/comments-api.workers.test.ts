@@ -58,8 +58,8 @@ const SEEDED_IDENTITY = { login: "octocat", name: "Mona Lisa", id: 583231 };
 
 const sessKey = (id: string) => `sess:${id}`;
 
-// Seed a v2 (identity-bearing) session so the comment ops don't trip an unmocked
-// GET /user — getIdentity returns the cached identity with no backfill.
+// Seed a v2 (identity-bearing) session — the only kind that serves requests
+// (getValidAccessToken deletes identity-less records on read).
 async function seedSession(id: string): Promise<string> {
   await env.SESSIONS.put(
     sessKey(id),
@@ -77,7 +77,7 @@ async function seedSession(id: string): Promise<string> {
 }
 
 // Seed a pre-identity (version 1) session — the Deliverable 1 record shape, with
-// NO version/iat/identity — to exercise the lazy on-read GET /user backfill.
+// NO version/iat/identity — to exercise the delete-on-read forced re-login.
 async function seedV1Session(id: string): Promise<string> {
   await env.SESSIONS.put(
     sessKey(id),
@@ -91,13 +91,6 @@ async function seedV1Session(id: string): Promise<string> {
   return id;
 }
 
-// Queue a single-use mock for the identity backfill's GET /user.
-function mockUser(identity: { login: string; name: string | null; id: number }) {
-  fetchMock
-    .get("https://api.github.com")
-    .intercept({ method: "GET", path: "/user" })
-    .reply(200, identity, { headers: { "content-type": "application/json" } });
-}
 
 /**
  * Queue a single-use mock for the checkAccess probe. The probe hits the GitHub
@@ -222,12 +215,11 @@ describe("POST single ops", () => {
     expect(row?.author_id).toBe(SEEDED_IDENTITY.id);
   });
 
-  it("lazy-upgrades a v1 session on read: GET /user backfills identity, comment shows the real name", async () => {
-    const BACKFILL = { login: "hubot", name: "Hubot", id: 776677 };
+  it("an identity-less v1 session is dead on read: 401, record deleted, NO GitHub call, no D1 write", async () => {
     await seedV1Session("s-v1");
-    mockProbe(200);
-    mockUser(BACKFILL); // the one-time on-read backfill call
-
+    // No probe and no /user mock queued: token resolution must reject the
+    // record before any GitHub call — an unmocked outbound fetch would fail
+    // the afterEach interceptor assertion.
     const res = await call(
       commentsUrl(),
       withSession("s-v1", {
@@ -235,25 +227,17 @@ describe("POST single ops", () => {
         body: JSON.stringify(createOp("from a legacy session")),
       }),
     );
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as {
-      thread: { root: { author: { login: string; name: string | null } } };
-    };
-    // The backfilled name appears on the created comment...
-    expect(body.thread.root.author.login).toBe(BACKFILL.login);
-    expect(body.thread.root.author.name).toBe(BACKFILL.name);
+    expect(res.status).toBe(401);
 
-    // ...and the KV record was upgraded IN PLACE to version 2 + identity, keeping
-    // the same tokens (a single write-back, not a new session).
-    const rec = await env.SESSIONS.get<{
-      version: number;
-      identity: { login: string; id: number } | null;
-      access_token: string;
-    }>(sessKey("s-v1"), "json");
-    expect(rec?.version).toBe(2);
-    expect(rec?.identity?.login).toBe(BACKFILL.login);
-    expect(rec?.identity?.id).toBe(BACKFILL.id);
-    expect(rec?.access_token).toBe(KNOWN_TOKEN);
+    // Deleted-on-read: the next request has no session and re-logs-in — the
+    // fresh login is what mints the identity (capture is fatal there).
+    expect(await env.SESSIONS.get(sessKey("s-v1"))).toBeNull();
+
+    // Nothing was written for the rejected create.
+    const { results } = await env.COMMENTS_DB.prepare(
+      "SELECT id FROM comments",
+    ).all();
+    expect(results).toHaveLength(0);
   });
 
   it("resolve soft-closes (row stays visible) and delete hard-purges", async () => {

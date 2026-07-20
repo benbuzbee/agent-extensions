@@ -240,9 +240,8 @@ export async function completeLogin(
 
   const safeRet = sanitizeReturnPath(ret, url.origin);
 
-  // Capture reviewer identity here, with the fresh access token (the same GET
-  // /user the lazy backfill makes for v1-era records). Capture is fatal on this
-  // path: a session is never minted without knowing who it belongs to, so a
+  // Capture reviewer identity here, with the fresh access token. Capture is
+  // fatal: a session is never minted without knowing who it belongs to, so a
   // /user failure fails the whole login BEFORE createSession — no record
   // written, no session cookie set — and the page offers a clean retry through
   // /auth/login. The message is safe to log (fetchIdentity's own text, or a

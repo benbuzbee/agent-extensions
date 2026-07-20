@@ -253,18 +253,19 @@ export default {
       // The store agrees on the 'default' sentinel for a missing ref; GitHub was
       // probed with ref-or-undefined (never the literal 'default').
       if (isComments) {
-        // Stamp the author server-side. Session path: the captured identity
-        // (lazily backfilled on read for older sessions). Bearer/agent path: a
-        // DISTINGUISHABLE placeholder ({login:"agent"}) — never the generic
-        // "unknown" — so an agent-authored audit line can't be confused with a
-        // genuinely-missing identity, and no GET /user is issued for a bearer.
+        // Stamp the author server-side. Session path: the identity captured at
+        // login (guaranteed present — getValidAccessToken deletes identity-less
+        // records on read). Bearer/agent path: the DISTINGUISHABLE
+        // {login:"agent"} placeholder; no GET /user is issued for a bearer.
         let author: Author;
         let actor: Actor;
         if (refreshSid) {
-          const identity = await getIdentity(cfg, store, refreshSid, token);
-          author = identity
-            ? { login: identity.login, name: identity.name, id: identity.id }
-            : { login: "unknown", name: null };
+          const identity = await getIdentity(store, refreshSid);
+          // The record vanished between token resolution and this read
+          // (concurrent logout/cutoff) — the session is dead; same answer as
+          // arriving with no credential.
+          if (!identity) return unauthorized();
+          author = { login: identity.login, name: identity.name, id: identity.id };
           actor = "session";
         } else {
           author = { login: "agent", name: null };

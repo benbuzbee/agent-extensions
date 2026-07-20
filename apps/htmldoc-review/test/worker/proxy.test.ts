@@ -61,17 +61,28 @@ const KNOWN_TOKEN = "gho_canned_access_token";
 const sessKey = (id: string) => `sess:${id}`;
 
 interface SeededSession {
+  version?: number;
+  iat?: number;
+  identity?: { login: string; name: string | null; id: number } | null;
   access_token: string;
   refresh_token: string;
   expires_at: number;
 }
 
-/** Seed a server-side KV session and return its id. Defaults to a non-expired token. */
+/**
+ * Seed a server-side KV session and return its id. Defaults to a non-expired
+ * token on a full v2 record — identity included, because getValidAccessToken
+ * deletes identity-less records on read (pass `identity: null` to exercise
+ * exactly that).
+ */
 async function seedSession(
   id: string,
   over: Partial<SeededSession> = {},
 ): Promise<string> {
   const data: SeededSession = {
+    version: 2,
+    iat: Date.now(),
+    identity: { login: "octocat", name: "Mona Lisa", id: 583231 },
     access_token: KNOWN_TOKEN,
     refresh_token: "refresh_canned",
     expires_at: Date.now() + 3_600_000, // 1h in the future
@@ -372,15 +383,11 @@ describe("doc route: unauthenticated", () => {
 // ===========================================================================
 describe("silent refresh (tier 1)", () => {
   it("expired access -> exactly one refresh POST -> 200, new+rotated token in KV", async () => {
-    await env.SESSIONS.put(
-      sessKey("sess-refresh"),
-      JSON.stringify({
-        access_token: "old_access",
-        refresh_token: "r1",
-        expires_at: 0, // already expired
-      }),
-      { expirationTtl: 60 },
-    );
+    await seedSession("sess-refresh", {
+      access_token: "old_access",
+      refresh_token: "r1",
+      expires_at: 0, // already expired
+    });
 
     // GitHub rotates the refresh token on refresh: new access + new refresh.
     mockTokenEndpoint(200, {
@@ -419,19 +426,37 @@ describe("silent refresh (tier 1)", () => {
 });
 
 // ===========================================================================
+// Identity-less sessions are dead on read: any record without a captured
+// identity (v1-era, or pre-fatal-capture) is deleted and the browser is sent
+// through a fresh login — no GitHub call, no lazy repair.
+// ===========================================================================
+describe("identity-less session forced re-login", () => {
+  it("doc request on an identity-less session -> 302 to login, record deleted, no GitHub call", async () => {
+    await seedSession("sess-no-identity", { identity: null });
+
+    // No probe/doc/user mocks queued: rejection must happen before ANY
+    // outbound call, or afterEach's interceptor assertion fails.
+    const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
+      redirect: "manual",
+      headers: { cookie: "sid=sess-no-identity" },
+    });
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toMatch(/\/auth\/login/);
+    expect(await env.SESSIONS.get(sessKey("sess-no-identity"))).toBeNull();
+  });
+});
+
+// ===========================================================================
 // Re-login (tier 2): dead/revoked refresh token -> 302 to login, not a 5xx.
 // ===========================================================================
 describe("re-login (tier 2)", () => {
   it("refresh token rejected (invalid_grant) -> 302 to /auth/login, session purged", async () => {
-    await env.SESSIONS.put(
-      sessKey("sess-dead"),
-      JSON.stringify({
-        access_token: "old_access",
-        refresh_token: "dead",
-        expires_at: 0,
-      }),
-      { expirationTtl: 60 },
-    );
+    await seedSession("sess-dead", {
+      access_token: "old_access",
+      refresh_token: "dead",
+      expires_at: 0,
+    });
 
     // arctic surfaces this as OAuth2RequestError -> handler bounces to re-login.
     mockTokenEndpoint(400, {

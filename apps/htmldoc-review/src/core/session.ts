@@ -7,7 +7,6 @@ import type { Config } from "./config";
 import type { Identity, SessionData, SessionId, SessionStore } from "./store";
 import { asSessionId, auditId } from "./store";
 import { refresh } from "./oauth";
-import { fetchIdentity } from "./identity";
 import * as arctic from "arctic";
 import { getLogger } from "@logtape/logtape";
 
@@ -44,14 +43,14 @@ function refreshTtlOf(tokens: arctic.OAuth2Tokens): number {
 
 /**
  * The ONLY constructor of a SessionData — every write path (new login, token
- * refresh, lazy identity backfill) routes through here, so no site can hand-build
- * a record and let the fields drift. Field provenance:
+ * refresh) routes through here, so no site can hand-build a record and let the
+ * fields drift. Field provenance:
  *   - version:  STAMPED — re-set to CURRENT_VERSION on every write.
  *   - iat:      PINNED   — minted once (prior?.iat ?? now) then carried forever;
  *               a refresh must NEVER bump it, or an active user could dodge the
  *               SESSION_VALID_SINCE cutoff by simply staying logged in.
- *   - identity: PINNED/CARRIED — kept from the prior record unless a caller
- *               supplies a fresher one (login capture, or a lazy backfill).
+ *   - identity: PINNED/CARRIED — captured at login, then kept from the prior
+ *               record on every later write.
  *   - token triple: SUPPLIED — arrives fresh from GitHub in the grant each write.
  * `prior` is the record being replaced (null = brand-new login). The KV TTL comes
  * from grant.refresh_ttl.
@@ -73,27 +72,6 @@ export async function persist(
   };
   await store.put(id, data, grant.refresh_ttl);
   return data;
-}
-
-/**
- * Build a Grant that re-persists an existing record UNCHANGED (token triple as-is)
- * — used by the lazy identity backfill, which has only the stored record, not the
- * arctic tokens. The TTL is pinned to DEFAULT_TTL, NOT a value derived from
- * expires_at (the ACCESS-token expiry) — deriving from expires_at would truncate
- * the KV record to ~hours and evict a live session; the iat cutoff, never the TTL,
- * is the logout lever. DEFAULT_TTL re-sets the full 180-day horizon on a session
- * we KNOW is live (we just used its token to fetch /user), so the upgrade can only
- * lengthen the record's life, never shorten it. A true v1 legacy record never
- * stored its refresh horizon anyway, so "read it back" is impossible — DEFAULT_TTL
- * is the safe-side floor (GitHub's own default refresh validity).
- */
-function grantFrom(record: SessionData): Grant {
-  return {
-    access_token: record.access_token,
-    refresh_token: record.refresh_token,
-    expires_at: record.expires_at,
-    refresh_ttl: DEFAULT_TTL,
-  };
 }
 
 // `identity` is REQUIRED: a session is never minted without knowing who it
@@ -167,14 +145,7 @@ async function doRefresh(
       expires_at: tokens.accessTokenExpiresAt().getTime(),
       refresh_ttl: refreshTtlOf(tokens),
     };
-    // Re-read before the write (mirrors getIdentity's TOCTOU guard): `prior`
-    // was snapshotted before the token round-trip, and a concurrent request may
-    // have backfilled identity in the meantime — persisting the stale snapshot
-    // would silently null the freshly captured identity back out. The token
-    // triple always comes from `grant` (this refresh won the rotation); only
-    // the carried fields (iat, identity) are taken from the latest record.
-    const latest = (await store.get(id)) ?? prior;
-    const next = await persist(store, id, grant, latest);
+    const next = await persist(store, id, grant, prior);
     return next.access_token;
   } catch (e) {
     // A network failure must NOT nuke the session -- let it surface as 5xx.
@@ -215,11 +186,15 @@ export async function getValidAccessToken(
   const s = await store.get(id);
   if (!s) return null;
 
-  // Forced-re-login cutoff: a record whose login-time iat predates
-  // SESSION_VALID_SINCE is deleted-on-read and treated as gone (null is already
-  // the universal "send them through login" signal, so no new logout path). A
-  // legacy record with no iat reads as 0, so bumping the cutoff catches it too.
-  if ((s.iat ?? 0) < cfg.sessionValidSince) {
+  // Delete-on-read, treated as gone (null is already the universal "send them
+  // through login" signal, so no new logout path), for two kinds of record:
+  //   - iat predating SESSION_VALID_SINCE — the operator's mass-logout lever.
+  //     A legacy record with no iat reads as 0, so bumping the cutoff catches it.
+  //   - no identity — completeLogin never mints one of these (a GET /user
+  //     failure fails the login), so an identity-less record is by definition
+  //     from before capture was fatal. Forcing it through a fresh login is what
+  //     lets every OTHER read site assume identity is present.
+  if ((s.iat ?? 0) < cfg.sessionValidSince || !s.identity) {
     await store.delete(id);
     return null;
   }
@@ -233,44 +208,18 @@ export async function getValidAccessToken(
 }
 
 /**
- * Resolve the reviewer's captured identity for session `id`, backfilling it on
- * read for a pre-identity (v1-era) record. If the record already carries an
- * identity, return it with no GitHub call. Otherwise fetch GET /user with the
- * already-resolved `token` and persist it in place (single write-back via persist,
- * upgrading version->2 and carrying the token triple + pinned iat). Backfill keys
- * on a MISSING identity, not a raw version check, so it also heals a v1-era
- * record that a token refresh re-persisted as version 2 with identity still null.
- *
- * Returns null ONLY when the record is gone. A fetchIdentity failure is NOT
- * swallowed here — it propagates (surfaces as 5xx) rather than stamping a
- * placeholder onto a real reviewer's session. The record is left untouched (no
- * delete, no placeholder write), so the next request simply retries the backfill.
+ * The identity captured on session `id` — a plain read, no GitHub call, no
+ * write-back. getValidAccessToken deletes-on-read any record without an
+ * identity, so a request that resolved a token from this session gets a
+ * non-null result here. null means the record vanished (or lost its identity
+ * to a concurrent write) since token resolution — treat it exactly like a
+ * dead session.
  */
 export async function getIdentity(
-  cfg: Config,
   store: SessionStore,
-  id: SessionId,
-  token: string
+  id: SessionId
 ): Promise<Identity | null> {
-  void cfg; // reserved for symmetry with the other session helpers; unused today
-  const record = await store.get(id);
-  if (!record) return null;
-  if (record.identity) return record.identity;
-
-  const identity = await fetchIdentity(token);
-
-  // TOCTOU guard mirroring doRefresh's re-read-before-write invariant: `record`
-  // is a snapshot taken BEFORE the /user round-trip, and a concurrent doRefresh
-  // may have rotated the token triple in the meantime. Re-read so we stamp
-  // identity onto the CURRENT record instead of clobbering the rotated tokens
-  // with our stale snapshot (which would leave the next refresh holding a dead
-  // token and force a needless re-login). If the record vanished (concurrent
-  // purge) don't resurrect it; if another request already backfilled, use theirs.
-  const fresh = await store.get(id);
-  if (!fresh) return null;
-  if (fresh.identity) return fresh.identity;
-  await persist(store, id, grantFrom(fresh), fresh, identity);
-  return identity;
+  return (await store.get(id))?.identity ?? null;
 }
 
 export async function deleteSession(store: SessionStore, id: SessionId): Promise<void> {

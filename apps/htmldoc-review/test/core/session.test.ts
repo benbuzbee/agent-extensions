@@ -1,7 +1,8 @@
 // Unit tests for the single-writer session core (PR5). Plain Node / vanilla
-// Vitest — no Miniflare: persist(), the SESSION_VALID_SINCE cutoff, and the lazy
-// identity backfill are portable logic over the SessionStore seam. The only
-// external dependency is GET /user, which we stub on globalThis.fetch. doRefresh
+// Vitest — no Miniflare: persist(), the delete-on-read guards (the
+// SESSION_VALID_SINCE cutoff and identity-less records), and the getIdentity
+// read are portable logic over the SessionStore seam. GET /user is stubbed on
+// globalThis.fetch purely to PROVE no session read ever calls it. doRefresh
 // (which reaches arctic/GitHub) is covered by the worker proxy suite instead.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
@@ -20,12 +21,9 @@ import {
 } from "../../src/core/store";
 import type { Config } from "../../src/core/config";
 
-// The safe-side backfill horizon (session.ts DEFAULT_TTL): 180 days in seconds.
-const DEFAULT_TTL = 60 * 60 * 24 * 180;
-
 // A SessionStore backed by a Map that also CAPTURES every (data, ttl) pair passed
-// to put() and every delete() — so tests can assert the backfill TTL and the
-// delete-on-read cutoff directly.
+// to put() and every delete() — so tests can assert write-backs and the
+// delete-on-read guards directly.
 class CapturingStore implements SessionStore {
   readonly map = new Map<string, SessionData>();
   readonly puts: { id: string; data: SessionData; ttl: number }[] = [];
@@ -158,7 +156,13 @@ describe("getValidAccessToken() — SESSION_VALID_SINCE cutoff", () => {
     const fetchSpy = stubUser({ ok: true, identity: IDENTITY });
     const store = new CapturingStore();
     const id = asSessionId("cut");
-    await persist(store, id, grant({ expires_at: Date.now() + 3_600_000 }), { iat: 1000 } as SessionData);
+    // identity present so the eviction below is attributable to the CUTOFF alone.
+    await persist(
+      store,
+      id,
+      grant({ expires_at: Date.now() + 3_600_000 }),
+      { iat: 1000, identity: IDENTITY } as SessionData,
+    );
     // persist pinned iat=1000 (from prior); cutoff 2000 evicts it.
     const token = await getValidAccessToken(cfg(2000), store, id);
     expect(token).toBeNull();
@@ -171,7 +175,12 @@ describe("getValidAccessToken() — SESSION_VALID_SINCE cutoff", () => {
     const fetchSpy = stubUser({ ok: true, identity: IDENTITY });
     const store = new CapturingStore();
     const id = asSessionId("live");
-    await persist(store, id, grant({ access_token: "cached", expires_at: Date.now() + 3_600_000 }), { iat: 5000 } as SessionData);
+    await persist(
+      store,
+      id,
+      grant({ access_token: "cached", expires_at: Date.now() + 3_600_000 }),
+      { iat: 5000, identity: IDENTITY } as SessionData,
+    );
     const token = await getValidAccessToken(cfg(1000), store, id);
     expect(token).toBe("cached");
     expect(store.deletes).not.toContain(id);
@@ -179,121 +188,56 @@ describe("getValidAccessToken() — SESSION_VALID_SINCE cutoff", () => {
   });
 });
 
-describe("getIdentity() — lazy on-read backfill", () => {
-  it("upgrades a v1 record in place: GET /user, write-back version 2 + identity at DEFAULT_TTL, tokens unchanged", async () => {
+describe("getValidAccessToken() — identity-less records die on read", () => {
+  it("a legacy blob with NO identity field -> deleted-on-read, null, no GitHub call", async () => {
     const fetchSpy = stubUser({ ok: true, identity: IDENTITY });
     const store = new CapturingStore();
-    const id = asSessionId("v1");
-    // A legacy (v1) blob: no version/iat/identity, just the token triple.
-    store.map.set(id, {
-      access_token: "legacy-at",
-      refresh_token: "legacy-rt",
-      expires_at: 12345,
-    } as unknown as SessionData);
-
-    const identity = await getIdentity(cfg(), store, id, "legacy-at");
-    expect(identity).toEqual(IDENTITY);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-
-    const upgraded = store.map.get(id)!;
-    expect(upgraded.version).toBe(2);
-    expect(upgraded.identity).toEqual(IDENTITY);
-    expect(upgraded.access_token).toBe("legacy-at"); // token triple carried unchanged
-    expect(upgraded.refresh_token).toBe("legacy-rt");
-    expect(upgraded.expires_at).toBe(12345);
-    expect(typeof upgraded.iat).toBe("number");
-
-    // A SINGLE write-back, and its KV TTL is DEFAULT_TTL — the safe-side horizon
-    // that can only LENGTHEN a session we just proved live, never truncate it to
-    // the access token's short expiry. This is the blocking-fix guard.
-    expect(store.puts).toHaveLength(1);
-    expect(store.puts[0].ttl).toBe(DEFAULT_TTL);
-  });
-
-  it("returns a present identity WITHOUT any GET /user", async () => {
-    const fetchSpy = stubUser({ ok: true, identity: IDENTITY });
-    const store = new CapturingStore();
-    const id = asSessionId("v2");
-    await persist(store, id, grant(), null, IDENTITY);
-    store.puts.length = 0; // ignore the seed write
-
-    const identity = await getIdentity(cfg(), store, id, "at");
-    expect(identity).toEqual(IDENTITY);
-    expect(fetchSpy).not.toHaveBeenCalled();
-    expect(store.puts).toHaveLength(0); // no write-back
-  });
-
-  it("returns null when the record is gone", async () => {
-    stubUser({ ok: true, identity: IDENTITY });
-    const store = new CapturingStore();
-    expect(await getIdentity(cfg(), store, asSessionId("missing"), "at")).toBeNull();
-  });
-
-  it("PROPAGATES a GET /user failure — no placeholder stamp, record preserved", async () => {
-    const fetchSpy = stubUser({ ok: false, status: 500 });
-    const store = new CapturingStore();
-    const id = asSessionId("v1-fail");
+    const id = asSessionId("v1-legacy");
+    // A pre-identity Deliverable 1 blob: just the token triple.
     store.map.set(id, {
       access_token: "at",
       refresh_token: "rt",
-      expires_at: 999,
+      expires_at: Date.now() + 3_600_000,
     } as unknown as SessionData);
 
-    await expect(getIdentity(cfg(), store, id, "at")).rejects.toThrow();
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    // The record is untouched: no delete, no placeholder write-back.
-    expect(store.deletes).toHaveLength(0);
-    expect(store.puts).toHaveLength(0);
-    expect(store.map.get(id)!.identity).toBeUndefined();
+    expect(await getValidAccessToken(cfg(), store, id)).toBeNull();
+    expect(store.deletes).toContain(id);
+    expect(store.map.has(id)).toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("a v2 record with identity:null (pre-fatal-capture era) -> deleted-on-read, null", async () => {
+    const store = new CapturingStore();
+    const id = asSessionId("v2-null");
+    store.map.set(id, {
+      version: 2,
+      iat: Date.now(),
+      identity: null,
+      access_token: "at",
+      refresh_token: "rt",
+      expires_at: Date.now() + 3_600_000,
+    });
+
+    expect(await getValidAccessToken(cfg(), store, id)).toBeNull();
+    expect(store.deletes).toContain(id);
   });
 });
 
-describe("doRefresh — re-read before the persist", () => {
-  // The refresh's `prior` is snapshotted before the token round-trip. If a
-  // concurrent request completes the lazy identity backfill during that
-  // round-trip, persisting the stale snapshot would null the identity back
-  // out. The re-read guard carries it instead. (The rest of doRefresh — dead
-  // grants, the rotation race — stays covered by the worker proxy suite.)
-  it("carries an identity backfilled DURING the token round-trip (never nulls it back)", async () => {
+describe("getIdentity() — plain read of the captured identity", () => {
+  it("returns the record's identity with NO GitHub call and NO write-back", async () => {
+    const fetchSpy = stubUser({ ok: true, identity: IDENTITY });
     const store = new CapturingStore();
-    const id = asSessionId("racing");
-    store.map.set(id, {
-      version: 2,
-      iat: 1111,
-      identity: null,
-      access_token: "expired-at",
-      refresh_token: "r1",
-      expires_at: Date.now() - 1000, // expired -> getValidAccessToken refreshes
-    });
+    const id = asSessionId("has-id");
+    await persist(store, id, grant(), null, IDENTITY);
+    const persistPuts = store.puts.length;
 
-    // Answer arctic's token POST; BEFORE responding, emulate the concurrent
-    // backfill landing its write.
-    const fn = vi.fn(async () => {
-      store.map.set(id, { ...store.map.get(id)!, identity: IDENTITY });
-      return new Response(
-        JSON.stringify({
-          access_token: "new-at",
-          refresh_token: "r2",
-          expires_in: 28800,
-          refresh_token_expires_in: 15897600,
-          token_type: "bearer",
-        }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
-    });
-    globalThis.fetch = fn as unknown as typeof globalThis.fetch;
+    expect(await getIdentity(store, id)).toEqual(IDENTITY);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(store.puts).toHaveLength(persistPuts); // read-only
+  });
 
-    const token = await getValidAccessToken(cfg(), store, id);
-    expect(token).toBe("new-at");
-    expect(fn).toHaveBeenCalledTimes(1);
-
-    const persisted = store.map.get(id)!;
-    // The fresh token triple wins the write...
-    expect(persisted.access_token).toBe("new-at");
-    expect(persisted.refresh_token).toBe("r2");
-    // ...but the concurrently backfilled identity is CARRIED, not nulled, and
-    // iat stays pinned.
-    expect(persisted.identity).toEqual(IDENTITY);
-    expect(persisted.iat).toBe(1111);
+  it("returns null when the record is gone", async () => {
+    const store = new CapturingStore();
+    expect(await getIdentity(store, asSessionId("missing"))).toBeNull();
   });
 });

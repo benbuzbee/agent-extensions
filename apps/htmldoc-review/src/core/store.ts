@@ -25,36 +25,30 @@ export function auditId(id: SessionId): string {
 }
 
 // Captured GitHub identity for the logged-in reviewer. Minted once from GET
-// /user (login-time in completeLogin, or a lazy on-read backfill for a
-// pre-identity record) and carried on the session for its lifetime. `name` may
-// be null (GitHub users can leave their display name blank); `id` is the stable
-// numeric key we'd reconcile on if a login is ever renamed. Never a token.
+// /user at login time (completeLogin — a capture failure fails the login) and
+// carried on the session for its lifetime. `name` may be null (GitHub users
+// can leave their display name blank); `id` is the stable numeric key we'd
+// reconcile on if a login is ever renamed. Never a token.
 export interface Identity {
   login: string;
   name: string | null;
   id: number;
 }
 
-// The session record. Two eras coexist in KV: pre-identity (version 1) records
-// shipped by Deliverable 1 lack `version`/`iat`/`identity`, so every read site
-// normalizes the missing fields (version -> 1, iat -> 0, identity -> null). The
-// type keeps them required because persist() (session.ts) is the ONLY writer and
-// always emits the full shape — a v1 record only ever exists until its first
-// read, which upgrades it in place. NB: there is no `refresh_ttl` field — the KV
-// expirationTtl is write-only (not readable back), so the lazy-upgrade path
-// derives its TTL explicitly (session.ts grantFrom) rather than round-tripping it.
+// The session record. Older records in KV can lack fields (a pre-identity
+// Deliverable 1 blob has no `version`/`iat`/`identity`), so reads normalize the
+// missing fields (version -> 1, iat -> 0, identity -> null). The type keeps
+// them required because persist() (session.ts) is the ONLY writer and always
+// emits the full shape. NB: there is no `refresh_ttl` field — the KV
+// expirationTtl is write-only (not readable back).
 export interface SessionData {
   version: number;
   iat: number;
-  // null only for a record that predates fatal identity capture: a pre-identity
-  // (v1) record, or a v2 record written back when a login-time GET /user
-  // failure was swallowed instead of failing the login — plus either of those
-  // re-persisted by a token refresh before any backfill ran (persist carries a
-  // null forward). completeLogin fails a login whose GET /user fails, so new
-  // records always carry an identity. A lingering null is fine: the next
-  // comments request lazily backfills it (session.ts getIdentity), and until
-  // then the author stamp degrades to {login:"unknown"} — comments still work,
-  // only attribution is temporarily generic.
+  // null only for a record that predates fatal identity capture (completeLogin
+  // fails a login whose GET /user fails, so it never writes one). Such records
+  // never serve a request: getValidAccessToken deletes them on read, forcing a
+  // fresh login — which is why every read site past token resolution may
+  // assume the identity is present.
   identity: Identity | null;
   access_token: string;
   refresh_token: string;

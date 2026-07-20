@@ -38,6 +38,9 @@ set -euo pipefail
 # the current time in ms and redeploy: getValidAccessToken then deletes-on-read
 # any session whose login-time iat predates the cutoff. Idempotent, no KV
 # enumeration. e.g.:  date +%s%3N  -> paste into SESSION_VALID_SINCE, then deploy.
+# (Sessions written before identity capture existed need no lever: a record
+# without a captured identity is deleted-on-read automatically, forcing that
+# one browser through a fresh login.)
 #
 # This script lives in scripts/setup/ but operates on the app root (where
 # wrangler.toml lives). We cd to the app root (two levels up) so it is in cwd.
