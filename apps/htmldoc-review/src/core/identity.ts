@@ -4,8 +4,9 @@
 // completeLogin (login-time capture) and session.ts (lazy on-read backfill of a
 // pre-identity record) call it. It NEVER returns a placeholder: a non-2xx status
 // or a network failure throws, leaving the caller to decide what to do with the
-// failure (completeLogin swallows so a transient /user error can't block login;
-// getIdentity propagates so it can't stamp a placeholder onto a real reviewer).
+// failure (completeLogin fails the whole login — a session is never minted
+// without an identity; getIdentity propagates so it can't stamp a placeholder
+// onto a real reviewer).
 // The token is used only in the Authorization header — never logged.
 import type { Identity } from "./store";
 

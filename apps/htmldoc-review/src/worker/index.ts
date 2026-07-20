@@ -1,7 +1,13 @@
 import { getValidAccessToken, getIdentity, deleteSession } from "../core/session";
-import { beginLogin, completeLogin } from "../core/oauth";
+import { beginLogin, completeLogin, sanitizeReturnPath } from "../core/oauth";
 import { fetchDoc, parseDocRequest, InvalidPathError } from "../core/docsource";
-import { neutral, setupComplete, unauthorized } from "../core/responses";
+import {
+  neutral,
+  setupComplete,
+  unauthorized,
+  loginFailed,
+  LOGIN_ERROR_PATH,
+} from "../core/responses";
 import {
   readCookie,
   clearCookieString,
@@ -25,6 +31,7 @@ const ROUTES = {
   login: "/auth/login",
   callback: "/auth/callback",
   logout: "/auth/logout",
+  error: LOGIN_ERROR_PATH,
 } as const;
 
 /**
@@ -167,6 +174,13 @@ export default {
           headers.append("Set-Cookie", clearCookieString(SESSION_COOKIE, "/"));
           return new Response(null, { status: 302, headers });
         }
+        case ROUTES.error:
+          // Refresh-safe home for the login-failure retry page: completeLogin
+          // 303s here so the browser never parks on the spent callback URL.
+          // The ?return= is user-editable, so re-sanitize before embedding.
+          return loginFailed(
+            sanitizeReturnPath(url.searchParams.get("return") ?? "/", url.origin)
+          );
       }
 
       // Everything past the /auth/* switch is either a doc view or a comments

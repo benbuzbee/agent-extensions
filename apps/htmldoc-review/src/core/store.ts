@@ -46,11 +46,15 @@ export interface Identity {
 export interface SessionData {
   version: number;
   iat: number;
-  // null in exactly two cases: a pre-identity (v1) record, or a v2 record whose
-  // login-time GET /user failed (login never blocks on identity capture). Both
-  // are fine: the next comments request lazily backfills it (session.ts
-  // getIdentity), and until then the author stamp degrades to {login:"unknown"}
-  // — comments still work, only attribution is temporarily generic.
+  // null only for a record that predates fatal identity capture: a pre-identity
+  // (v1) record, or a v2 record written back when a login-time GET /user
+  // failure was swallowed instead of failing the login — plus either of those
+  // re-persisted by a token refresh before any backfill ran (persist carries a
+  // null forward). completeLogin fails a login whose GET /user fails, so new
+  // records always carry an identity. A lingering null is fine: the next
+  // comments request lazily backfills it (session.ts getIdentity), and until
+  // then the author stamp degrades to {login:"unknown"} — comments still work,
+  // only attribution is temporarily generic.
   identity: Identity | null;
   access_token: string;
   refresh_token: string;

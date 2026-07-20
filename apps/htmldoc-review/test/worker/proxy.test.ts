@@ -137,6 +137,25 @@ function mockTokenEndpoint(status: number, body: unknown) {
     });
 }
 
+// The identity GitHub returns for the login-time GET /user capture.
+const CAPTURED_IDENTITY = { login: "octocat", name: "Mona Lisa", id: 583231 };
+
+/** Queue a single-use mock for the login-time identity capture's GET /user. */
+function mockUser(identity: { login: string; name: string | null; id: number }) {
+  fetchMock
+    .get("https://api.github.com")
+    .intercept({ method: "GET", path: "/user" })
+    .reply(200, identity, { headers: { "content-type": "application/json" } });
+}
+
+/** Queue a single-use FAILING GET /user (non-2xx) — fetchIdentity throws on it. */
+function mockUserFail(status = 500) {
+  fetchMock
+    .get("https://api.github.com")
+    .intercept({ method: "GET", path: "/user" })
+    .reply(status, "", { headers: { "content-type": "application/json" } });
+}
+
 /** Pull every Set-Cookie header out of a Response (Workers exposes getSetCookie). */
 function setCookies(res: Response): string[] {
   const anyHeaders = res.headers as unknown as {
@@ -534,7 +553,8 @@ describe("/auth/callback CSRF state mint+verify+burn", () => {
   it("valid state accepted exactly once; replay of the same state fails", async () => {
     const { nonce, cookie } = await mintState();
 
-    // First callback: valid state + a successful token exchange.
+    // First callback: valid state + a successful token exchange + the
+    // login-time identity capture's GET /user.
     mockTokenEndpoint(200, {
       access_token: "gho_first_login",
       refresh_token: "refresh_first",
@@ -542,6 +562,7 @@ describe("/auth/callback CSRF state mint+verify+burn", () => {
       refresh_token_expires_in: 15897600,
       token_type: "bearer",
     });
+    mockUser(CAPTURED_IDENTITY);
 
     const first = await SELF.fetch(
       `${ORIGIN}/auth/callback?code=goodcode&state=${nonce}`,
@@ -613,7 +634,7 @@ describe("session cookie shape + KV storage after callback", () => {
     const value = cookieValue(stateCookieLine);
     const nonce = value.split(".")[0];
 
-    // successful token exchange
+    // successful token exchange + the login-time identity capture's GET /user
     mockTokenEndpoint(200, {
       access_token: "gho_super_secret_access",
       refresh_token: "gho_super_secret_refresh",
@@ -621,6 +642,7 @@ describe("session cookie shape + KV storage after callback", () => {
       refresh_token_expires_in: 15897600,
       token_type: "bearer",
     });
+    mockUser(CAPTURED_IDENTITY);
 
     const cb = await SELF.fetch(
       `${ORIGIN}/auth/callback?code=goodcode&state=${nonce}`,
@@ -676,6 +698,161 @@ describe("session cookie shape + KV storage after callback", () => {
     expect(stored.refresh_token).toBe("gho_super_secret_refresh");
     expect(typeof stored.expires_at).toBe("number");
     expect(stored.expires_at).toBeGreaterThan(Date.now());
+    // The login-time capture lands in the record — a fresh login never persists
+    // an identity-less session.
+    expect((stored as { identity?: { login: string } }).identity?.login).toBe(
+      CAPTURED_IDENTITY.login,
+    );
+  });
+});
+
+// ===========================================================================
+// Identity capture is fatal: a login whose GET /user fails mints NOTHING —
+// no KV record, no sid cookie — and 303s off the spent callback URL to
+// /auth/error, whose retry page resumes the original destination through
+// /auth/login and survives a refresh.
+// ===========================================================================
+describe("/auth/callback identity capture failure", () => {
+  // Begin a login carrying a return path, so the retry link must round-trip it.
+  async function mintStateWithReturn(
+    returnPath = `/${DOC_URL}`,
+  ): Promise<{ state: string; cookie: string }> {
+    const res = await SELF.fetch(
+      `${ORIGIN}/auth/login?return=${encodeURIComponent(returnPath)}`,
+      { redirect: "manual" },
+    );
+    const value = cookieValue(findCookie(res, "oauth_state")!);
+    const loc = res.headers.get("location") ?? "";
+    const state = new URL(loc).searchParams.get("state")!;
+    return { state, cookie: `oauth_state=${value}` };
+  }
+
+  async function failedLogin(): Promise<Response> {
+    const { state, cookie } = await mintStateWithReturn();
+    mockTokenEndpoint(200, {
+      access_token: "gho_orphaned_access",
+      refresh_token: "gho_orphaned_refresh",
+      expires_in: 28800,
+      refresh_token_expires_in: 15897600,
+      token_type: "bearer",
+    });
+    mockUserFail(500);
+    return SELF.fetch(
+      `${ORIGIN}/auth/callback?code=goodcode&state=${encodeURIComponent(state)}`,
+      { redirect: "manual", headers: { cookie } },
+    );
+  }
+
+  it("GET /user 5xx -> 303 off the callback URL; /auth/error serves the 502 retry page", async () => {
+    const res = await failedLogin();
+
+    // Never park on the spent callback URL — a refresh there would dead-end on
+    // the CSRF guard. The browser is sent to the refresh-safe error route.
+    expect(res.status).toBe(303);
+    const loc = new URL(res.headers.get("location")!);
+    expect(loc.pathname).toBe("/auth/error");
+    expect(loc.searchParams.get("return")).toBe(`/${DOC_URL}`);
+
+    const page = await SELF.fetch(loc.toString(), { redirect: "manual" });
+    expect(page.status).toBe(502);
+    expect(page.headers.get("content-type")).toMatch(/text\/html/i);
+    const body = await page.text();
+    expect(body).toContain("Nothing was saved");
+    // The retry link re-enters login WITH the original destination.
+    expect(body).toContain(
+      `/auth/login?return=${encodeURIComponent(`/${DOC_URL}`)}`,
+    );
+  });
+
+  it("mints nothing: no sid cookie, no KV record; the spent state cookie is burned", async () => {
+    // KV carries records seeded by other tests in this suite, so prove the
+    // failed login added NOTHING rather than expecting an empty namespace.
+    const keysBefore = (await env.SESSIONS.list()).keys.length;
+    const res = await failedLogin();
+
+    expect(findCookie(res, "sid")).toBeUndefined();
+    const burned = findCookie(res, "oauth_state");
+    expect(burned).toBeTruthy();
+    expect(burned).toMatch(/Max-Age=0/i);
+    expect((await env.SESSIONS.list()).keys).toHaveLength(keysBefore);
+  });
+
+  it("a NETWORK failure on GET /user takes the same 303 (no mock queued -> fetch throws)", async () => {
+    const keysBefore = (await env.SESSIONS.list()).keys.length;
+    const { state, cookie } = await mintStateWithReturn();
+    mockTokenEndpoint(200, {
+      access_token: "gho_orphaned_access",
+      refresh_token: "gho_orphaned_refresh",
+      expires_in: 28800,
+      refresh_token_expires_in: 15897600,
+      token_type: "bearer",
+    });
+    // Deliberately NO /user interceptor: disabled net connect makes the capture
+    // fetch throw, exercising the network-error arm of the same fatal path.
+    const res = await SELF.fetch(
+      `${ORIGIN}/auth/callback?code=goodcode&state=${encodeURIComponent(state)}`,
+      { redirect: "manual", headers: { cookie } },
+    );
+
+    expect(res.status).toBe(303);
+    expect(new URL(res.headers.get("location")!).pathname).toBe("/auth/error");
+    expect(findCookie(res, "sid")).toBeUndefined();
+    expect((await env.SESSIONS.list()).keys).toHaveLength(keysBefore);
+  });
+
+  it("/auth/error re-sanitizes a tampered ?return= (off-origin value collapses to /)", async () => {
+    const res = await SELF.fetch(
+      `${ORIGIN}/auth/error?return=${encodeURIComponent("//evil.com/pwn")}`,
+      { redirect: "manual" },
+    );
+    expect(res.status).toBe(502);
+    const body = await res.text();
+    expect(body).not.toContain("evil.com");
+    expect(body).toContain(`/auth/login?return=${encodeURIComponent("/")}`);
+  });
+
+  it("a WHATWG-whitespace return path (\"/\\t/evil.com\") cannot open-redirect a successful login", async () => {
+    // WHATWG URL parsing strips ASCII tab/newline, so this value survives the
+    // startsWith prefix checks yet would resolve to https://evil.com/ — the
+    // parse-time origin check must collapse it to "/".
+    const { state, cookie } = await mintStateWithReturn("/\t/evil.com");
+    mockTokenEndpoint(200, {
+      access_token: "gho_redirect_probe",
+      refresh_token: "gho_redirect_probe_r",
+      expires_in: 28800,
+      refresh_token_expires_in: 15897600,
+      token_type: "bearer",
+    });
+    mockUser(CAPTURED_IDENTITY);
+    const res = await SELF.fetch(
+      `${ORIGIN}/auth/callback?code=goodcode&state=${encodeURIComponent(state)}`,
+      { redirect: "manual", headers: { cookie } },
+    );
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(`${ORIGIN}/`);
+  });
+
+  it("a malformed percent-encoded return segment is dropped, not a 500 (login completes to /)", async () => {
+    const { state, cookie } = await mintStateWithReturn();
+    const nonce = state.split(":")[0];
+    mockTokenEndpoint(200, {
+      access_token: "gho_truncated_link",
+      refresh_token: "gho_truncated_link_r",
+      expires_in: 28800,
+      refresh_token_expires_in: 15897600,
+      token_type: "bearer",
+    });
+    mockUser(CAPTURED_IDENTITY);
+    // "%2" is undecodable — the shape a mail client produces by truncating the
+    // callback URL. The bad segment must read as "no return path", never throw.
+    const res = await SELF.fetch(
+      `${ORIGIN}/auth/callback?code=goodcode&state=${encodeURIComponent(`${nonce}:%2`)}`,
+      { redirect: "manual", headers: { cookie } },
+    );
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(`${ORIGIN}/`);
   });
 });
 
