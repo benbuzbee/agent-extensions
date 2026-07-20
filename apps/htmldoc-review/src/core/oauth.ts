@@ -6,7 +6,7 @@
 // runs unchanged anywhere those globals exist.
 import * as arctic from "arctic";
 import type { Config } from "./config";
-import type { Identity, SessionStore } from "./store";
+import { auditId, type Identity, type SessionStore } from "./store";
 import { createSession, type Grant } from "./session";
 import { fetchIdentity } from "./identity";
 import {
@@ -215,7 +215,7 @@ export async function completeLogin(
     ret.startsWith("/") && !ret.startsWith("//") && !ret.startsWith("/\\")
       ? ret
       : "/";
-  log.info("login completed", { sessionId: sid, return: safeRet });
+  log.info("login completed", { sessionId: auditId(sid), return: safeRet });
 
   const dest = new URL(safeRet, url.origin);
   const headers = new Headers({ Location: dest.toString() });

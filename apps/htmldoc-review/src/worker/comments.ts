@@ -6,11 +6,17 @@
 // before the fork), so this function assumes the caller may see the doc.
 
 import { D1Store } from "./d1-store";
-import { handleCommentsRequest } from "@shared/api/handlers";
+import { handleCommentsRequest, type CommentsResponseBody } from "@shared/api/handlers";
 import type { Author, DocKey, OpResult } from "@shared/review-ux/types";
+import { auditId, type SessionId } from "../core/store";
 import { getLogger } from "@logtape/logtape";
 
 const log = getLogger(["htmldoc-review", "comments"]);
+
+// Which credential authorized the request: a session cookie (browser reviewer)
+// or an Authorization bearer token (agent). Decided once at index.ts's auth
+// fork and carried through for the audit log — never re-derived downstream.
+export type Actor = "bearer" | "session";
 
 /**
  * Serve one comments-API request for an already-authorized doc.
@@ -32,8 +38,8 @@ export async function handleComments(
   req: Request,
   doc: DocKey,
   author: Author,
-  sessionId: string | null,
-  actor: "bearer" | "session"
+  sessionId: SessionId | null,
+  actor: Actor
 ): Promise<Response> {
   const method = req.method.toUpperCase();
 
@@ -67,12 +73,14 @@ export async function handleComments(
 // Audit the create/resolve mutations in a response. We log identity ON PURPOSE
 // (public GitHub login/name, for "who left / resolved this" — resolve is the
 // most audit-worthy mutation, being the agent's primary verb). Tokens and the
-// session record are NEVER logged. Non-mutating GETs and other ops are skipped.
+// session record are NEVER logged, and the session id appears only as its
+// auditId prefix — the full id is the credential the cookie carries.
+// Non-mutating GETs and other ops are skipped.
 function auditMutations(
-  payload: unknown,
+  payload: CommentsResponseBody,
   author: Author,
-  sessionId: string | null,
-  actor: "bearer" | "session",
+  sessionId: SessionId | null,
+  actor: Actor,
   doc: DocKey
 ): void {
   for (const r of resultsOf(payload)) {
@@ -81,7 +89,7 @@ function auditMutations(
       author_login: author.login,
       author_name: author.name,
       actor,
-      sessionId,
+      sessionId: sessionId === null ? null : auditId(sessionId),
       repo: doc.repo,
       ref: doc.ref,
       path: doc.path,
@@ -91,14 +99,11 @@ function auditMutations(
 }
 
 // Normalize the handler payload to the OpResult list it carries: a batch is
-// {results:[...]}, a single op is the bare OpResult (has an `op` field), and a
-// GET ({threads}) / error ({error}) carries none.
-function resultsOf(payload: unknown): OpResult[] {
-  if (payload && typeof payload === "object") {
-    const p = payload as { results?: unknown; op?: unknown };
-    if (Array.isArray(p.results)) return p.results as OpResult[];
-    if (typeof p.op === "string") return [payload as OpResult];
-  }
+// {results:[...]}, a single op is the bare OpResult (the arm with an `op`
+// field), and a GET ({threads}) / error ({error}) carries none.
+function resultsOf(payload: CommentsResponseBody): OpResult[] {
+  if ("results" in payload) return payload.results;
+  if ("op" in payload) return [payload];
   return [];
 }
 

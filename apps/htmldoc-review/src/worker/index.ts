@@ -14,7 +14,7 @@ import type { Config } from "../core/config";
 import { getLogger } from "@logtape/logtape";
 import { KvSessionStore } from "./kv-store";
 import { checkAccess } from "./access";
-import { handleComments } from "./comments";
+import { handleComments, type Actor } from "./comments";
 import { initWorkerLogging } from "./logging";
 
 const log = getLogger(["htmldoc-review", "worker"]);
@@ -67,10 +67,18 @@ function configOf(env: Env): Config {
     callbackUrl: env.CALLBACK_URL,
     stateSigningKey: env.STATE_SIGNING_KEY,
     repoOrg: env.REPO_ORG,
-    // `?? 0` + Number() is honest against all three shapes (TOML integer,
-    // .dev.vars string, undefined on a not-yet-redeployed Worker).
-    sessionValidSince: Number(env.SESSION_VALID_SINCE ?? 0),
+    sessionValidSince: sessionValidSinceOf(env.SESSION_VALID_SINCE),
   };
+}
+
+// `?? 0` + Number() is honest against all three shapes (TOML integer, .dev.vars
+// string, undefined on a not-yet-redeployed Worker). The isFinite guard matters
+// because a malformed string parses to NaN, whose comparisons are always false —
+// the cutoff in getValidAccessToken would be silently disabled (fail-open).
+// Treat that misconfiguration as "no cutoff set" explicitly instead.
+function sessionValidSinceOf(raw: number | string | undefined): number {
+  const n = Number(raw ?? 0);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function loginRedirect(url: URL): Response {
@@ -237,7 +245,7 @@ export default {
         // "unknown" — so an agent-authored audit line can't be confused with a
         // genuinely-missing identity, and no GET /user is issued for a bearer.
         let author: Author;
-        let actor: "bearer" | "session";
+        let actor: Actor;
         if (refreshSid) {
           const identity = await getIdentity(cfg, store, refreshSid, token);
           author = identity

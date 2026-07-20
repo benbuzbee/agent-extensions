@@ -5,7 +5,7 @@
 // This module reaches GitHub only indirectly, through oauth.ts's `refresh`.
 import type { Config } from "./config";
 import type { Identity, SessionData, SessionId, SessionStore } from "./store";
-import { asSessionId } from "./store";
+import { asSessionId, auditId } from "./store";
 import { refresh } from "./oauth";
 import { fetchIdentity } from "./identity";
 import * as arctic from "arctic";
@@ -164,7 +164,14 @@ async function doRefresh(
       expires_at: tokens.accessTokenExpiresAt().getTime(),
       refresh_ttl: refreshTtlOf(tokens),
     };
-    const next = await persist(store, id, grant, prior);
+    // Re-read before the write (mirrors getIdentity's TOCTOU guard): `prior`
+    // was snapshotted before the token round-trip, and a concurrent request may
+    // have backfilled identity in the meantime — persisting the stale snapshot
+    // would silently null the freshly captured identity back out. The token
+    // triple always comes from `grant` (this refresh won the rotation); only
+    // the carried fields (iat, identity) are taken from the latest record.
+    const latest = (await store.get(id)) ?? prior;
+    const next = await persist(store, id, grant, latest);
     return next.access_token;
   } catch (e) {
     // A network failure must NOT nuke the session -- let it surface as 5xx.
@@ -176,18 +183,18 @@ async function doRefresh(
     const reread = await store.get(id);
     if (reread && Date.now() < reread.expires_at - SKEW_MS) {
       log.info("session refresh lost a race; using concurrently-rotated token", {
-        sessionId: id,
+        sessionId: auditId(id),
       });
       return reread.access_token;
     }
 
     // Genuinely dead refresh token: purge the session and force a full
-    // re-login. Log the session id and error class only -- never the refresh
-    // token. Preserve the original arctic error as `cause` so it is not
+    // re-login. Log the auditId prefix and error class only -- never the
+    // refresh token. Preserve the original arctic error as `cause` so it is not
     // swallowed (e.g. for a future Sentry/breadcrumb hook).
     const cause = e instanceof Error ? e : undefined;
     log.error("session refresh failed; purging session", {
-      sessionId: id,
+      sessionId: auditId(id),
       error: cause?.constructor.name ?? typeof e,
       cause: new Error("refresh token rejected", { cause }),
     });

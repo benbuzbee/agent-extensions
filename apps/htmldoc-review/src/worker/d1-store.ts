@@ -86,7 +86,14 @@ export class D1Store implements ICommentsStore {
       anchor: JSON.parse(row.anchor) as Anchor,
       root: {
         id: asCommentId(row.id),
-        author: { login: row.author_login, name: row.author_name, id: row.author_id },
+        // The placeholder 0 satisfies the NOT NULL column but is not a real
+        // GitHub id — surface it as an ABSENT id, never as a numeric one a
+        // client might treat as stable.
+        author: {
+          login: row.author_login,
+          name: row.author_name,
+          ...(row.author_id === AUTHOR_ID_PLACEHOLDER ? {} : { id: row.author_id }),
+        },
         body: row.body,
         createdAt: asTimestamp(row.created_at),
       },

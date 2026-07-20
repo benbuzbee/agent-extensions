@@ -247,3 +247,53 @@ describe("getIdentity() — lazy on-read backfill", () => {
     expect(store.map.get(id)!.identity).toBeUndefined();
   });
 });
+
+describe("doRefresh — re-read before the persist", () => {
+  // The refresh's `prior` is snapshotted before the token round-trip. If a
+  // concurrent request completes the lazy identity backfill during that
+  // round-trip, persisting the stale snapshot would null the identity back
+  // out. The re-read guard carries it instead. (The rest of doRefresh — dead
+  // grants, the rotation race — stays covered by the worker proxy suite.)
+  it("carries an identity backfilled DURING the token round-trip (never nulls it back)", async () => {
+    const store = new CapturingStore();
+    const id = asSessionId("racing");
+    store.map.set(id, {
+      version: 2,
+      iat: 1111,
+      identity: null,
+      access_token: "expired-at",
+      refresh_token: "r1",
+      expires_at: Date.now() - 1000, // expired -> getValidAccessToken refreshes
+    });
+
+    // Answer arctic's token POST; BEFORE responding, emulate the concurrent
+    // backfill landing its write.
+    const fn = vi.fn(async () => {
+      store.map.set(id, { ...store.map.get(id)!, identity: IDENTITY });
+      return new Response(
+        JSON.stringify({
+          access_token: "new-at",
+          refresh_token: "r2",
+          expires_in: 28800,
+          refresh_token_expires_in: 15897600,
+          token_type: "bearer",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    globalThis.fetch = fn as unknown as typeof globalThis.fetch;
+
+    const token = await getValidAccessToken(cfg(), store, id);
+    expect(token).toBe("new-at");
+    expect(fn).toHaveBeenCalledTimes(1);
+
+    const persisted = store.map.get(id)!;
+    // The fresh token triple wins the write...
+    expect(persisted.access_token).toBe("new-at");
+    expect(persisted.refresh_token).toBe("r2");
+    // ...but the concurrently backfilled identity is CARRIED, not nulled, and
+    // iat stays pinned.
+    expect(persisted.identity).toEqual(IDENTITY);
+    expect(persisted.iat).toBe(1111);
+  });
+});

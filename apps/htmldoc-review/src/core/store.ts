@@ -13,6 +13,17 @@ export function asSessionId(raw: string): SessionId {
   return raw as SessionId;
 }
 
+/**
+ * The ONLY form of a session id that may appear in a log line. The full id is
+ * the credential the cookie carries — logging it would put a working session
+ * token in every log sink. An 8-char prefix of the UUID (32 of 122 random bits)
+ * is useless for reconstruction but still correlates the log lines of one
+ * session.
+ */
+export function auditId(id: SessionId): string {
+  return id.slice(0, 8);
+}
+
 // Captured GitHub identity for the logged-in reviewer. Minted once from GET
 // /user (login-time in completeLogin, or a lazy on-read backfill for a
 // pre-identity record) and carried on the session for its lifetime. `name` may
@@ -35,6 +46,11 @@ export interface Identity {
 export interface SessionData {
   version: number;
   iat: number;
+  // null in exactly two cases: a pre-identity (v1) record, or a v2 record whose
+  // login-time GET /user failed (login never blocks on identity capture). Both
+  // are fine: the next comments request lazily backfills it (session.ts
+  // getIdentity), and until then the author stamp degrades to {login:"unknown"}
+  // — comments still work, only attribution is temporarily generic.
   identity: Identity | null;
   access_token: string;
   refresh_token: string;

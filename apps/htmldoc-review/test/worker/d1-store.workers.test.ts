@@ -88,6 +88,18 @@ describe("D1Store round-trips", () => {
     expect(t.replies).toEqual([]);
   });
 
+  it("an id-less author (placeholder author_id 0) reads back with NO id field", async () => {
+    const store = newStore();
+    await store.create(DOC, createOp("agent comment"), { login: "agent", name: null });
+
+    const threads = await store.list(DOC);
+    expect(threads).toHaveLength(1);
+    // The stored placeholder 0 is storage-only — it must not surface as a
+    // "real" numeric GitHub id on the way back out.
+    expect(threads[0]!.root.author).toEqual({ login: "agent", name: null });
+    expect("id" in threads[0]!.root.author).toBe(false);
+  });
+
   it("lists multiple threads in created_at order", async () => {
     const store = newStore();
     await store.create(DOC, createOp("A"), AUTHOR);
