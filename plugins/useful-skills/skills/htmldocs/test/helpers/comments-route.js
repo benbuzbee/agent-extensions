@@ -64,9 +64,9 @@ export async function seedInline(page, seed = { threads: [] }) {
 }
 
 /**
- * Inject an inline `{ threads, author }` JSON seed (HOSTED path). The extra
- * top-level `author` is what flips main.ts's chooseDeps to the hosted author.
- * (Specs re-run __init() after load so the selection sees the seed the harness
+ * Inject an inline `{ threads, author }` JSON seed carrying a real
+ * (hosted-style) author — the widget adopts whatever author its seed carries.
+ * (Specs re-run __init() after load so the wiring sees the seed the harness
  * lands on DOMContentLoaded.)
  */
 export async function seedInlineHosted(page, seed, author) {

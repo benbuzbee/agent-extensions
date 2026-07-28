@@ -17,6 +17,7 @@ import worker, { type Env } from "../../src/worker/index";
 import { injectWidget, COMMENTS_WIDGET_SRC } from "../../src/worker/inject";
 import { injectionFragment } from "@shared/review-ux/inject";
 import { injectIntoHtml } from "@shared/adapters/local/inject";
+import { LOCAL_AUTHOR } from "@shared/adapters/local/author";
 import { asThreadId, asCommentId, asTimestamp } from "@shared/review-ux/types";
 import type { Thread, Author, CommentsSeed } from "@shared/review-ux/types";
 import { fetchMock } from "./fetch-mock";
@@ -158,9 +159,10 @@ describe("unified injection (both placements emit the identical fragment)", () =
     return injectWidget(res, threads, COMMENTS_WIDGET_SRC, author)
       .text()
       .then((appended) => {
-        // Local placement: the real local adapter. Its seed carries no author
-        // by design, so its parity target is the authorless fragment.
-        const localExpected = injectionFragment(threads, COMMENTS_WIDGET_SRC);
+        // Local placement: the real local adapter. Its seed carries the fixed
+        // LOCAL_AUTHOR stamp, so its parity target is the fragment built with
+        // that author.
+        const localExpected = injectionFragment(threads, COMMENTS_WIDGET_SRC, LOCAL_AUTHOR);
         const spliced = injectIntoHtml(fixture, threads);
 
         // Placement differs, the emitted fragment is byte-identical in both.

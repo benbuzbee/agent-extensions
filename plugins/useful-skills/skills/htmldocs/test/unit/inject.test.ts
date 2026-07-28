@@ -8,6 +8,7 @@ import {
   injectionFragment,
 } from '../../src/comments/review-ux/inject';
 import { injectIntoHtml } from '../../src/comments/adapters/local/inject';
+import { LOCAL_AUTHOR } from '../../src/comments/adapters/local/author';
 import type { Thread, Author } from '../../src/comments/review-ux/types';
 import { asThreadId, asCommentId, asTimestamp } from '../../src/comments/review-ux/types';
 
@@ -88,9 +89,9 @@ describe('local injector delegates to the shared fragment', () => {
   const html = '<html><head></head><body><p>doc</p></body></html>';
   const threads = [threadWith('a comment')];
 
-  it('splices exactly injectionFragment(threads, src) before </body>', () => {
+  it('splices exactly the LOCAL_AUTHOR-stamped fragment before </body>', () => {
     const out = injectIntoHtml(html, threads);
-    const fragment = injectionFragment(threads, SRC);
+    const fragment = injectionFragment(threads, SRC, LOCAL_AUTHOR);
     // The spliced fragment lands immediately before </body>...
     expect(out).toContain(fragment + '</body>');
     // ...and removing the fragment restores the original html byte-for-byte,
@@ -101,6 +102,6 @@ describe('local injector delegates to the shared fragment', () => {
   it('appends the fragment when there is no </body>', () => {
     const bodyless = '<div>fragment doc</div>';
     const out = injectIntoHtml(bodyless, threads);
-    expect(out).toBe(bodyless + '\n' + injectionFragment(threads, SRC));
+    expect(out).toBe(bodyless + '\n' + injectionFragment(threads, SRC, LOCAL_AUTHOR));
   });
 });

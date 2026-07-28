@@ -2637,8 +2637,10 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
       <strong>on-disk sidecar format is unchanged</strong> (<code>SidecarStore</code> still reads/writes the legacy
       JSON), so existing <code>*.comments.json</code> files keep working with zero migration. Local mode thereby
       inherits per-op semantics: no more whole-file last-writer-wins between two tabs (per-op no-clobber — <em>not</em>
-      transactional; do not oversell). The seed-author runtime discriminator survives but now only picks the
-      <em>author</em>; both runtimes build the same store.
+      transactional; do not oversell). The seed-author runtime discriminator is <strong>gone</strong>: the local server
+      stamps its fixed author into the seed just as the Worker stamps the session identity, so every seed is the same
+      <code>{ threads, author }</code> shape, the widget adopts whatever author it is given (falling back to the fixed
+      local author on a malformed seed), and nothing infers hosted vs. local.
     </p>
     <p>
       <strong>Agent recipe migration (User decision):</strong> the documented agent surface for local review moves off

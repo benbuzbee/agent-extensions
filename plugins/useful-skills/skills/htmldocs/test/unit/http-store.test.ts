@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { HttpCommentsStore } from '../../src/comments/adapters/http-store';
-import { chooseDeps } from '../../src/comments/adapters/runtime-select';
 import type {
   Thread, Author, Op, CreateOp, ResolveOp, ReopenOp, DeleteOp,
 } from '../../src/comments/review-ux/types';
@@ -199,24 +198,3 @@ describe('HttpCommentsStore — error arms map non-2xx to tagged OpErrors', () =
   });
 });
 
-describe('chooseDeps — the runtime discriminator', () => {
-  it('calls the hosted builder with the seed author when present', () => {
-    const hosted = vi.fn((a: Author) => ({ store: {} as never, author: a }));
-    const local = vi.fn(() => ({ store: {} as never, author: { login: 'user', name: null } }));
-
-    chooseDeps(AUTHOR, hosted, local);
-
-    expect(hosted).toHaveBeenCalledWith(AUTHOR);
-    expect(local).not.toHaveBeenCalled();
-  });
-
-  it('calls the local builder when the seed author is null', () => {
-    const hosted = vi.fn((a: Author) => ({ store: {} as never, author: a }));
-    const local = vi.fn(() => ({ store: {} as never, author: { login: 'user', name: null } }));
-
-    chooseDeps(null, hosted, local);
-
-    expect(local).toHaveBeenCalledTimes(1);
-    expect(hosted).not.toHaveBeenCalled();
-  });
-});

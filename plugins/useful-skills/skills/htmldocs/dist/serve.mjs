@@ -5428,9 +5428,12 @@ function injectionFragment(threads, src, author) {
   return seedJsonScript(threads, author) + "\n" + widgetScriptTag(src) + "\n";
 }
 
+// src/comments/adapters/local/author.ts
+var LOCAL_AUTHOR = { login: "user", name: null };
+
 // src/comments/adapters/local/inject.ts
 function injectIntoHtml(html, threads) {
-  const blocks = injectionFragment(threads, COMMENTS_WIDGET_SRC);
+  const blocks = injectionFragment(threads, COMMENTS_WIDGET_SRC, LOCAL_AUTHOR);
   const idx = html.lastIndexOf("</body>");
   if (idx === -1) return html + "\n" + blocks;
   return html.slice(0, idx) + blocks + html.slice(idx);
@@ -6943,7 +6946,7 @@ async function handleGet(res, root, sidecarDir, urlPath) {
     await handleStatic(res, finalPath);
   }
 }
-var LOCAL_AUTHOR = { login: "user", name: null };
+var LOCAL_AUTHOR2 = { login: "user", name: null };
 async function handleCommentsApi(req, res, root, sidecarDir, urlPath, params, method) {
   let htmlPath = resolveUnderRoot(root, urlPath);
   if (!htmlPath) {
@@ -7003,7 +7006,7 @@ async function handleCommentsApi(req, res, root, sidecarDir, urlPath, params, me
     body,
     store,
     doc,
-    author: LOCAL_AUTHOR
+    author: LOCAL_AUTHOR2
   });
   sendJson(res, status, json);
 }

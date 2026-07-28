@@ -139,11 +139,13 @@ export type OpResult =
   | { ok: false; op: Op["op"]; error: OpError };
 
 // The inline seed and the GET ?comments response share ONE wire shape: the
-// internal { threads: Thread[] } view (plus an optional top-level `author`,
-// present only on the hosted path). There is no legacy shape here — the
-// legacy `*.comments.json` (de)serialization lives entirely in the Node disk
-// layer (adapters/local/legacy-format.ts), never in this shared, browser-facing
-// package.
+// internal { threads: Thread[] } view plus a top-level `author`. Every runtime
+// stamps the author (the hosted Worker from the captured session identity, the
+// local server the fixed LOCAL_AUTHOR); it is optional in the type only so a
+// degraded seed still parses — the widget falls back to LOCAL_AUTHOR. There is
+// no legacy shape here — the legacy `*.comments.json` (de)serialization lives
+// entirely in the Node disk layer (adapters/local/legacy-format.ts), never in
+// this shared, browser-facing package.
 export interface CommentsSeed {
   threads: Thread[];
   author?: Author;

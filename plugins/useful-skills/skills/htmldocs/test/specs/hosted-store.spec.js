@@ -1,17 +1,16 @@
 import { test, expect } from '@playwright/test';
 import { seedInlineHosted, interceptComments, thread } from '../helpers/comments-route.js';
 
-// Hosted-mode round trip. An author-carrying seed makes main.ts pick the hosted
-// AUTHOR (real GitHub identity). Both runtimes drive the SAME HttpCommentsStore
-// over the ?comments body-op API; this "hosted" scenario exercises the
-// seeded-author path. These specs prove the widget drives the transport end to
-// end against a stubbed ?comments server.
+// Hosted-mode round trip. The widget adopts whatever author its seed carries —
+// here a real GitHub identity, the hosted stamp. Every runtime drives the SAME
+// HttpCommentsStore over the ?comments body-op API; these specs prove the
+// widget drives the transport end to end against a stubbed ?comments server.
 //
 // Harness note: the seed lands on DOMContentLoaded (addInitScript), one tick
-// after the module's load-time selection runs; production injects the seed into
-// the parsed HTML so it is present at module load. So each spec re-runs the SAME
-// selection via __resetForTest()+__init() once the seed is in the DOM — exercising
-// the real chooseDeps path, not a test-only shortcut.
+// after the module's load-time wiring runs; production injects the seed into
+// the parsed HTML so it is present at module load. So each spec re-runs the
+// SAME wiring via __resetForTest()+__init() once the seed is in the DOM —
+// exercising the real seed-author path, not a test-only shortcut.
 
 const AUTHOR = { login: 'octocat', name: 'Mona Lisa', id: 7 };
 
