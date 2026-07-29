@@ -7,6 +7,18 @@ compatibility_date = "2025-06-01"
 # [[routes]] block below (see the README "Promote to a custom domain" section).
 workers_dev = true
 
+# The widget bundle: inject.ts imports the skill's checked-in dist/comments.mjs
+# as a STRING (the Worker serves its bytes at COMMENTS_WIDGET_SRC; the module is
+# never executed Worker-side). This scoped rule makes Wrangler treat that one
+# file as a Text module; every other .mjs still hits the implicit default
+# ESModule rule (custom rules are evaluated first, the defaults last).
+# fallthrough keeps Wrangler's DEFAULT Text rule (*.txt/*.html/*.sql) active —
+# without it, a custom rule of a type silences that type's later rules.
+[[rules]]
+type = "Text"
+globs = ["**/skills/htmldocs/dist/comments.mjs"]
+fallthrough = true
+
 # Server-side session store: { session_id -> {access_token, refresh_token, expires_at} }.
 # Native per-key TTL via put(key,val,{expirationTtl}) is the ENTIRE cleanup story. No DO/D1/cron.
 [[kv_namespaces]]

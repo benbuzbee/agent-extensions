@@ -2531,7 +2531,7 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
       to end — the gap the stack-wide exit-criteria audit flagged. The shared <a href="#widget"><code>review-ux/</code></a>
       layer is complete and needs <strong>no changes</strong>; everything here is the thin layer
       <a href="#widget-dirs"><code>adapters/hosted/</code></a> reserved (transport + identity + wiring), plus the Worker
-      serving the bundle. Four pieces: a Worker route that serves the checked-in widget bundle at the injected
+      serving the bundle. Four pieces: a Worker route that serves the skill&rsquo;s built widget bundle (its checked-in <code>dist/comments.mjs</code>, imported as a string) at the injected
       <code>WIDGET_SRC</code> path; a browser-side hosted <code>ICommentsStore</code> that drives
       <code>&lt;doc&gt;?ref=&amp;comments</code> over <code>fetch</code> with the session cookie (POST op envelopes,
       GET list — the <a href="#api">API</a> and D1 persistence already exist and are tested); hosted

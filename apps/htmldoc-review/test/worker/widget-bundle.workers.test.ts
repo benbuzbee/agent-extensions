@@ -1,6 +1,6 @@
 /// <reference types="@cloudflare/vitest-pool-workers/types" />
 // Worker suite for the PUBLIC widget-bundle route at COMMENTS_WIDGET_SRC. Proves the
-// Worker serves the checked-in dist bytes with the right content-type and auth
+// Worker serves the skill's checked-in dist bytes with the right content-type and auth
 // posture (none), issues ZERO outbound GitHub fetch, 405s a non-GET, and — the
 // load-bearing property — has no interplay with the neutral-404 non-leak
 // contract. Runs INSIDE Miniflare (like inject.workers.test.ts); GitHub is mocked
@@ -15,8 +15,10 @@ import {
 import { beforeAll, afterEach, afterAll, describe, it, expect } from "vitest";
 import worker, { type Env } from "../../src/worker/index";
 import { COMMENTS_WIDGET_SRC } from "../../src/worker/inject";
-// The exact bytes the Worker serves — the same Text-module import inject.ts uses.
-import bundleTxt from "../../src/worker/comments.mjs.txt";
+// The exact bytes the Worker serves — the same Text-module import inject.ts
+// uses (the skill's dist/comments.mjs via wrangler.toml's scoped Text rule; this
+// test doubling as runtime proof the rule holds in the workers pool).
+import expectedBundle from "../../../../plugins/useful-skills/skills/htmldocs/dist/comments.mjs";
 import { fetchMock } from "./fetch-mock";
 
 declare module "cloudflare:test" {
@@ -100,8 +102,8 @@ describe("widget-bundle route (public, doc-independent)", () => {
     expect(res.headers.get("Content-Type")).toBe("application/javascript; charset=utf-8");
     expect(res.headers.get("Cache-Control")).toBe("no-cache");
     const body = await res.text();
-    // Byte-identical to the imported Text module (which is the vendored dist).
-    expect(body).toBe(bundleTxt);
+    // Byte-identical to the imported Text module (the skill's checked-in dist).
+    expect(body).toBe(expectedBundle);
     // Sanity: it is actually the built widget, not an empty/placeholder string.
     expect(body).toContain(BANNER);
   });
