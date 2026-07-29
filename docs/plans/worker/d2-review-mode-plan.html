@@ -2861,9 +2861,10 @@ CHECK_EXIT=0
       (<code>@shared/* → plugins/…/htmldocs/src/comments/*</code>), which wrangler forwards to esbuild, tsc resolves
       natively, and the worker vitest config mirrors as a Vite <code>resolve.alias</code>. One editable copy —
       <span class="rec">the drift class is gone by construction</span> (the copy had already drifted:
-      <code>Mint</code> vs upstream's <code>IdFactory</code>; upstream wins). The widget bundle keeps riding as
-      <code>src/worker/comments.mjs.txt</code>, now refreshed by a one-line <code>sync:widget</code> copy and enforced
-      by a byte-equality test against the skill's committed <code>dist/comments.mjs</code>.
+      <code>Mint</code> vs upstream's <code>IdFactory</code>; upstream wins). The widget bundle needs no copy at all: the
+      Worker imports the skill&rsquo;s committed <code>dist/comments.mjs</code> directly as a string (the scoped
+      <code>[[rules]]</code> Text entry in <code>wrangler.toml</code>), so there is nothing to refresh and nothing to
+      gate.
     </p>
     <p>
       <strong>vendor.sh ships a prebuilt Worker, not source.</strong> It builds first
@@ -2883,10 +2884,10 @@ CHECK_EXIT=0
     </p>
     <aside data-kind="validation">
       <strong>Validate.</strong> Skill: fresh <code>npm run build</code> leaves committed <code>dist/</code> unchanged.
-      App: <code>sync:widget</code> is a no-op against git; <code>tsc --noEmit</code> now compiles the skill's shared
+      App: <code>tsc --noEmit</code> now compiles the skill's shared
       files under the app's strict flags; full vitest run (core + worker) green including the new race
-      (<code>resolve</code>/<code>reopen</code> of a concurrently-deleted thread → <code>not_found</code>), tie-order,
-      and widget-freshness tests; <code>wrangler deploy --dry-run</code> green in source mode; and the new
+      (<code>resolve</code>/<code>reopen</code> of a concurrently-deleted thread → <code>not_found</code>) and
+      tie-order tests; <code>wrangler deploy --dry-run</code> green in source mode; and the new
       <code>vendor:smoke</code> gate vendors into a temp dir, asserts the shipped shape (no <code>src/</code>,
       <code>dist/</code> tracked), passes an operator-side <code>--dry-run</code> against the
       <code>no_bundle</code> toml, and proves a re-vendor neither overwrites the operator's config nor false-nags a

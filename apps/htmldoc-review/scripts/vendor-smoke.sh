@@ -27,8 +27,8 @@ ok() { echo "ok: $*"; }
 
 # --- 2) shipped shape ---------------------------------------------------------
 [ -f "$TMP/dist/index.js" ] || fail "dist/index.js missing"
-TXT_COUNT="$(find "$TMP/dist" -name '*-comments.mjs.txt' | wc -l | tr -d ' ')"
-[ "$TXT_COUNT" = "1" ] || fail "expected exactly one dist/*-comments.mjs.txt, found $TXT_COUNT"
+WIDGET_COUNT="$(find "$TMP/dist" -name '*-comments.mjs' | wc -l | tr -d ' ')"
+[ "$WIDGET_COUNT" = "1" ] || fail "expected exactly one dist/*-comments.mjs widget module, found $WIDGET_COUNT"
 [ -f "$TMP/migrations/0001_create_comments.sql" ] || fail "migrations/0001_create_comments.sql missing"
 [ -f "$TMP/scripts/setup/deploy.sh" ] || fail "scripts/setup/deploy.sh missing"
 [ ! -e "$TMP/src" ] || fail "src/ must not ship"

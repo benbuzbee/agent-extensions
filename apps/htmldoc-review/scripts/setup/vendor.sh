@@ -80,21 +80,12 @@ if [ ! -d "$SKILL_ROOT/node_modules/zod" ]; then
   ( cd "$SKILL_ROOT" && npm install )
 fi
 
-# The checked-in widget bundle must match the skill's committed dist before it is
-# baked into the shipped Worker — otherwise the vendored copy would freeze stale
-# widget bytes. (The core test suite enforces the same equality.)
-SKILL_BUNDLE="$SKILL_ROOT/dist/comments.mjs"
-if [ -f "$SKILL_BUNDLE" ] && ! cmp -s "$APP_ROOT/src/worker/comments.mjs.txt" "$SKILL_BUNDLE"; then
-  echo "error: src/worker/comments.mjs.txt is out of date with the skill's dist/comments.mjs." >&2
-  echo "       Run 'npm run sync:widget' in $APP_ROOT and commit the result." >&2
-  exit 1
-fi
-
 # Build the Worker into a FRESH temp dir — never the app's dist/ — so stale
 # content-hashed additional modules from earlier builds can never ride along.
 # --dry-run bundles + validates without uploading, so no Cloudflare auth is
 # needed. Output: index.js + index.js.map + the content-hashed widget Text
-# module (<hash>-comments.mjs.txt) that index.js imports relatively.
+# module (<hash>-comments.mjs — the skill's dist bundle, emitted as text via
+# wrangler.toml's scoped [[rules]] entry) that index.js imports relatively.
 BUILD_DIR="$(mktemp -d)"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 echo "==> Building the Worker (wrangler deploy --dry-run --outdir)..."
@@ -124,9 +115,9 @@ copy_tree() {
 }
 # The build also emits a timestamp-stamped README.md and a source map whose
 # sourceRoot/sources embed this machine's temp and checkout paths. Neither is
-# part of the deploy upload (rules cover only **/*.txt), and shipping them would
-# dirty every re-vendor with per-run noise — exclude them so an unchanged
-# upstream re-vendors byte-identical.
+# part of the deploy upload (the module rules cover only the *-comments.mjs
+# widget Text module), and shipping them would dirty every re-vendor with
+# per-run noise — exclude them so an unchanged upstream re-vendors byte-identical.
 copy_tree "$BUILD_DIR" "$DEST/dist" --exclude README.md --exclude index.js.map
 copy_tree "$APP_ROOT/migrations" "$DEST/migrations"
 copy_tree "$APP_ROOT/scripts/setup" "$DEST/scripts/setup" --exclude vendor.sh
@@ -186,12 +177,21 @@ emit_operator_toml() {
           print "# Prebuilt deploy: dist/ ships the already-bundled Worker (index.js plus the"
           print "# content-hashed widget Text module it imports). Wrangler uploads these files"
           print "# as-is — no bundling here, no src/ in this copy. find_additional_modules picks"
-          print "# up the sidecar module; the explicit Text rule is REQUIRED on this no-bundle"
-          print "# path (unlike the bundling path, where .txt rides wrangler'\''s default rule)."
+          print "# up the sidecar module via the Text rule appended at the END of this file,"
+          print "# whose glob matches the emitted <hash>-comments.mjs name (the source-mode"
+          print "# [[rules]] entry below is inert here — its glob matches nothing in the"
+          print "# prebuilt layout)."
           print "no_bundle = true"
           print "find_additional_modules = true"
-          print "rules = [{ type = \"Text\", globs = [\"**/*.txt\"] }]"
         }
+      }
+      END {
+        print ""
+        print "# The prebuilt widget Text module (see the note under `main` above)."
+        print "[[rules]]"
+        print "type = \"Text\""
+        print "globs = [\"**/*-comments.mjs\"]"
+        print "fallthrough = true"
       }' > "$out"
 }
 
