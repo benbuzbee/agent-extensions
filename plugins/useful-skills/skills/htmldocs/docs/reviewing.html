@@ -100,10 +100,10 @@
   <p>
     The <strong>htmldoc-review Cloudflare Worker</strong>
     (<a href="../../../../../docs/proxy.html">proxy.html</a>) proxies requests for HTML documents and supports
-    <strong>Review 2.0</strong>. Review is a collaboration layer: anyone with access to a doc can leave a review on it —
-    either through the browser, via a UI the Worker injects into the page, or programmatically through the Worker's
-    HTTP API. The API and the UI are <strong>shared</strong> between the hosted Worker and a locally run server; only
-    the implementations behind them differ. This document describes how the review system works.
+    <strong>Review 2.0</strong>, a collaboration layer: anyone with access to a doc can review it — in the browser,
+    through a UI the server injects into the page, or programmatically over an HTTP API. The API and the UI are
+    <strong>shared</strong> between the hosted Worker and a locally run server; only the implementations behind them
+    differ.
   </p>
   <p>
     Because the Worker fetches each doc from GitHub as the logged-in viewer, GitHub itself is the authorization engine —
@@ -112,10 +112,8 @@
     system without that gate: it serves a file tree on <code>127.0.0.1</code> for single-user review.
   </p>
   <aside data-kind="principle">
-    <strong>One surface, two backings.</strong> A human reviews in the browser; an agent drives the same collection over
-    HTTP. Neither caller needs to know whether the doc is hosted or local — that a caller never sees the
-    implementation difference is a design goal, not an accident of the current build. The design record and the
-    PR-by-PR history live in
+    <strong>One surface, two backings.</strong> Neither caller — human in the browser or agent over HTTP — needs to know
+    whether the doc is hosted or local. The design record and PR-by-PR history live in
     <a href="../../../../../docs/plans/worker/d2-review-mode-plan.html">d2-review-mode-plan.html</a>; the local widget's
     component architecture is in <a href="review_system.html">review_system.html</a>.
   </aside>
@@ -129,16 +127,15 @@
   </p>
   <p>
     The URL up to that marker follows the ordinary proxy URL semantics — repo as the first path segment, doc path as the
-    remainder, optional <code>?ref=</code> for a branch, tag, or SHA (omit it for the repo's default branch). Those
-    semantics are documented once in
-    <a href="../../../../../docs/proxy.html#what">proxy.html § What it does</a> and are not restated here. What is unique
-    to the review system is the <code>&amp;comments</code> marker and the request/response bodies below.
+    remainder, optional <code>?ref=</code> for a branch, tag, or SHA (omit it for the repo's default branch), documented
+    in <a href="../../../../../docs/proxy.html#what">proxy.html § What it does</a>. Unique to the review system are the
+    <code>&amp;comments</code> marker and the request/response bodies below.
   </p>
 <pre><code>GET  https://&lt;host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&amp;comments
 POST https://&lt;host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&amp;comments</code></pre>
   <p>
-    <code>&amp;comments</code> is the marker that forks the request from "serve the doc" to "the comment API". If the
-    doc URL already carries a <code>?ref=</code>, keep it and append <code>&amp;comments</code>.
+    The <code>&amp;comments</code> marker forks the request from "serve the doc" to "the comment API". If the doc URL
+    already carries a <code>?ref=</code>, keep it and append <code>&amp;comments</code>.
   </p>
 
   <h3>Listing</h3>
@@ -184,9 +181,8 @@ POST https://&lt;host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&amp;comm
 
   <h3>Batching</h3>
   <p>
-    To apply several ops in a single request, POST a JSON <em>array</em> of op objects — for a single batch, to the
-    <code>&amp;comments</code> endpoint. A batch is best-effort per op (no cross-op transaction) and always returns
-    <code>207</code> with a <code>results</code> array:
+    To apply several ops in one request, POST a JSON <em>array</em> of op objects to the same endpoint. A batch is
+    best-effort per op (no cross-op transaction) and always returns <code>207</code> with a <code>results</code> array:
   </p>
 <pre><code>POST [ {op:"resolve", threadId:"a"}, {op:"resolve", threadId:"ghost"}, {op:"delete", threadId:"b"} ]
 207 { "results": [
@@ -195,30 +191,27 @@ POST https://&lt;host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&amp;comm
        { "ok": true,  "op": "delete",  "threadId": "b" }
 ] }</code></pre>
   <aside data-kind="correlation">
-    <strong>Correlating results to ops.</strong> Results always return <strong>in request order</strong>, so the i-th
-    result belongs to the i-th op — that is the primary correlation. In addition, every op that names a
-    <code>threadId</code> (<code>resolve</code>, <code>reopen</code>, <code>delete</code>, and the reserved
-    <code>reply</code>) echoes that <code>threadId</code> back in its result, including in a <em>failed</em> result's
-    <code>error</code> object. A <code>create</code> has no id by nature — a new thread's id is only assigned on success
-    — so a failed <code>create</code> carries no id and correlates by position alone.
+    <strong>Correlating results to ops.</strong> Results return <strong>in request order</strong> — the i-th result
+    belongs to the i-th op. In addition, every op that names a <code>threadId</code> (<code>resolve</code>,
+    <code>reopen</code>, <code>delete</code>) echoes it back in its result, including in a <em>failed</em> result's
+    <code>error</code> object. A <code>create</code> has no id until it succeeds, so a failed <code>create</code>
+    correlates by position alone.
   </aside>
 </article>
 
 <article id="agent" data-kind="recipe">
   <h2>How the agent uses it</h2>
   <p>
-    An agent drives comments over exactly the API above, and <strong>never sees whether the doc is local or hosted</strong>
-    — one client, one call shape, parameterized only by the doc URL (and, for a hosted doc, a bearer token). That the
-    agent is insulated from the implementation split is a design goal of the review system, not a property of any one
-    runtime.
+    An agent drives comments over exactly the API above — one client, one call shape, parameterized only by the doc URL
+    (and, for a hosted doc, a bearer token).
   </p>
   <p>
     The agent-facing prompt recipes live in
-    <a href="../references/comments.md"><code>references/comments.md</code></a>: the list → address → resolve loop, the
-    op shapes, orphan handling, and the ready-to-run <code>curl</code> forms. That file is the canonical recipe home;
-    this document is the system reference behind it. In v1 the guidance is that an agent drives
-    <code>list</code> / <code>resolve</code> / <code>reopen</code> / <code>delete</code> while <code>create</code> is
-    intended for a human in the browser — a convention, not an enforcement (see <a href="#auth">§ Authenticating</a>).
+    <a href="../references/comments.md"><code>references/comments.md</code></a>: the op shapes and ready-to-run
+    <code>curl</code> forms — the canonical recipe home, with this document
+    as the system reference behind it. The v1 convention is that an agent drives
+    <code>list</code> / <code>resolve</code> / <code>reopen</code> / <code>delete</code> while <code>create</code> is for
+    a human in the browser — a convention, not an enforcement.
   </p>
 </article>
 
@@ -226,15 +219,16 @@ POST https://&lt;host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&amp;comm
   <h2>Widget injection</h2>
   <p>
     When a reviewer opens a doc as a normal page (no <code>?comments</code>), the server returns the raw doc with the
-    review widget and an inline JSON <em>seed</em> of that doc's comments appended to <code>&lt;body&gt;</code>. The seed
-    carries every thread, open <strong>and</strong> resolved, each with its <code>resolvedAt</code>, so the page paints
-    with its comments already present — zero extra round trips for initial state. The widget mounts only when that seed
-    is present in the DOM; a page served without it renders as plain HTML.
+    review widget and an inline JSON <em>seed</em> appended to <code>&lt;body&gt;</code>. The seed is
+    <code>{ threads, author }</code>: every thread — open <strong>and</strong> resolved, each with its
+    <code>resolvedAt</code>, so the page paints with its comments already present — plus the author identity the widget
+    stamps onto new comments. The widget mounts only when the seed is present in the DOM; a page served without it
+    renders as plain HTML.
   </p>
   <p>
-    The seed is the same data the GET API returns, delivered inline for the browser's first paint. It is a rendering
-    convenience, not a second interface: drive comments through the <code>?comments</code> API, never by scraping the
-    seed. How each runtime performs the injection — and keeps the injected markup byte-identical — is in
+    The seed's threads are the same data the GET API returns, delivered inline for the browser's first paint — a
+    rendering convenience, not a second interface. Drive comments through the <code>?comments</code> API, never by
+    scraping the seed. How each runtime performs the injection, keeping the markup byte-identical, is in
     <a href="#impl">§ Implementation details</a>.
   </p>
 </article>
@@ -265,14 +259,13 @@ POST https://&lt;host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&amp;comm
   <h3>One gate, always enforced</h3>
   <p>
     Authorization has a single chokepoint: <code>checkAccess</code> in
-    <a href="../../../../../apps/htmldoc-review/src/worker/access.ts"><code>src/worker/access.ts</code></a>. It answers
-    exactly one question — "can this already-resolved token see this doc on GitHub?" — with one GitHub Contents probe.
-    It is called once, at the single post-authentication site in
+    <a href="../../../../../apps/htmldoc-review/src/worker/access.ts"><code>src/worker/access.ts</code></a>, which answers
+    one question — "can this token see this doc on GitHub?" — with one GitHub Contents probe. It is called once, at the
+    single post-authentication site in
     <a href="../../../../../apps/htmldoc-review/src/worker/index.ts"><code>src/worker/index.ts</code></a>,
-    <strong>before</strong> the request forks into "serve the doc" versus "handle the comment API". Every
-    <code>?comments</code> path therefore passes through the same gate, and it cannot be skipped by any present or future
-    branch — a malformed comment envelope still reaches the store only after the gate has cleared, so even a
-    would-be <code>400</code> is decided behind the access check.
+    <strong>before</strong> the request forks into "serve the doc" versus "the comment API". Every <code>?comments</code>
+    path therefore passes through the same gate; even a malformed envelope reaches the store only after the gate clears,
+    so a would-be <code>400</code> is still decided behind the access check.
   </p>
   <p>
     The probe grants on GitHub <code>200</code> (or a future conditional <code>304</code>); <strong>every other status,
@@ -283,13 +276,12 @@ POST https://&lt;host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&amp;comm
   </p>
 
   <aside class="risk" data-kind="identity">
-    <strong>Author attribution.</strong> The author on any comment is stamped <em>server-side</em> and can never be set
-    from the request body. For a browser session it is the reviewer's captured GitHub identity. For an agent, a
-    <strong>bearer mutation resolves the caller's real identity</strong>: the Worker issues a <code>GET /user</code> with
-    the presented token and stamps the real <code>{login, name, id}</code> onto the comment. Listing (GET) is
-    identity-free and issues no such call. The accepted cost is <strong>two upstream GitHub calls per mutation</strong> —
-    the access probe plus the <code>/user</code> lookup. Caching identity by token hash is the named future optimization;
-    it is deliberately not built in v1.
+    <strong>Author attribution.</strong> The author on any comment is stamped <em>server-side</em>, never from the
+    request body. For a browser session it is the reviewer's captured GitHub identity. For an agent, a bearer mutation
+    resolves the caller's real identity: the Worker issues <code>GET /user</code> with the presented token and stamps the
+    real <code>{login, name, id}</code>. Listing (GET) is identity-free and issues no such call. The cost is
+    <strong>two upstream GitHub calls per mutation</strong> — the access probe plus the <code>/user</code> lookup;
+    caching identity by token hash is the named future optimization, deliberately not built in v1.
   </aside>
 </article>
 
@@ -312,24 +304,19 @@ POST https://&lt;host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&amp;comm
   <p>
     Both runtimes build the injected markup from the same shared helpers, so the widget <code>&lt;script&gt;</code> tag
     and the JSON seed — including the seed's <code>&lt;/script&gt;</code>-breakout escaping — cannot drift between them.
-    The only runtime discriminator that survives at inject time is the seed's author field: present on the hosted path,
-    absent locally, which is how the browser bundle selects hosted versus local behavior. Both paths build the same HTTP
-    comment store.
+    The seed shape is identical too: <code>{ threads, author }</code>, with <code>author</code> always present — the
+    local server stamps a fixed local author, the hosted Worker the session's GitHub identity. The browser adopts
+    whatever author the seed carries and builds one <code>HttpCommentsStore</code> either way; nothing in the bundle
+    branches on runtime.
   </p>
 
   <h3 id="impl-worker">Worker specifics</h3>
   <p>
-    The Worker's comment store is scoped per <code>(repo, ref, path)</code>. Comments carry real GitHub author names,
-    captured server-side from the session or resolved from the bearer token — never from the request body. A resolved
-    comment is a <strong>soft close</strong>: its row is kept, its indicator turns green, and it stays visible, never
-    hidden. A deleted comment is a hard purge by thread id.
+    The Worker's comment store is scoped per <code>(repo, ref, path)</code>, backed by two distinct stores: sessions live
+    in Workers <strong>KV</strong> (<code>sess:&lt;id&gt;</code>, native TTL), comments in <strong>D1</strong>. They
+    evolve by different mechanisms and should not be conflated; an agent reaches only comments, through the
+    <code>?comments</code> API.
   </p>
-  <aside data-kind="scope">
-    <strong>Where each store lives.</strong> On the Worker, sessions live in Workers <strong>KV</strong>
-    (<code>sess:&lt;id&gt;</code>) with native TTL; comments live in <strong>D1</strong>. They evolve by different
-    mechanisms and should not be conflated. An agent reaches comments only through the <code>?comments</code> API — the
-    KV session store and the D1 comment store are both behind it.
-  </aside>
 </article>
 
 <aside id="related" data-kind="related">

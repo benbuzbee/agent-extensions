@@ -98,8 +98,7 @@
     User opens it, selects text in the doc body,
     clicks the Comment button that appears, and writes a note. The note is
     saved over the doc's <code>?comments</code> HTTP API and persisted to a JSON
-    sidecar under the server's sidecar directory (auto-tmp by default, or pinned
-    via <code>--sidecar-dir</code>). On its next pass the agent drives that same
+    sidecar under the server's sidecar directory. On its next pass the agent drives that same
     <code>?comments</code> API — list, resolve, delete — and addresses each
     comment via HTML edits. The sidecar file is an on-disk backup, not the
     interface.
@@ -136,48 +135,42 @@
   <section id="components-serve-sh">
     <h3><code>serve.sh</code></h3>
     <p>
-      The agent's entry into review mode. A small Bash shim next to <code>SKILL.md</code>
-      that preflights <code>node</code> on PATH, picks a free port in 8000–8099, prints
-      the <code>URL:</code> line, and execs the Node server (<code>dist/serve.mjs</code>)
+      The agent's entry into review mode. A Bash shim beside <code>SKILL.md</code>
+      that preflights <code>node</code>, picks a free port in 8000–8099, prints the
+      <code>URL:</code> line, and execs the Node server (<code>dist/serve.mjs</code>)
       bound to <code>127.0.0.1</code>. Accepts a file or a directory; either way every
-      <code>.html</code> under the served folder becomes reviewable. Optional
+      <code>.html</code> under the served folder becomes reviewable.
       <code>--sidecar-dir &lt;path&gt;</code> pins the sidecar location for resume; absent
-      it, the server picks an auto-tmp directory and announces it via the second stdout
-      line (<code>SIDECAR_DIR:</code>). Invocation contract — argument shapes, the two-line
-      stdout, what to hand User —
-      in <a href="../references/comments.md"><code>references/comments.md</code></a>.
+      it, the server picks an auto-tmp dir and announces it on a second stdout line
+      (<code>SIDECAR_DIR:</code>). Full invocation contract in
+      <a href="../references/comments.md"><code>references/comments.md</code></a>.
     </p>
   </section>
 
   <section id="components-widget">
     <h3>The widget (<code>dist/comments.mjs</code>)</h3>
     <p>
-      A single ESM artifact (~130&nbsp;KB, checked in) bundled by esbuild from TypeScript
-      sources under <code>src/comments/</code>. The server injects it at runtime —
-      pages on disk stay vanilla, with no <code>&lt;script&gt;</code> wiring required.
-      The widget mounts only when the inline JSON seed
-      (<code>#__htmldocs_comments</code>) is present in the DOM; absent seed means
-      review mode isn't active and the page renders normally.
+      A single checked-in ESM artifact bundled by esbuild from TypeScript under
+      <code>src/comments/</code>. The server injects it at runtime — pages on disk
+      stay vanilla, with no <code>&lt;script&gt;</code> wiring. The widget mounts only
+      when the inline JSON seed (<code>#__htmldocs_comments</code>) is present; absent
+      seed, the page renders normally. Bootstrap parses the seed
+      (<code>{threads, author}</code>), builds one <code>HttpCommentsStore</code>, and
+      hands it to a shared UX layer (selection popover, <code>&lt;dialog&gt;</code>
+      composer, margin gutter, highlight registration). The widget adopts whatever
+      author the seed carries — it never chooses a runtime or transport.
     </p>
-    <p>Modules:</p>
+    <p>The design seams worth naming:</p>
     <ul>
-      <li><code>main.ts</code> — bootstrap + runtime select; hands a built store to the shared mount.</li>
-      <li><code>review-ux/mount.ts</code> — the shared lifecycle (slimmed <code>CommentsWidget</code>): highlight rebuild, re-anchor, save, UI attach, unmount, test-handle wiring. It paints straight from the internal <code>{threads}</code> seed.</li>
-      <li><code>review-ux/anchor.ts</code> — encode/decode between a DOM <code>Range</code> and the W3C TextQuoteSelector triple (32-char prefix/suffix windows, Hypothesis convention). The encoder also records the ids of every <code>&lt;article&gt;</code> the selection intersects in an <code>anchor.sections</code> array — pure metadata, the decoder always searches the full document and uses prefix/suffix as the disambiguator.</li>
-      <li><code>review-ux/popover.ts</code> — the selection popover and its <code>selectionInDocBody</code> gate (any selection inside the doc body qualifies, not just inside an &lt;article&gt;).</li>
-      <li><code>review-ux/composer.ts</code> — the <code>&lt;dialog&gt;</code> body-text composer.</li>
-      <li><code>review-ux/gutter.ts</code> — margin-gutter thread bubbles, with resolved-state styling.</li>
-      <li><code>review-ux/highlight.ts</code> — CSS Custom Highlight registration + the injected stylesheet.</li>
-      <li><code>review-ux/inject.ts</code> — the shared seed/script-tag markup helpers; the internal <code>{threads}</code> seed and its <code>&lt;/script&gt;</code>-breakout escaping live here.</li>
-      <li><code>review-ux/store.ts</code> — the <code>ICommentsStore</code> seam between the shared UX and the adapters.</li>
-      <li><code>review-ux/types.ts</code> — <code>Anchor</code>, <code>Comment</code>, <code>Thread</code>, the <code>Op</code> envelope, and branded ids. No legacy shape lives here — the legacy disk format is confined to <code>adapters/local/legacy-format.ts</code>.</li>
-      <li><code>adapters/http-store.ts</code> — <code>HttpCommentsStore</code>, the shared browser HTTP client both runtimes build. Pure fetch transport: it drives every op (create/resolve/reopen/delete, batch) over <code>&lt;doc&gt;?comments</code>, addressing the collection URL derived from <code>location</code>. (The inline JSON seed is parsed by <code>review-ux/mount.ts</code> for the initial paint — the store never touches it.) Each op is one request.</li>
+      <li><code>review-ux/anchor.ts</code> — encode/decode between a DOM <code>Range</code> and the W3C TextQuoteSelector triple (32-char prefix/exact/suffix, Hypothesis convention). The encoder also records the ids of every <code>&lt;article&gt;</code> the selection intersects as <code>anchor.sections</code> — pure metadata; the decoder always searches the full document, disambiguating on prefix/suffix.</li>
+      <li><code>review-ux/store.ts</code> — the <code>ICommentsStore</code> seam between the shared UX and the transport.</li>
+      <li><code>adapters/http-store.ts</code> — <code>HttpCommentsStore</code>, the one browser HTTP client both runtimes build. Pure fetch transport: each op (create/resolve/reopen/delete, or a batch) is one request to <code>&lt;doc&gt;?comments</code>, addressing the collection URL derived from <code>location</code>. The seed feeds only the initial paint; the store never reads it.</li>
     </ul>
     <p>
       Styles inject via a constructable <code>CSSStyleSheet</code> on
-      <code>document.adoptedStyleSheets</code> with the <code>--htmldocs-cmt-*</code> prefix so
-      they cannot collide with the host doc's tokens. Highlights register as <code>Range</code>
-      objects under one named registry (<code>htmldocs-cmt</code>) in <code>CSS.highlights</code> —
+      <code>document.adoptedStyleSheets</code> under the <code>--htmldocs-cmt-*</code> prefix,
+      so they cannot collide with the host doc. Highlights register as <code>Range</code>
+      objects in one named registry (<code>htmldocs-cmt</code>) in <code>CSS.highlights</code> —
       no <code>&lt;mark&gt;</code> wrappers, no DOM rewriting.
     </p>
   </section>
@@ -187,31 +180,27 @@
     <p>
       The one comment transport, shared by the widget and the agent. The doc's own
       URL names the collection; add <code>?comments</code>. <code>GET</code> lists
-      every thread (<code>{threads}</code>); <code>POST</code> applies one op object
+      every thread (<code>{threads}</code>); <code>POST</code> applies one op
       (create/resolve/reopen/delete) or a JSON array of them (best-effort batch,
-      <code>207</code> with per-op results). The local route carries NO
-      <code>&lt;repo&gt;</code> segment — it is the doc path plus <code>?comments</code>
-      (the hosted Worker URL adds the repo). The path is validated the same way a
-      static GET is: it must resolve under <code>--root</code> to an
-      <code>.html</code> / <code>.htm</code> file. Behind the route the server's
-      <code>SidecarStore</code> does an atomic read-modify-write of the sidecar per
-      op, so a crash mid-write cannot truncate it and two tabs don't clobber
-      each other's whole-file state — see <a href="#known-friction">§ Known friction</a>.
+      <code>207</code> with per-op results). The local route is the doc path plus
+      <code>?comments</code> with no <code>&lt;repo&gt;</code> segment; the hosted Worker
+      URL adds the repo. The path is validated like a static <code>GET</code>: it must
+      resolve under <code>--root</code> to an <code>.html</code>/<code>.htm</code> file.
+      Behind the local route, <code>SidecarStore</code> does an atomic read-modify-write
+      per op — see <a href="#known-friction">§ Known friction</a>.
     </p>
   </section>
 
   <section id="components-sidecar">
     <h3>Sidecar JSON</h3>
     <p>
-      The backing store for the local <code>?comments</code> route and a durable on-disk
-      backup — not the interface. One JSON file per doc, under
-      <code>SIDECAR_DIR</code>, mirroring the doc's root-relative path
-      (<code>overview.html</code> → <code>&lt;SIDECAR_DIR&gt;/overview.comments.json</code>;
-      <code>sub/bar.html</code> → <code>&lt;SIDECAR_DIR&gt;/sub/bar.comments.json</code>).
-      Multi-doc sessions produce one sidecar per doc that received a save; they never
-      aggregate. The legacy <code>*.comments.json</code> (de)serialization — reading the
-      on-disk shape in and writing it back out unchanged (including <code>resolvedAt</code>) — lives only in
-      <code>src/comments/adapters/local/legacy-format.ts</code>, invoked from the
+      The backing store for the local <code>?comments</code> route — a durable on-disk
+      backup, not the interface. One JSON file per doc under <code>SIDECAR_DIR</code>,
+      mirroring the doc's root-relative path (<code>sub/bar.html</code> →
+      <code>&lt;SIDECAR_DIR&gt;/sub/bar.comments.json</code>). Multi-doc sessions produce
+      one sidecar per doc that received a save; they never aggregate. The on-disk
+      <code>*.comments.json</code> shape is read and written unchanged by
+      <code>src/comments/adapters/local/legacy-format.ts</code>, invoked from
       <code>SidecarStore</code>; every other layer speaks the internal
       <code>{threads}</code> shape.
     </p>
@@ -220,12 +209,12 @@
   <section id="components-agent-recipe">
     <h3>Agent recipe</h3>
     <p>
-      Entry point lives in <a href="../SKILL.md"><code>SKILL.md</code></a> § Review mode:
-      run <code>bash &lt;htmldocs-skill&gt;/serve.sh path/to/doc.html</code> in the background,
-      capture the <code>URL:</code> line, hand it to User. To read and act on comments,
-      drive the doc's <code>?comments</code> API — <code>GET</code> to list, <code>POST</code>
-      to resolve/delete. Full recipe — the one shape, the agent's verbs, orphan
-      handling — in <a href="../references/comments.md"><code>references/comments.md</code></a>.
+      Entry point in <a href="../SKILL.md"><code>SKILL.md</code></a> § Review mode: run
+      <code>serve.sh</code> in the background, capture the <code>URL:</code> line, hand it
+      to User. To read and act on comments, drive the doc's <code>?comments</code> API —
+      <code>GET</code> to list, <code>POST</code> to resolve/delete. Full recipe — the one
+      shape, the agent's verbs — in
+      <a href="../references/comments.md"><code>references/comments.md</code></a>.
     </p>
   </section>
 </article>
@@ -262,10 +251,10 @@
     <figcaption>Four phases. Widget and agent share one <code>?comments</code> API; the sidecar JSON is its on-disk backing store.</figcaption>
   </figure>
   <ol>
-    <li><strong>Inject.</strong> The server reads the current sidecar from disk and rewrites the HTML response, inserting the bundle <code>&lt;script&gt;</code> and an inline <code>&lt;script type="application/json" id="__htmldocs_comments"&gt;</code> carrying the sidecar contents. The browser loads the doc; the widget sees the seed, mounts, adopts its stylesheet, and registers existing anchors as <code>CSS.highlights</code> entries — zero network round trips for initial state.</li>
-    <li><strong>Capture.</strong> User selects text inside an <code>&lt;article&gt;</code>. The selection popover surfaces a Comment button. Clicking it calls <code>encodeAnchor(range)</code> immediately — freezing prefix/exact/suffix against the live DOM — then opens a <code>&lt;dialog&gt;</code> composer with the textarea focused.</li>
-    <li><strong>Save.</strong> Submit <code>POST</code>s one <code>{op:"create", anchor, text}</code> envelope to <code>&lt;doc&gt;?comments</code>. The server applies it via <code>SidecarStore</code> and lands the sidecar atomically under <code>SIDECAR_DIR</code>. The widget appends the returned thread to its highlights and gutter without reloading. A failed op surfaces as an error; nothing is rendered.</li>
-    <li><strong>Read-back.</strong> On the next agent turn the agent drives the same <code>?comments</code> API — <code>GET</code> to list, <code>POST</code> a resolve/delete op by thread id — and addresses each comment via HTML edits. Reloading any page re-seeds from disk, so User sees the current state. The agent's v1 verbs are list + resolve/reopen + delete (it does not author comments).</li>
+    <li><strong>Inject.</strong> The server reads the current sidecar and rewrites the HTML response, inserting the bundle <code>&lt;script&gt;</code> and an inline <code>&lt;script type="application/json" id="__htmldocs_comments"&gt;</code> carrying <code>{threads, author}</code>. The widget sees the seed, mounts, adopts its stylesheet, and registers existing anchors as <code>CSS.highlights</code> — zero network round trips for initial state.</li>
+    <li><strong>Capture.</strong> User selects text in the doc body; the popover surfaces a Comment button. Clicking it encodes the anchor immediately — freezing prefix/exact/suffix against the live DOM — then opens the composer.</li>
+    <li><strong>Save.</strong> Submit <code>POST</code>s one <code>{op:"create", anchor, text}</code> to <code>&lt;doc&gt;?comments</code>. The server persists it via <code>SidecarStore</code>; the widget appends the returned thread to its highlights and gutter without reloading. A failed op surfaces as an error and renders nothing.</li>
+    <li><strong>Read-back.</strong> On its next turn the agent drives the same API — <code>GET</code> to list, <code>POST</code> a resolve/delete op by thread id — and addresses each comment via HTML edits. Reloading any page re-seeds from disk, so User sees current state. The agent lists, resolves/reopens, and deletes; it does not author comments.</li>
   </ol>
 </article>
 
@@ -274,11 +263,10 @@
   <ul>
     <li>
       <strong>Two-tab writes are per-op, not transactional.</strong> Each save is a
-      single op that the server applies with a read-modify-write against the sidecar,
-      so two tabs don't clobber each other's whole file — every op lands. This is per-op no-clobber,
-      not a transaction: there is no cross-op isolation or locking, so a genuinely
-      concurrent read-modify-write on the same op could still race. Fine for
-      single-user localhost review. See
+      single op the server applies with a read-modify-write against the sidecar, so
+      every op lands and two tabs don't clobber each other's whole file. But there's no
+      cross-op isolation or locking, so a genuinely concurrent read-modify-write on the
+      same op could still race. Fine for single-user localhost review. See
       <a href="plans/review_server_buildout.html#decisions-last-writer-wins">plans/review_server_buildout.html § Decisions</a>.
     </li>
     <li>
