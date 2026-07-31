@@ -17,11 +17,11 @@ export const COMMENTS_WIDGET_SRC = `${WIDGET_BASE}/comments.mjs`;
  * unicode escape `\u003c` (not an HTML entity like &lt;) so a `</script>`
  * inside a comment body can't break out of the JSON block.
  *
- * `author` is OPTIONAL. When omitted the seed is `{ threads }` (the local path,
- * which never stamps an author). The hosted Worker supplies the captured
- * session author, merged as a top-level field — the discriminator main.ts uses
- * to select the deps (both runtimes build the same store; only the author
- * differs).
+ * `author` is OPTIONAL at this helper's level — omitting it yields a bare
+ * `{ threads }` seed. In practice every server stamps one: the local server
+ * passes LOCAL_AUTHOR, the hosted Worker the captured session author. The
+ * widget adopts whatever author the seed carries (falling back to LOCAL_AUTHOR
+ * for a missing/malformed seed); both runtimes build the same store.
  */
 export function seedJsonScript(threads: Thread[], author?: Author): string {
   const seed = author === undefined ? { threads } : { threads, author };

@@ -1,14 +1,10 @@
 // HttpCommentsStore — THE shared browser-side ICommentsStore for BOTH runtimes.
 //
 // A pure HTTP transport with nothing runtime-specific in it: it drives the
-// `<doc>?ref=<ref>&comments` body-op API over `fetch` with the session cookie
-// (`credentials: 'same-origin'`) and unwraps the server's OpResults so the
-// shared widget sees identical observable behavior whichever server answers —
-// the local route (backed by SidecarStore) or the hosted Worker (backed by
-// D1Store). Success returns the arm's value, failure throws an `.opError`-tagged
-// Error, and reply/edit throw 'op not yet supported'. It touches only
-// fetch/location/URL at runtime (no DOM, no rendering): all comment semantics
-// live server-side behind the API.
+// `<doc>?ref=<ref>&comments` body-op API over `fetch` and unwraps the server's
+// OpResults, so the shared widget sees identical observable behavior whichever
+// server answers. The two servers: the local route in serve.ts (backed by
+// SidecarStore) and the hosted Worker api (backed by D1Store).
 
 import type { ICommentsStore } from '../review-ux/store';
 import type {

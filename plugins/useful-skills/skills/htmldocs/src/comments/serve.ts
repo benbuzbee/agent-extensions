@@ -198,7 +198,9 @@ async function handleGetBundle(res: http.ServerResponse): Promise<void> {
 // seed is the internal { threads } view: we load through a SidecarStore so the
 // legacy disk shape is converted to Thread[] INSIDE the disk layer, never
 // browser-side. Read fresh per request so reloads always reflect on-disk state.
-async function handleHtmlInject(res: http.ServerResponse, root: string, sidecarDir: string, htmlPath: string): Promise<void> {
+// `urlPath` is the request's root-relative URL path — the DocKey speaks URL
+// paths (the same key handleCommentsApi builds), never filesystem paths.
+async function handleHtmlInject(res: http.ServerResponse, root: string, sidecarDir: string, htmlPath: string, urlPath: string): Promise<void> {
   let html: string;
   try {
     html = await fs.readFile(htmlPath, 'utf-8');
@@ -215,7 +217,7 @@ async function handleHtmlInject(res: http.ServerResponse, root: string, sidecarD
     },
     docLabel,
   );
-  const threads = await store.list({ repo: '', ref: 'default', path: stripQueryHash(htmlPath) });
+  const threads = await store.list({ repo: '', ref: 'default', path: stripQueryHash(urlPath) });
   const injected = injectIntoHtml(html, threads);
   send(res, 200, injected, { 'Content-Type': MIME['.html']!, 'Cache-Control': 'no-cache' });
 }
@@ -246,7 +248,7 @@ async function handleGet(res: http.ServerResponse, root: string, sidecarDir: str
   }
   const ext = path.extname(finalPath).toLowerCase();
   if (ext === '.html' || ext === '.htm') {
-    await handleHtmlInject(res, root, sidecarDir, finalPath);
+    await handleHtmlInject(res, root, sidecarDir, finalPath, urlPath);
   } else {
     await handleStatic(res, finalPath);
   }

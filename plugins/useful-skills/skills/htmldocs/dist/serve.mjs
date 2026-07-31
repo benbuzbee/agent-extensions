@@ -6525,15 +6525,7 @@ function errorToOpError(err) {
   return { code: "transient", message };
 }
 function opThreadId(op) {
-  switch (op.op) {
-    case "resolve":
-    case "reopen":
-    case "delete":
-    case "reply":
-      return op.threadId;
-    default:
-      return void 0;
-  }
+  return "threadId" in op ? op.threadId : void 0;
 }
 function withOpThreadId(op, error) {
   if (error.threadId !== void 0) return error;
@@ -6880,7 +6872,7 @@ async function handleGetBundle(res) {
     send(res, 500, "comments.mjs not found next to serve.mjs in dist/");
   }
 }
-async function handleHtmlInject(res, root, sidecarDir, htmlPath) {
+async function handleHtmlInject(res, root, sidecarDir, htmlPath, urlPath) {
   let html;
   try {
     html = await fs.readFile(htmlPath, "utf-8");
@@ -6901,7 +6893,7 @@ async function handleHtmlInject(res, root, sidecarDir, htmlPath) {
     },
     docLabel
   );
-  const threads = await store.list({ repo: "", ref: "default", path: stripQueryHash(htmlPath) });
+  const threads = await store.list({ repo: "", ref: "default", path: stripQueryHash(urlPath) });
   const injected = injectIntoHtml(html, threads);
   send(res, 200, injected, { "Content-Type": MIME[".html"], "Cache-Control": "no-cache" });
 }
@@ -6941,7 +6933,7 @@ async function handleGet(res, root, sidecarDir, urlPath) {
   }
   const ext = path.extname(finalPath).toLowerCase();
   if (ext === ".html" || ext === ".htm") {
-    await handleHtmlInject(res, root, sidecarDir, finalPath);
+    await handleHtmlInject(res, root, sidecarDir, finalPath, urlPath);
   } else {
     await handleStatic(res, finalPath);
   }

@@ -3,11 +3,11 @@
 //
 //   - `thread(fields)` — build one internal Thread seed object from concise
 //     fields (the shape the inline seed + GET ?comments response carry).
-//   - `seedInline(page, seed)` — inject the inline JSON seed `{ threads }` (the
-//     LOCAL path; no author, so main.ts selects the local deps).
+//   - `seedInline(page, seed)` — inject the inline JSON seed `{ threads }` (an
+//     author-less seed; main.ts falls back to LOCAL_AUTHOR).
 //   - `seedInlineHosted(page, seed, author)` — inject `{ threads, author }`; the
-//     top-level `author` is the discriminator main.ts uses to auto-select the
-//     hosted deps (real GitHub identity).
+//     widget adopts the seed's author as its identity (a hosted-style real
+//     GitHub identity).
 //   - `interceptComments(page, opts)` — `page.route` on the `?comments` API URL
 //     (matched by the query param, NOT a path glob — a glob would also catch the
 //     `comments.mjs` bundle) capturing POST op envelopes and serving the body-op
@@ -16,8 +16,8 @@
 //     getCalls() (each call records method + url + parsed body) and getThreads().
 //
 // The seed IS the internal { threads } shape — there is no browser-side legacy
-// conversion. The two runtimes differ only in the seed's optional author and in
-// which server answers the ?comments API.
+// conversion. The two runtimes differ only in which author the server stamps
+// into the seed and in which server answers the ?comments API.
 
 /**
  * Build one internal Thread seed object. `resolvedAt` is a numeric epoch-ms
@@ -89,6 +89,13 @@ async function injectSeed(page, json) {
   }, json);
 }
 
+// Match by the `?comments` query param, not a URL glob: `**/*comments*` would
+// also intercept the widget bundle request (`dist/comments.mjs`) and serve it
+// JSON, breaking the module load. ONE shared const: Playwright's unroute
+// compares function matchers by reference, so route/unroute must be handed the
+// same function object or the unroute silently removes nothing.
+const matchCommentsUrl = (url) => url.searchParams.has('comments');
+
 /**
  * Route-intercept the `?comments` API. Serves the body-op API from an in-memory
  * Map<threadId, Thread>, so a create -> resolve round trip persists across calls
@@ -102,10 +109,7 @@ export async function interceptComments(page, opts = {}) {
   const calls = [];
   let counter = 0;
 
-  // Match by the `?comments` query param, not a URL glob: `**/*comments*` would
-  // also intercept the widget bundle request (`dist/comments.mjs`) and serve it
-  // JSON, breaking the module load.
-  await page.route((url) => url.searchParams.has('comments'), async (route) => {
+  await page.route(matchCommentsUrl, async (route) => {
     const req = route.request();
     const method = req.method();
     const url = new URL(req.url()).pathname;
@@ -177,8 +181,8 @@ export async function interceptComments(page, opts = {}) {
      * (no restore — failure mode persists until the page navigates away). Used
      * to exercise the widget's transient-failure / rollback path. */
     breakWrites: async () => {
-      await page.unroute((url) => url.searchParams.has('comments'));
-      await page.route((url) => url.searchParams.has('comments'), async (route) => {
+      await page.unroute(matchCommentsUrl);
+      await page.route(matchCommentsUrl, async (route) => {
         if (route.request().method() === 'POST') {
           await fulfillJson(route, 500, { ok: false, op: 'create', error: { code: 'transient', message: 'simulated write failure 500' } });
           return;

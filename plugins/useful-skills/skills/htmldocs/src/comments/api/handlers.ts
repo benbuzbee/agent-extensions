@@ -21,19 +21,12 @@ function errorToOpError(err: unknown): OpError {
   return { code: 'transient', message };
 }
 
-/** The threadId an op names, or undefined. resolve/reopen/delete/reply each
- *  target an existing thread by id; create mints its id server-side and edit
- *  names a commentId, so neither carries a threadId. */
+/** The threadId an op names, or undefined — a LEGITIMATE arm, not an error:
+ *  create mints its id server-side and edit names a commentId, so neither
+ *  carries one. Structural (`in`) rather than a switch over op kinds, so a
+ *  future threadId-bearing op is picked up without touching this function. */
 function opThreadId(op: Op): ThreadId | undefined {
-  switch (op.op) {
-    case 'resolve':
-    case 'reopen':
-    case 'delete':
-    case 'reply':
-      return op.threadId;
-    default:
-      return undefined;
-  }
+  return 'threadId' in op ? op.threadId : undefined;
 }
 
 /** Ensure a failed op's error echoes the threadId the op named. A `not_found`
