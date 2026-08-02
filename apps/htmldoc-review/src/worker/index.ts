@@ -21,6 +21,8 @@ import { getLogger } from "@logtape/logtape";
 import { KvSessionStore } from "./kv-store";
 import { checkAccess } from "./access";
 import { handleComments, type Actor } from "./comments";
+import { D1Store } from "./d1-store";
+import { buildSeedModel, injectWidget, COMMENTS_WIDGET_SRC } from "./inject";
 import { initWorkerLogging } from "./logging";
 
 const log = getLogger(["htmldoc-review", "worker"]);
@@ -107,6 +109,38 @@ function bearerToken(req: Request): string | null {
   return token.length > 0 ? token : null;
 }
 
+// The caller's credential, decided ONCE at the auth fork in the handler and
+// carried explicitly from there. Downstream code switches on `kind` — never on
+// the nullness of a session id — so "who is calling" reads as what it is: a
+// browser session (refreshable, carries a login-captured identity) or an agent
+// bearer token (no session, nothing to refresh).
+type Credential =
+  | { kind: "session"; id: SessionId; token: string }
+  | { kind: "bearer"; token: string };
+
+// Resolve the author to stamp on a mutation (comments branch) or seed onto a
+// doc view (injection). Session credential: the identity captured at login —
+// guaranteed present on any record that resolved a token (identity-less
+// records die on read in getValidAccessToken); a null return means the record
+// vanished since, i.e. a dead session, and each caller picks its own
+// dead-session answer. Bearer credential: the DISTINGUISHABLE {login:"agent"}
+// placeholder — never a generic "unknown" — and NO GET /user is issued.
+// Factored so the comments branch and the doc-view seed resolve identically.
+async function resolveAuthor(
+  store: KvSessionStore,
+  cred: Credential
+): Promise<{ author: Author; actor: Actor } | null> {
+  if (cred.kind === "session") {
+    const identity = await getIdentity(store, cred.id);
+    if (!identity) return null;
+    return {
+      author: { login: identity.login, name: identity.name, id: identity.id },
+      actor: "session",
+    };
+  }
+  return { author: { login: "agent", name: null }, actor: "bearer" };
+}
+
 // Serve a single doc, transparently re-authing once on a 401. The first fetch
 // uses whatever access token we already have; if GitHub says 401 the token is
 // stale/revoked, so we force ONE refresh and retry. A second 401 (or a dead
@@ -187,28 +221,28 @@ export default {
       // API call on that same doc — one catch-all, forking on ?comments.
       const isComments = url.searchParams.has("comments");
 
-      // Resolve the caller's GitHub token. An agent presents a bearer header
+      // Resolve the caller's credential. An agent presents a bearer header
       // (used directly, no session/refresh); the widget presents the session
       // cookie (proactively refreshed on expiry). Bearer wins if both are sent.
       const bearer = bearerToken(req);
       const sid = readCookie(req, SESSION_COOKIE);
-      const sessionId = sid ? asSessionId(sid) : null;
-      let token: string | null;
-      // The session id serveDoc may refresh against — only when the token came
-      // FROM that session (a bearer has no session to refresh).
-      let refreshSid: SessionId | null;
+      let cred: Credential | null = null;
       if (bearer) {
-        token = bearer;
-        refreshSid = null;
-      } else {
-        token = sessionId
-          ? await getValidAccessToken(cfg, store, sessionId)
-          : null;
-        refreshSid = sessionId;
+        cred = { kind: "bearer", token: bearer };
+      } else if (sid) {
+        const sessionId = asSessionId(sid);
+        const sessionToken = await getValidAccessToken(cfg, store, sessionId);
+        if (sessionToken) cred = { kind: "session", id: sessionId, token: sessionToken };
       }
-      // No credential: the API surface gets an honest 401; a browser doc view
-      // 302s to login. Both are uniform + pre-probe, so neither leaks existence.
-      if (!token) return isComments ? unauthorized() : loginRedirect(url);
+      // No usable credential (none presented, or a dead/expired/identity-less
+      // session): the API surface gets an honest 401; a browser doc view 302s
+      // to login. Both are uniform + pre-probe, so neither leaks existence.
+      if (!cred) return isComments ? unauthorized() : loginRedirect(url);
+      // The session id serveDoc may refresh against — only a session credential
+      // has one (a bearer has no session to refresh). `token` is mutable for
+      // the one forced-refresh retry below.
+      const refreshSid = cred.kind === "session" ? cred.id : null;
+      let token = cred.token;
 
       // Repo = first path segment, doc path = remainder; branch/tag/SHA = ?ref=.
       let repo: string;
@@ -253,24 +287,13 @@ export default {
       // The store agrees on the 'default' sentinel for a missing ref; GitHub was
       // probed with ref-or-undefined (never the literal 'default').
       if (isComments) {
-        // Stamp the author server-side. Session path: the identity captured at
-        // login (guaranteed present — getValidAccessToken deletes identity-less
-        // records on read). Bearer/agent path: the DISTINGUISHABLE
-        // {login:"agent"} placeholder; no GET /user is issued for a bearer.
-        let author: Author;
-        let actor: Actor;
-        if (refreshSid) {
-          const identity = await getIdentity(store, refreshSid);
-          // The record vanished between token resolution and this read
-          // (concurrent logout/cutoff) — the session is dead; same answer as
-          // arriving with no credential.
-          if (!identity) return unauthorized();
-          author = { login: identity.login, name: identity.name, id: identity.id };
-          actor = "session";
-        } else {
-          author = { login: "agent", name: null };
-          actor = "bearer";
-        }
+        // Stamp the author server-side (never read from the body). A dead
+        // session here (record vanished since token resolution) is
+        // unauthorized — the same answer any credential-less comments request
+        // gets; the doc-view seed below instead just omits the author.
+        const resolved = await resolveAuthor(store, cred);
+        if (!resolved) return unauthorized();
+        const { author, actor } = resolved;
         return await handleComments(
           env.COMMENTS_DB,
           req,
@@ -280,7 +303,28 @@ export default {
           actor,
         );
       }
-      return await serveDoc(cfg, store, url, refreshSid, token, repo, docPath, ref);
+
+      // Doc view. Serve the raw doc, then — on a 200 HTML response only — append
+      // the review widget + an inline JSON seed of this doc's comments (open AND
+      // resolved). The access-denied / neutral-404 path returned BEFORE serveDoc
+      // and is never rewritten.
+      const res = await serveDoc(cfg, store, url, refreshSid, token, repo, docPath, ref);
+      // Header values are case-insensitive — normalize before matching so an
+      // upstream emitting `Text/HTML` still gets the widget.
+      const ctype = (res.headers.get("Content-Type") ?? "").toLowerCase();
+      if (res.status !== 200 || !ctype.includes("text/html")) return res;
+
+      const threads = await new D1Store(env.COMMENTS_DB).list({
+        repo,
+        ref: ref ?? "default",
+        path: docPath,
+      });
+      const model = buildSeedModel(threads, docPath);
+      // A dead session here (record vanished since token resolution) must not
+      // break a doc VIEW that already served — seed without an author instead.
+      // No GitHub call is involved: resolveAuthor only reads the session record.
+      const author = (await resolveAuthor(store, cred))?.author;
+      return injectWidget(res, model, COMMENTS_WIDGET_SRC, author);
     } catch (err) {
       // A safeSegments InvalidPathError raised from inside fetchDoc launders to
       // the same neutral 404 as a parse-time one.

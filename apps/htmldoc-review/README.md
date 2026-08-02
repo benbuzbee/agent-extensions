@@ -76,20 +76,23 @@ Do not rename these:
 | Var | `REPO_ORG` | GitHub org/owner this Worker is scoped to |
 | Var | `GITHUB_CLIENT_ID` | GitHub App client id (non-secret; `deploy.sh` fills it) |
 | Var | `CALLBACK_URL` | `https://<your-host>/auth/callback` |
+| Var | `SESSION_VALID_SINCE` | optional ms-epoch forced-re-login cutoff; sessions minted before it are evicted on read (`0`/unset = disabled) |
 | Secret | `GITHUB_CLIENT_SECRET` | GitHub App client secret (`wrangler secret put`) |
 | Secret | `STATE_SIGNING_KEY` | HMAC key for the signed OAuth `state` nonce (`wrangler secret put`) |
 | KV binding | `SESSIONS` | server-side session store |
+| D1 binding | `COMMENTS_DB` | comment store for the review API; database `htmldoc-review-comments`, schema from `migrations/` — API design in [`d2-review-mode-plan.html`](../../docs/plans/worker/d2-review-mode-plan.html), agent walkthrough in the skill's [`hosted_review.html`](../../plugins/useful-skills/skills/htmldocs/docs/hosted_review.html) |
 
 ## Running tests
 
 ```sh
 cp .dev.vars.example .dev.vars   # one-time: fake local secrets (must exist before typegen)
 npm run cf-typegen                # generate worker-configuration.d.ts (reads .dev.vars for Env)
-npm test                          # full proxy + auth suite
+npm test                          # full proxy + auth + comment-API suite
 npm run typecheck                 # tsc --noEmit
 ```
 
-- Tests never hit real GitHub and need no real credentials — all GitHub fetches are mocked.
+- Components with a Cloudflare Worker implementation are tested **inside the Workers runtime** via `@cloudflare/vitest-pool-workers` (the `*.workers.test.ts` files, against real Miniflare KV/D1).
+- Tests never hit real GitHub and need no real credentials — all GitHub fetches are mocked (`test/worker/fetch-mock.ts`).
 - Do **not** add `nodejs_compat` to `wrangler.toml` — `arctic` runs on Workers-native Fetch + Web Crypto.
 
 For manual / pre-ship checks the unattended suite can't cover, see [d1-spikes.md](../../docs/plans/worker/d1-spikes.md).

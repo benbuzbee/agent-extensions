@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>htmldocs hosted review 2.0 — driving it as an agent</title>
+<style>
+  :root {
+    --bg: #fdfdfc;
+    --fg: #1a1a1a;
+    --muted: #6a6a6a;
+    --accent: #2a5d9f;
+    --border: #d8d8d4;
+    --code-bg: #f3f3ef;
+    --aside-bg: #f7f3e9;
+    --aside-border: #d9c98a;
+    --risk-bg: #fbeee6;
+    --risk-border: #d99a6b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --fg: #e6e6e6;
+      --muted: #9aa0a6;
+      --accent: #7fb1ff;
+      --border: #2a2e36;
+      --code-bg: #161a21;
+      --aside-bg: #1d1a10;
+      --aside-border: #5a4a16;
+      --risk-bg: #2a1a12;
+      --risk-border: #8a4a20;
+    }
+  }
+  html { color-scheme: light dark; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 860px;
+    margin: 2rem auto;
+    padding: 0 1.25rem;
+  }
+  h1, h2, h3 { line-height: 1.25; }
+  h1 { font-size: 1.65rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  h3 { font-size: 1.02rem; margin: 1.25rem 0 .35rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  p.meta { color: var(--muted); font-size: .88rem; margin: .25rem 0 1rem; }
+  nav.toc { border: 1px solid var(--border); border-radius: 6px; padding: .5rem .9rem; margin: 1rem 0 1.5rem; background: var(--code-bg); }
+  nav.toc ol { margin: .25rem 0; padding-left: 1.25rem; }
+  nav.toc li { margin: .1rem 0; }
+  article { margin: 1.5rem 0; }
+  section { margin: .9rem 0; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: .65rem .8rem;
+    overflow-x: auto;
+    font-size: .87rem;
+  }
+  code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+  :not(pre) > code { background: var(--code-bg); padding: .05rem .3rem; border-radius: 3px; }
+  table { border-collapse: collapse; margin: .5rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .3rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  aside {
+    background: var(--aside-bg);
+    border-left: 3px solid var(--aside-border);
+    padding: .55rem .85rem;
+    margin: 1.5rem 0;
+    border-radius: 0 4px 4px 0;
+  }
+  aside.risk { background: var(--risk-bg); border-left-color: var(--risk-border); }
+  details { margin: .5rem 0; }
+  details summary { cursor: pointer; color: var(--accent); }
+</style>
+</head>
+<body>
+
+<h1>htmldocs hosted review 2.0 — driving it as an agent</h1>
+<p class="meta" data-updated="2026-07-03" data-status="pass-1" data-audience="agent">Pass-1 doc · hosted review behind a Cloudflare Worker · authored for agent parsing and human reading</p>
+
+<nav class="toc" aria-label="Table of contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#overview">What this is</a></li>
+    <li><a href="#surface">The API surface</a></li>
+    <li><a href="#auth">Authenticating</a></li>
+    <li><a href="#ops">Operations</a></li>
+    <li><a href="#recipe">Agent recipe — list → address → resolve</a></li>
+    <li><a href="#injection">Doc-view widget injection</a></li>
+    <li><a href="#neutral404">The neutral 404</a></li>
+    <li><a href="#forward">Forward-looking / deferred</a></li>
+    <li><a href="#related">Related</a></li>
+  </ol>
+</nav>
+
+<article id="overview" data-kind="overview">
+  <h2>What this is</h2>
+  <p>
+    Hosted review 2.0 is the local review widget (<a href="review_system.html">review_system.html</a>) lifted onto the
+    org-wide <strong>htmldoc-review Cloudflare Worker</strong> (<a href="../../../../../docs/proxy.html">the Deliverable 1
+    proxy layer</a>). The Worker already fronts a GitHub org and serves each private HTML doc by fetching it from the
+    GitHub Contents API <em>as the logged-in viewer</em>, so GitHub itself is the authorization engine. Deliverable 2
+    adds a durable, multi-user <strong>comment layer</strong> on top: reviewers comment in the browser, comments persist
+    in <strong>Cloudflare D1</strong> (one shared database, migrated from day one via
+    <code>migrations/0001_create_comments.sql</code>), and an <strong>agent with a GitHub token can drive the same
+    comment collection over an HTTP API</strong> — list a doc's comments, resolve or delete them by id — without ever
+    opening a browser.
+  </p>
+  <p>
+    The comment store is scoped per <code>(repo, ref, path)</code>. Comments carry real GitHub author names (captured
+    server-side from the session, never from the request body). A resolved comment is a <strong>soft close</strong>: its
+    row is kept, its indicator turns green, and it <em>stays visible</em> — never hidden. A deleted comment is a hard
+    purge by thread id.
+  </p>
+  <aside data-kind="scope">
+    <strong>Where each store lives.</strong> Sessions stay in Workers <strong>KV</strong> (<code>sess:&lt;id&gt;</code>);
+    comments live in <strong>D1</strong>. They evolve by different mechanisms — do not conflate them. The agent NEVER
+    reads comments off a disk file the way the local sidecar flow does; the hosted store is only reachable through the
+    <code>?comments</code> API below.
+  </aside>
+</article>
+
+<article id="surface" data-kind="api">
+  <h2>The API surface</h2>
+  <p>
+    Comments are body-ops over <strong>one collection URL</strong> — the doc's own URL with a <code>?comments</code>
+    marker. There is no separate comment path:
+  </p>
+<pre><code>GET  https://&lt;worker-host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&amp;comments
+POST https://&lt;worker-host&gt;/&lt;repo&gt;/&lt;doc-path&gt;?ref=&lt;ref&gt;&amp;comments</code></pre>
+  <ul>
+    <li><code>&lt;repo&gt;</code> — the first URL path segment (the org/owner is fixed per Worker via <code>REPO_ORG</code>
+      and is never in the URL). <em>Note: the hosted URL carries a <code>&lt;repo&gt;</code> segment; the LOCAL review
+      server does not — it serves a file tree, not a repo.</em></li>
+    <li><code>&lt;doc-path&gt;</code> — the repo-relative path to the <code>.html</code> doc (the URL remainder).</li>
+    <li><code>?ref=</code> — optional branch / tag / SHA. <strong>Omit it for the repo's default branch.</strong> A missing
+      <code>ref</code> is stored and queried as the literal string <code>default</code> (never an empty string or a
+      resolved branch name), so listing and mutating agree on the same collection — just omit <code>ref</code> to target
+      the default branch.</li>
+    <li><code>&amp;comments</code> — the marker that forks this request from "serve the doc" to "the comment API".</li>
+  </ul>
+  <p>
+    <strong>GET</strong> returns the doc's full comment set:
+  </p>
+<pre><code>200 { "threads": [ Thread, ... ] }   // ordered by created_at, open AND resolved</code></pre>
+  <p>A <code>Thread</code> is:</p>
+<pre><code>{
+  "id":        "&lt;threadId&gt;",
+  "anchor":    { "exact": "...", "prefix"?: "...", "suffix"?: "...", "sections"?: ["..."] },
+  "root":      { "id": "&lt;commentId&gt;", "author": { "login": "...", "name": "..."|null, "id"?: 0 },
+                 "body": "...", "createdAt": 1720000000000 },
+  "replies":   [],
+  "resolvedAt": 1720000009999 | null      // epoch-ms; null == open, a number == resolved
+}</code></pre>
+  <aside data-kind="types">
+    <strong>Timestamps are epoch-milliseconds numbers end to end</strong> (<code>createdAt</code>, <code>resolvedAt</code>)
+    — never ISO strings on this API. <code>author.id</code> is the stable GitHub numeric id, present on hosted comments.
+    <code>replies</code> is always <code>[]</code> in v1 (threads are single-comment).
+  </aside>
+</article>
+
+<article id="auth" data-kind="auth">
+  <h2>Authenticating</h2>
+  <p>Every <code>?comments</code> request must be authenticated. Two credentials, one gate:</p>
+  <table>
+    <thead><tr><th>Caller</th><th>Credential</th><th>Header / cookie</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Browser widget (a human reviewer)</td>
+        <td>the Worker session</td>
+        <td><code>Cookie: sid=&lt;session&gt;</code> (set by the OAuth login; refreshed transparently)</td>
+      </tr>
+      <tr>
+        <td><strong>Agent</strong> (you)</td>
+        <td>a GitHub token (PAT or installation token)</td>
+        <td><code>Authorization: Bearer &lt;github-token&gt;</code></td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    Bearer wins if both are present. The bearer token is used <em>as-is</em> against GitHub — there is no session to
+    refresh. It must be able to read the target doc on GitHub (that is exactly what the access gate below checks). A
+    request with <strong>no credential</strong> gets an honest <code>401 {"error":"authentication required"}</code> —
+    uniform across every path, so it leaks nothing about whether the doc exists.
+  </p>
+  <aside class="risk" data-kind="identity">
+    <strong>Author attribution.</strong> The author on any comment you create is stamped <em>server-side</em> and can
+    never be set from the request body. An agent's bearer-authored mutation is attributed to a distinguishable
+    placeholder <code>{"login":"agent"}</code> (never the generic "unknown"), and agent resolves are audit-logged. Note
+    the v1 rule below: the agent surface is <strong>list + resolve/reopen + delete — NOT create</strong>.
+  </aside>
+</article>
+
+<article id="ops" data-kind="ops">
+  <h2>Operations</h2>
+  <p>
+    <code>POST</code> a single op object, or a JSON <em>array</em> of op objects for a batch. The v1 op set:
+  </p>
+  <table>
+    <thead><tr><th>op</th><th>Body</th><th>Effect</th><th>Agent v1?</th></tr></thead>
+    <tbody>
+      <tr><td><code>create</code></td><td><code>{op:"create", anchor:{exact, prefix?, suffix?, sections?}, text, clientOpId?}</code></td><td>New anchored thread</td><td>No (reviewer-only)</td></tr>
+      <tr><td><code>resolve</code></td><td><code>{op:"resolve", threadId}</code></td><td>Soft-close: stamp <code>resolvedAt</code>, keep the row, indicator → green, stays visible</td><td><strong>Yes</strong></td></tr>
+      <tr><td><code>reopen</code></td><td><code>{op:"reopen", threadId}</code></td><td>Clear <code>resolvedAt</code> (idempotent)</td><td><strong>Yes</strong></td></tr>
+      <tr><td><code>delete</code></td><td><code>{op:"delete", threadId}</code></td><td>Hard purge by thread id</td><td><strong>Yes</strong></td></tr>
+      <tr><td><code>reply</code> / <code>edit</code></td><td>—</td><td>Envelope-reserved: parsed then rejected <code>400 {"error":"op not yet supported"}</code></td><td>No (reserved)</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Single-op responses:</strong></p>
+<pre><code>200 { "ok": true, "op": "resolve", "thread": Thread }        // resolve / reopen
+200 { "ok": true, "op": "delete",  "threadId": "..." }       // delete
+200 { "ok": true, "op": "create",  "thread": Thread }        // create (reviewer)
+404 { "ok": false, "op": "resolve", "error": { "code": "not_found", "threadId": "..." } }
+400 { "error": "op not yet supported" }                      // a single reserved op
+400 { "error": "&lt;why&gt;" }                                    // malformed envelope (BEFORE any store write)</code></pre>
+  <p>
+    <strong>Batch</strong> (a JSON array) is best-effort per op — no cross-op transaction — and always returns
+    <code>207</code> with results <em>in request order</em>:
+  </p>
+<pre><code>POST [ {op:"resolve", threadId:"a"}, {op:"resolve", threadId:"ghost"}, {op:"delete", threadId:"b"} ]
+207 { "results": [
+       { "ok": true,  "op": "resolve", "thread": {...} },
+       { "ok": false, "op": "resolve", "error": { "code": "not_found", "threadId": "ghost" } },
+       { "ok": true,  "op": "delete",  "threadId": "b" }
+] }</code></pre>
+  <aside data-kind="probe-cost">
+    <strong>Batch clears the access probe once.</strong> The gate probes GitHub exactly once per request, so a batch of
+    N ops pays one probe, not N. Prefer a batch when you have several ops for the same doc.
+  </aside>
+</article>
+
+<article id="recipe" data-kind="recipe">
+  <h2>Agent recipe — list → address → resolve</h2>
+  <p>
+    The intended agent loop over a doc under review: <strong>list</strong> the open threads, <strong>address</strong>
+    each one by editing the underlying HTML (the fix lives in the doc, not in a comment reply — <code>reply</code> is
+    reserved in v1), then <strong>resolve</strong> the thread so its indicator turns green while it stays visible for the
+    reviewer to audit. <code>delete</code> only when a thread is truly moot (a hard purge, unauditable).
+  </p>
+  <p><strong>1. List</strong> the doc's comments (open threads have <code>resolvedAt: null</code>):</p>
+<pre><code>curl -s -H "Authorization: Bearer $GH_TOKEN" \
+  "https://&lt;worker-host&gt;/&lt;repo&gt;/docs/foo.html?comments" | jq '.threads[] | select(.resolvedAt == null)'</code></pre>
+  <p>
+    For each open thread, read <code>anchor.exact</code> (with <code>anchor.prefix</code>/<code>suffix</code> as context)
+    to find the pinned span in the doc, and <code>root.body</code> for the reviewer's note.
+  </p>
+  <p><strong>2. Address</strong> it by editing the doc's HTML to satisfy the note (normal file edits, then reship the doc).</p>
+  <p><strong>3. Resolve</strong> the thread once addressed:</p>
+<pre><code>curl -s -X POST -H "Authorization: Bearer $GH_TOKEN" \
+  -d '{"op":"resolve","threadId":"&lt;id&gt;"}' \
+  "https://&lt;worker-host&gt;/&lt;repo&gt;/docs/foo.html?comments"</code></pre>
+  <p>Or resolve several at once with a batch array. Use <code>reopen</code> to undo, <code>delete</code> to purge.</p>
+  <aside class="risk" data-kind="v1-rule">
+    <strong>No agent <code>create</code> in v1.</strong> Creating comments is a reviewer (browser) affordance. The API
+    does not structurally block a bearer <code>create</code> today, but it is deliberately out of the agent's v1 verb
+    set — a bearer-authored create would land a <code>{"login":"agent"}</code> row. Stick to list / resolve / reopen /
+    delete.
+  </aside>
+</article>
+
+<article id="injection" data-kind="injection">
+  <h2>Doc-view widget injection</h2>
+  <p>
+    When a reviewer opens a doc (a normal doc view, no <code>?comments</code>), the Worker serves the raw doc and — on a
+    <strong><code>200</code> <code>text/html</code> response only</strong> — appends the review widget plus an inline
+    JSON <em>seed</em> of that doc's comments (open <strong>and</strong> resolved, each carrying its
+    <code>resolved_at</code>) to <code>&lt;body&gt;</code> via <code>HTMLRewriter</code>. The page therefore paints with
+    its comments already present, zero extra round trips. The local server produces the byte-identical fragment by
+    string-splicing before <code>&lt;/body&gt;</code> — both call the same shared
+    <code>seedJsonScript</code>/<code>widgetScriptTag</code> helpers, so the injected markup can't drift between
+    runtimes, and the seed's <code>&lt;/script&gt;</code>-breakout escaping lives once in the shared helper.
+  </p>
+  <p>This matters to an agent only as context: the seed is the same data the GET API returns, delivered inline for the browser. Drive comments through the API, not by scraping the seed.</p>
+</article>
+
+<article id="neutral404" data-kind="authz">
+  <h2>The neutral 404</h2>
+  <p>
+    Before serving a doc or touching the comment store, the Worker runs a single <strong>access probe</strong>: one
+    GitHub Contents request with the caller's token, status line only, once per request (a batch clears it once for all
+    its ops). GitHub <code>200</code> (or a future <code>304</code>) means the caller can see the doc; <strong>every
+    other status — including both <code>403</code> and <code>404</code> — collapses to the same neutral
+    <code>404</code></strong> with the body <code>Not found or no access</code>. A doc you can't see is
+    indistinguishable from one that doesn't exist, so <strong>comments never leak a doc's existence</strong>. The
+    neutral-404 path emits no widget and no seed. A credential-less request is the one exception: it gets a
+    <code>401</code> (authenticate), still pre-probe, still non-leaking.
+  </p>
+</article>
+
+<article id="forward" data-kind="forward-looking">
+  <h2>Forward-looking / deferred</h2>
+  <ul>
+    <li><strong>The hosted browser widget bundle isn't served yet.</strong> The injected widget <code>&lt;script
+      src&gt;</code> points at a placeholder path the hosted Worker does not yet serve; live browser review on a hosted
+      doc, the hosted browser HTTP store, and runtime selection are a deliberate, human-in-the-loop follow-up. The API
+      surface and the injected-markup contract are what ship and are tested now.</li>
+    <li><strong>Discovery / prompting integration.</strong> This doc is pass-1; whether the <code>SKILL.md</code> pointer
+      is the right or only way an agent finds this flow is revisited as the skill's review flow tightens.</li>
+    <li><strong>Probe caching.</strong> A short-TTL per-<code>(caller, repo, ref, path)</code> probe cache is a
+      documented lever if bursty agent runs ever pressure GitHub's rate limit — not built in v1.</li>
+    <li><strong>reply / edit.</strong> Reserved in the op envelope; a future deliverable can light them up without a
+      schema change.</li>
+  </ul>
+</article>
+
+<aside id="related" data-kind="related">
+  <strong>Related:</strong>
+  <a href="../../../../../docs/plans/worker/d2-review-mode-plan.html">d2-review-mode-plan.html</a> — the Deliverable 2 design &amp; PR stack ·
+  <a href="../../../../../docs/proxy.html">proxy.html</a> — the Deliverable 1 proxy layer, in depth ·
+  <a href="../../../../../apps/htmldoc-review/README.md">htmldoc-review README</a> — deploy, config, and the comment-API reference ·
+  <a href="review_system.html">review_system.html</a> — the local review widget this reuses ·
+  <a href="../references/comments.md"><code>references/comments.md</code></a> — the local sidecar schema &amp; agent recipe (the model for this API) ·
+  <a href="../SKILL.md"><code>SKILL.md</code></a> § Review mode — the discovery pointer.
+</aside>
+
+</body>
+</html>
