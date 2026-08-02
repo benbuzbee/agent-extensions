@@ -5414,6 +5414,23 @@ function isYargsInstance(y) {
 var Yargs = YargsFactory(esm_default);
 var yargs_default = Yargs;
 
+// src/comments/review-ux/types.ts
+var asThreadId = (raw) => raw;
+var asCommentId = (raw) => raw;
+var asTimestamp = (ms) => ms;
+function parseAuthor(raw) {
+  if (raw === null || typeof raw !== "object") return null;
+  const a = raw;
+  if (typeof a.login !== "string" || a.login.length === 0) return null;
+  if (a.name !== void 0 && a.name !== null && typeof a.name !== "string") return null;
+  if (a.id !== void 0 && typeof a.id !== "number") return null;
+  return {
+    login: a.login,
+    name: a.name ?? null,
+    ...a.id !== void 0 ? { id: a.id } : {}
+  };
+}
+
 // src/comments/review-ux/inject.ts
 var WIDGET_BASE = "/__htmldocs";
 var COMMENTS_WIDGET_SRC = `${WIDGET_BASE}/comments.mjs`;
@@ -6350,11 +6367,6 @@ function optional(innerType) {
   });
 }
 
-// src/comments/review-ux/types.ts
-var asThreadId = (raw) => raw;
-var asCommentId = (raw) => raw;
-var asTimestamp = (ms) => ms;
-
 // src/comments/api/schemas.ts
 var anchorSchema = object({
   // the exact quoted text the comment anchors to
@@ -6753,9 +6765,7 @@ function isWellShapedComment(c) {
   const x = c;
   if (typeof x.id !== "string" || typeof x.body !== "string") return false;
   if (typeof x.createdAt !== "number") return false;
-  if (!x.author || typeof x.author !== "object") return false;
-  const a = x.author;
-  return typeof a.login === "string" && (a.name === null || typeof a.name === "string");
+  return parseAuthor(x.author) !== null;
 }
 function isWellShapedThread(t) {
   if (!t || typeof t !== "object") return false;

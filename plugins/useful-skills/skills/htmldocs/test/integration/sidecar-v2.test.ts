@@ -73,6 +73,60 @@ describe('readSidecar — v2 on-disk model', () => {
     );
   });
 
+  it('warns with the malformed-v2 reason for a schema:2 file failing deep validation', async () => {
+    const malformed = {
+      doc: 'index.html',
+      schema: 2,
+      threads: [{ id: 't1', anchor: { exact: 'x' }, root: null, replies: [], resolvedAt: null }],
+    };
+    await fs.writeFile(file, JSON.stringify(malformed), 'utf-8');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const model = await readSidecar(file, 'index.html');
+    expect(model).toEqual({ doc: 'index.html', schema: 2, threads: [] });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      `[serve] ignoring sidecar ${file}: malformed v2 sidecar (a field or thread failed validation); loading as empty`,
+    );
+  });
+
+  it('rejects an author whose shape violates parseAuthor rules (non-numeric id)', async () => {
+    const badAuthor = {
+      doc: 'index.html',
+      schema: 2,
+      threads: [{
+        id: 't1',
+        anchor: { exact: 'x' },
+        root: { id: 't1', author: { login: 'user', name: null, id: 'not-a-number' }, body: 'hi', createdAt: 1 },
+        replies: [],
+        resolvedAt: null,
+      }],
+    };
+    await fs.writeFile(file, JSON.stringify(badAuthor), 'utf-8');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const model = await readSidecar(file, 'index.html');
+    expect(model.threads).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts an author with no name key (parseAuthor treats absent as null)', async () => {
+    const absentName = {
+      doc: 'index.html',
+      schema: 2,
+      threads: [{
+        id: 't1',
+        anchor: { exact: 'x' },
+        root: { id: 't1', author: { login: 'user' }, body: 'hi', createdAt: 1 },
+        replies: [],
+        resolvedAt: null,
+      }],
+    };
+    await fs.writeFile(file, JSON.stringify(absentName), 'utf-8');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const model = await readSidecar(file, 'index.html');
+    expect(model.threads).toHaveLength(1);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it('warns and loads empty for a parseable-but-junk object', async () => {
     await fs.writeFile(file, JSON.stringify({ hello: 'world' }), 'utf-8');
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});

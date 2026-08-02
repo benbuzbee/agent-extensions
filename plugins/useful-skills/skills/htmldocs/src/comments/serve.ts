@@ -22,6 +22,7 @@ import * as crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { parseAuthor } from './review-ux/types.js';
 import type { Author, DocKey } from './review-ux/types.js';
 import type { SidecarModel } from './adapters/local/sidecar-store.js';
 import { injectIntoHtml } from './adapters/local/inject.js';
@@ -104,14 +105,15 @@ function isOptionalString(v: unknown): boolean {
 }
 
 // One internal Comment on disk: { id, author: {login, name}, body, createdAt }.
+// The author shape is parseAuthor's — ONE definition of a valid Author, so this
+// validator can never drift from it (non-empty login; name string|null|absent;
+// id number|absent).
 function isWellShapedComment(c: unknown): boolean {
   if (!c || typeof c !== 'object') return false;
   const x = c as Record<string, unknown>;
   if (typeof x.id !== 'string' || typeof x.body !== 'string') return false;
   if (typeof x.createdAt !== 'number') return false;
-  if (!x.author || typeof x.author !== 'object') return false;
-  const a = x.author as Record<string, unknown>;
-  return typeof a.login === 'string' && (a.name === null || typeof a.name === 'string');
+  return parseAuthor(x.author) !== null;
 }
 
 // One internal Thread on disk: { id, anchor, root, replies, resolvedAt }.
