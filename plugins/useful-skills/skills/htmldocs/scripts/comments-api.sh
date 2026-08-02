@@ -80,8 +80,10 @@ usage() {
 die_usage() { usage; exit 2; }
 
 # Append the bare `comments` marker unless already present; preserve `?ref=`.
+# A `#fragment` is client-side only — appending after it would hide the marker
+# from the server — so it is stripped first.
 compose_url() {
-  local url="$1"
+  local url="${1%%#*}"
   local re='[?&]comments($|[&=])'
   if [[ "$url" =~ $re ]]; then
     printf '%s' "$url"

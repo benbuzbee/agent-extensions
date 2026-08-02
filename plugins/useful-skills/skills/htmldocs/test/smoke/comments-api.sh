@@ -194,6 +194,13 @@ run_api list "${doc_url}?ref=has-comments-in-it"
 [[ "$RC" == 0 ]] || fail "?ref w/ 'comments' substring → $RC (want 0; the &comments marker must still be appended)"
 echo "ok: ?ref value containing 'comments' still gets the &comments marker"
 
+# A #fragment must be stripped before the marker is appended — otherwise the
+# marker lands inside the fragment and never reaches the server.
+run_api list "${doc_url}#some-section"
+[[ "$RC" == 0 ]] || fail "URL w/ #fragment → $RC (want 0; fragment must be stripped, marker still sent)"
+grep -q '"threads"' <<<"$OUT" || fail "URL w/ #fragment: no threads JSON (marker was lost)"
+echo "ok: #fragment is stripped; ?comments marker still reaches the server"
+
 # ── 8. Token non-leak under bash -x, on a local AND a remote path ───────────
 canary="SENTINEL_ghp_LEAKCANARY_$$"
 # local: token present in env but NOT attached (local URL) → must not appear.
