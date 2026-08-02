@@ -1,25 +1,23 @@
-// HostedStore — the browser-side ICommentsStore for the hosted Worker runtime.
+// HttpCommentsStore — THE shared browser-side ICommentsStore for BOTH runtimes.
 //
-// A pure HTTP transport: it drives the `<doc>?ref=<ref>&comments` body-op API
-// over `fetch` with the session cookie (`credentials: 'same-origin'`) and
-// unwraps the server's OpResults so the shared widget sees the EXACT same
-// observable behavior it gets from LocalFileStore — success returns the arm's
-// value, failure throws an `.opError`-tagged Error, and reply/edit throw
-// 'op not yet supported'. It touches only fetch/location/URL at runtime (no
-// DOM, no rendering): all comment semantics live server-side behind the API.
+// A pure HTTP transport with nothing runtime-specific in it: it drives the
+// `<doc>?ref=<ref>&comments` body-op API over `fetch` and unwraps the server's
+// OpResults, so the shared widget sees identical observable behavior whichever
+// server answers. The two servers: the local route in serve.ts (backed by
+// SidecarStore) and the hosted Worker api (backed by D1Store).
 
-import type { ICommentsStore } from '../../review-ux/store';
+import type { ICommentsStore } from '../review-ux/store';
 import type {
   Thread, ThreadId, Comment, DocKey, Author,
   CreateOp, ReplyOp, ResolveOp, ReopenOp, DeleteOp, EditOp, Op, OpResult, OpError,
-} from '../../review-ux/types';
+} from '../review-ux/types';
 
-export class HostedStore implements ICommentsStore {
+export class HttpCommentsStore implements ICommentsStore {
   // The collection URL for the doc hosting the widget: the current path with
-  // `?comments` added and any existing `?ref=` preserved, so the Worker sees
+  // `?comments` added and any existing `?ref=` preserved, so the server sees
   // `?ref=<ref>&comments` and `searchParams.has('comments')` is true. The doc
-  // key is scoped server-side from the URL + session, so the DocKey arg is
-  // unused (mirrors D1Store: the browser never maps repo/ref/path itself).
+  // key is scoped server-side from the URL + session/root, so the DocKey arg is
+  // unused (the browser never maps repo/ref/path itself).
   private commentsUrl(): string {
     const url = new URL(location.href);
     url.searchParams.set('comments', '');
@@ -83,7 +81,7 @@ export class HostedStore implements ICommentsStore {
   }
 
   // POST a single op envelope. A 200 body IS the single-op OpResult; a non-200
-  // maps to a tagged throw mirroring LocalFileStore's seam contract.
+  // maps to a tagged throw mirroring the store seam contract.
   private async postOp(op: Op): Promise<OpResult> {
     const res = await fetch(this.commentsUrl(), {
       method: 'POST',

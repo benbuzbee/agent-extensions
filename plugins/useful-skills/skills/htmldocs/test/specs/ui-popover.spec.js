@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
+import { seedInline, interceptComments } from '../helpers/comments-route.js';
 
 // The floating "💬" popover appears when text inside an <article> is
 // selected and disappears otherwise. Programmatic selection (no synthetic
@@ -7,8 +7,8 @@ import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
 // layer listens to.
 
 test.beforeEach(async ({ page }) => {
-  await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-  await interceptSidecar(page);
+  await seedInline(page);
+  await interceptComments(page);
   await page.goto('/test/fixtures/clean/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 });

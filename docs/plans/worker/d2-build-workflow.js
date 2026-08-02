@@ -1,6 +1,6 @@
 export const meta = {
   name: 'd2-build-stack',
-  description: 'Build the full Deliverable 2 stacked-PR series (PR0..PR6) from d2-review-mode-plan.html: per-PR design (Opus) -> Fable advisor critique -> implement (Opus) -> offline validation gate -> Fable review + /code-review methodology on the diff -> validation evidence logged into the plan HTML -> Graphite commit',
+  description: 'Build the full Deliverable 2 stacked-PR series (PR0..PR9) from d2-review-mode-plan.html: per-PR design (Opus) -> Fable advisor critique -> implement (Opus) -> offline validation gate -> Fable review + /code-review methodology on the diff -> validation evidence logged into the plan HTML -> Graphite commit',
   whenToUse: 'Execute the approved D2 plan. Deliverable: a SUBMITTED Graphite stack (one draft PR per layer) with real validation evidence (command output) published into a validation section of each PR card in the plan HTML. Requires: main checked out, gt installed + authed, node. Optional args: {submit:false} to skip submission and keep the stack local; {startAt:"pr3"} to resume mid-stack (earlier branches must already exist).',
   phases: [
     { title: 'Preflight', detail: 'verify git/gt/node state and plan artifacts', model: 'sonnet' },
@@ -11,6 +11,9 @@ export const meta = {
     { title: 'PR4 — API on Worker + checkAccess', detail: '?comments on the doc route; probe-once-per-batch chokepoint; neutral 404' },
     { title: 'PR5 — identity capture', detail: 'GET /user at login; single persist() writer; lazy session upgrade; real author stamps' },
     { title: 'PR6 — injection + docs', detail: 'HTMLRewriter/string-splice via shared helpers; unified injection test; e2e; pass-1 docs' },
+    { title: 'PR7 — hosted browser review', detail: 'Worker route serves widget bundle; browser hosted store; hosted MountDeps; main.ts runtime selection; dist rebuild' },
+    { title: 'PR8 — transport convergence', detail: 'promote shared HTTP client; delete LocalFileStore + sidecar PUT; unified runtime-agnostic agent recipe; docs sweep' },
+    { title: 'PR9 — agent API helper', detail: 'comments-api.sh: v1 agent-surface subcommands, token sourcing, agent-actionable errors; recipe shrinks to intent' },
     { title: 'Wrap-up', detail: 'full-stack gate, exit-criteria audit, wrap-up evidence into the plan, submit the stack as draft PRs' },
   ],
 }
@@ -18,7 +21,9 @@ export const meta = {
 // ===========================================================================
 // Ground truth every agent shares.
 // ===========================================================================
-const REPO = '/Users/ben/agent-extensions'
+// Machine-specific: point at the checkout the build runs in (execution artifact,
+// not portable config — update when resuming on a new machine).
+const REPO = '/mnt/c/Users/benbu/projects/agent-extensions'
 const PLAN = REPO + '/docs/plans/worker/d2-review-mode-plan.html'
 const APP = REPO + '/apps/htmldoc-review'
 const SKILL = REPO + '/plugins/useful-skills/skills/htmldocs'
@@ -227,6 +232,52 @@ KEY OPEN CALL THE DESIGN MUST SETTLE (plan flags it open): the physical home of 
     validate: `The UNIFIED injection test: one fixture doc + comments model through BOTH injectors, asserting the identical shared fragment (seed + script tag) — placement may differ, the emitted markup may not. Escaping test: a comment body containing </script> cannot break out of the seed. E2e in workerd: comment on a hosted doc, reload -> persists, resolve -> green indicator, comment still visible; 404 path has no widget markup. Both packages' full gates green.`,
     gates: [...APP_GATE, ...SKILL_GATE],
   },
+  {
+    key: 'pr7', phase: 'PR7 — hosted browser review', branch: 'd2/pr7-hosted-browser-review', planAnchor: '#pr7 (plus #widget, #widget-share, #widget-dirs, #widget-inject, #api-route, #authz-deny)',
+    needsDesign: true, implModel: 'opus', securityLens: true,
+    scope: `Fill the hosted adapter slice PR6 deferred, so a browser reviewer on a hosted doc can comment end to end — the gap the stack-wide exit-criteria audit flagged. The shared review-ux/ layer is complete: ZERO review-ux/ changes expected (touch it only if a genuine seam bug blocks you, and call that out loudly). Four pieces:
+1. A Worker route serving the checked-in widget bundle at the injected WIDGET_SRC path (see src/worker/inject.ts), registered BEFORE doc-route parsing, correct JS content-type. It serves generic widget code, not doc data — the design settles its auth posture and proves it cannot interact with the neutral-404 non-leak contract either way.
+2. adapters/hosted/store.ts — a browser-side ICommentsStore driving <doc>?ref=<ref>&comments over fetch with the session cookie (credentials): POST op envelopes (create/resolve/reopen/delete; batch = JSON array), GET to list; unwraps OpResults per the seam contract so the widget sees the same observable behavior as LocalFileStore.
+3. adapters/hosted/deps.ts — buildHostedDeps: MountDeps from that store + the author already carried in the injected seed (PR6 landed it for exactly this).
+4. main.ts runtime selection off the injected seed (design settles the discriminator; the seeded author is the obvious candidate), local behavior byte-compatible; rebuild the checked-in dist.
+KEY CALL THE DESIGN MUST SETTLE: how the DEPLOYED Worker gets the bundle bytes — vendor.sh cannot carry files above the app root (the PR3/PR4 lesson); the PR4 precedent is a sync script + git-diff drift gate. Follow it unless you find something strictly better.
+Also update docs/hosted_review.html and the 'deferred follow-up' notes PR7 now closes (PR6 docs, comments-seam.ts / claude.md stubs' notes, apps/htmldoc-review README where it mentions the gap).`,
+    validate: `Workerd: GET WIDGET_SRC returns the bundle (correct content-type, bytes match the checked-in dist) with the designed auth posture, and the neutral-404 path stays byte-identical to a missing doc (no widget markup, no bundle-route interplay). Unit: hosted store maps every verb + batch to correct envelopes and unwraps OpResults against a mocked fetch (incl. a 207 partial-failure batch and an error arm); runtime selection picks hosted deps on a hosted seed and local deps otherwise. Playwright: full local regression green (behavior unchanged); a hosted-mode mount against a stubbed transport does create -> resolve round-trip with the green indicator and the comment still visible. Both packages' full gates green; dist rebuilt and committed; vendored-copy drift gate green.`,
+    gates: [...APP_GATE, ...SKILL_GATE],
+  },
+  {
+    key: 'pr8', phase: 'PR8 — transport convergence', branch: 'd2/pr8-transport-convergence', planAnchor: '#pr8 (plus #api, #api-verbs, #api-v1, #widget-share, #widget-dirs, #prompting)',
+    needsDesign: true, implModel: 'opus', securityLens: true, promptReview: true,
+    scope: `DELETION-HEAVY convergence: local and hosted browsers speak ONE transport — the op-envelope <doc>?ref=&comments API. Both server halves already exist and share handleCommentsRequest (Worker -> D1Store; local serve.ts -> SidecarStore), and PR7's HostedStore is a pure fetch transport with nothing hosted-specific — it works verbatim against the local route. Pieces:
+1. Promote HostedStore to THE shared browser HTTP client — rename/move per design (it is not hosted-specific); buildLocalDeps() constructs it instead of LocalFileStore; hosted deps keep using it; update the vendored copy + sync-comments manifest + drift gate (PR4 precedent). The seed-author runtime discriminator survives but now only selects the AUTHOR (both runtimes build the same store); local observable behavior stays identical.
+2. DELETE (grep-proof): LocalFileStore + its unit tests + the __LocalFileStore test-handle export; the whole-model PUT /__htmldocs/sidecar/<doc> route + handler in serve.ts; legacyToThread/threadToLegacy in browser code. The ON-DISK sidecar format is UNCHANGED — SidecarStore keeps the legacy JSON (de)serialization as its private disk shape — so existing *.comments.json files keep working with zero migration.
+3. AGENT RECIPE MIGRATION (User decision): the documented agent surface for LOCAL review moves off disk-reading onto the same ?comments API. Rewrite references/comments.md into ONE minimal, runtime-agnostic recipe that never assumes local vs hosted — parameterized by the doc URL, bearer token only when hosted; craft it per prompt-engineering best practices (a dedicated prompt-quality reviewer audits it). Docs may note sidecar files remain on disk for inspection/backup, but the recipe is the API.
+4. DOCS SWEEP (User asked explicitly): grep the repo for docs teaching the sidecar-PUT / read-off-disk workflow and update every instruction/architecture doc — references/comments.md, SKILL.md, docs/hosted_review.html, docs/review_system.html, src/comments/**/claude.md contracts, ${APP}/README.md. Historical plan documents stay as history.
+5. Tests: local Playwright asserts ?comments traffic (request shapes) instead of the PUT contract; the smoke test (test/smoke/serve.sh) swaps its PUT phase for an op round-trip; a pre-existing legacy sidecar fixture loads/mutates/persists format-unchanged; ADD a two-client interleaved-ops test (two stores, one local server, interleaved create/resolve — every op lands, nothing clobbered; this proves per-op no-clobber, NOT transactionality — don't oversell it in docs or comments); runtime-selection tests updated. Rebuild the checked-in dist.`,
+    validate: `Grep-proof deletions (zero references to LocalFileStore, the sidecar PUT route, or browser-side legacy conversions anywhere outside SidecarStore's disk layer and historical plan docs); full local Playwright regression green with the widget driving every verb over ?comments; legacy sidecar fixture round-trips format-unchanged; two-client interleaved-ops test green; hosted path observably unchanged (full app gate green, vendored sync drift gate green); the rewritten agent recipe passes the prompt-quality review (minimal, runtime-agnostic, matches the real API shapes); both packages' full gates green; dist rebuilt and committed.`,
+    gates: [...APP_GATE, ...SKILL_GATE],
+  },
+  {
+    key: 'pr9', phase: 'PR9 — agent API helper', branch: 'd2/pr9-agent-api-helper', planAnchor: '#pr9 (plus #api, #api-verbs, #api-v1, #prompting)',
+    needsDesign: true, implModel: 'opus', securityLens: true, promptReview: true,
+    scope: `ONE thin shell helper so agents stop hand-composing curl + token for the ?comments API. Ship ${SKILL}/scripts/comments-api.sh (serve.sh's read/write twin) encoding the sanctioned v1 agent surface as subcommands:
+  comments-api.sh list    <doc-url>
+  comments-api.sh resolve <doc-url> <threadId>
+  comments-api.sh reopen  <doc-url> <threadId>
+  comments-api.sh delete  <doc-url> <threadId>
+  comments-api.sh post    <doc-url> <op-json|->   # escape hatch: raw envelope or batch array passthrough
+PURE TRANSPORT — hard boundaries: no create subcommand (plan: no agent create in v1; 'post' covers deliberate exceptions), no anchor building, no client-side validation (the server's Zod layer validates), no op semantics beyond composing the four fixed envelopes. It owns exactly three things: URL composition (?ref=<ref>&comments — bare key, existing ?ref preserved), token sourcing ($GITHUB_TOKEN else 'gh auth token', attached ONLY for non-localhost URLs, NEVER printed/logged/echoed — beware set -x style leaks), and response/exit discipline (raw JSON to stdout untouched; HTTP status to stderr; distinct non-zero exits; a 207 batch is transport success — per-op results are the caller's to inspect).
+ERROR SURFACING IS THE POINT (User requirement): every common failure produces a message actionable by an agent AND readable by a human, on stderr, with a distinct documented exit code:
+- hosted URL but no token available -> detected BEFORE any request; say exactly how to fix (gh auth login, or export GITHUB_TOKEN)
+- connection refused on a local URL -> say the server isn't running and how to start it (serve.sh)
+- 401 -> token invalid/expired; re-auth guidance
+- 404 -> explain the DELIBERATE ambiguity (no access OR doc/thread missing OR the GitHub App isn't installed on that repo) and what to check, without weakening the non-leak posture
+- HTML/redirect where JSON was expected -> likely wrong URL shape or the unauthenticated browser path; show the recipe's URL anatomy
+- bad usage -> print the subcommand synopsis.
+DOCS: a thorough header comment in the script (usage, exit codes, token rule) and shrink references/comments.md to intent-level usage built on the helper (keep the raw-curl anatomy as an appendix for environments without bash); one-line SKILL.md touch-up if it names the recipe. NO app/Worker changes; NO dist rebuild expected (script only).`,
+    validate: `Automated tests drive the script against the REAL local server (harness exists): list/resolve/reopen/delete round-trip green end to end; error cases each produce the documented stderr message + distinct exit code — connection refused (no server), missing args/usage, hosted-URL-without-token (no request fired: assert with a fake non-localhost URL and empty token env), non-2xx passthrough (404 on a bogus threadId); a token-leak test proves the token value never appears on stdout/stderr in any tested path; 'bash -n' clean; prompt-quality review passes on the rewritten references/comments.md; full skill gate green; app untouched (git diff shows no apps/ changes).`,
+    gates: SKILL_GATE,
+  },
 ]
 
 // ===========================================================================
@@ -263,7 +314,7 @@ const pre = await agent(
 2. These files exist: ${PLAN}, ${WORKFLOW_FILE}, ${REPO}/docs/plans/worker/d2-plan-revisions.md.
 3. 'gt --version' works. Check Graphite is initialized for this repo (e.g. 'gt log short' from ${REPO} succeeds); if it errors about initialization${resuming ? ' this is a FAILURE (a resume needs the existing stack)' : ", run 'gt init --trunk main' non-interactively and confirm it took"}.
 4. node + npm available; ${APP} and ${SKILL} have package.json.
-5. Submission auth (the finished stack is submitted as draft PRs): 'gh auth status' succeeds and 'git -C ${REPO} remote -v' shows a GitHub origin. If gt needs its own auth ('gt auth --help' / a failed 'gt log short' hints), report it as a failure — do NOT store or print any token.
+5. Submission auth: 'gh auth status' succeeds and 'git -C ${REPO} remote -v' shows a GitHub origin. Missing Graphite-CLI auth ('gt auth' reporting no token) is a WARNING, not a failure — submission has a gh fallback and gt auth is only needed at wrap-up. Do NOT store or print any token.
 Return JSON-ish via the schema: pass=true only if every check is green (warnings don't block).`,
   { label: 'preflight', phase: 'Preflight', model: 'sonnet', effort: 'low', agentType: 'general-purpose', schema: GATE_SCHEMA }
 )
@@ -420,7 +471,21 @@ ${LOCKED}
 
 Report via the schema: verdict approve/fix; findings with severity blocker/major/minor (only blocker/major will be acted on — don't inflate). Do not edit anything.`
 
-  const lenses = card.securityLens ? ['plan-fidelity', 'security'] : ['plan-fidelity']
+  const lenses = [
+    ...(card.securityLens ? ['plan-fidelity', 'security'] : ['plan-fidelity']),
+    ...(card.promptReview ? ['prompt-quality'] : []),
+  ]
+
+  // prompt-quality lens runs on the 'prompt-reviewer' agent type (Read/Grep/
+  // Glob only — no Bash), so its prompt names the files instead of using git.
+  const promptQualityPrompt = `You are the PROMPT-QUALITY REVIEWER for ${card.key.toUpperCase()} in ${REPO}. This layer touches agent-facing instruction files; review THOSE files as prompts/instructions, not as code. Find them with Glob/Grep under ${SKILL} (references/comments.md, SKILL.md, scripts/*.sh header docs, src/comments/**/claude.md, docs/*.html that instruct agents) and ${APP}/README.md. Judge:
+1. The agent recipe is MINIMAL and runtime-agnostic — parameterized by the doc URL, bearer token only when hosted; no baked-in assumption of local vs hosted server.
+2. Instructions match the REAL API (verify against ${SKILL}/src/comments/api/schemas.ts: op envelopes, GET list, POST single op or batch array, 207 batch semantics) and the REAL script interface if this layer ships one.
+3. One home per fact — no duplicated recipe fragments across files; cross-reference instead.
+4. ZERO stale references to removed workflows/paths in any instruction file (historical plan docs are exempt).
+5. Error messages meant for agents are actionable (say what to DO, not just what went wrong) and consistent with the docs.
+6. Voice and format consistent with the surrounding docs.
+Report via the schema: verdict approve/fix; findings with severity blocker/major/minor (only blocker/major are acted on — don't inflate). Do not edit anything.`
 
   // /code-review methodology on the layer's diff (skip pr0: docs-only, not
   // substantive code). Five independent reviewer angles from the code-review
@@ -465,7 +530,10 @@ Return score + reasoning via the schema.`,
   if (card.key !== 'pr0') log(`${card.key}: code-review found ${crIssues.length} candidate issue(s), ${crConfirmed.length} confirmed at >=80 confidence`)
 
   const reviews = (await parallel(lenses.map((lens) => () =>
-    agent(lensPrompt(lens), { label: `${card.key}:advisor-${lens}`, phase: card.phase, model: 'fable', effort: 'high', stallMs: 600000, agentType: 'general-purpose', schema: REVIEW_SCHEMA })
+    agent(lens === 'prompt-quality' ? promptQualityPrompt : lensPrompt(lens), {
+      label: `${card.key}:advisor-${lens}`, phase: card.phase, model: 'fable', effort: 'high', stallMs: 600000,
+      agentType: lens === 'prompt-quality' ? 'prompt-reviewer' : 'general-purpose', schema: REVIEW_SCHEMA,
+    })
   ))).filter(Boolean)
 
   const actionable = [
@@ -587,7 +655,9 @@ if (ARGS?.submit === false) {
   submitted = 'BLOCKED — final gate not green; fix the failures, then submit with: gt submit --stack --draft'
 } else {
   submitted = str(await agent(
-    `From ${REPO}, submit the whole Graphite stack as DRAFT pull requests: 'gt submit --stack --draft --no-interactive' (if a flag is unsupported in gt 1.8.6, check 'gt submit --help' and use the closest draft/non-interactive equivalent). This pushes branches and opens one PR per layer with correct base branches. Then verify with 'gh pr list --author @me --limit 10' and report every PR URL with its layer. Do nothing else.`,
+    `From ${REPO}, submit the whole Graphite stack as DRAFT pull requests: 'gt submit --stack --draft --no-interactive' (if a flag is unsupported in gt 1.8.6, check 'gt submit --help' and use the closest draft/non-interactive equivalent). This pushes branches and opens one PR per layer with correct base branches.
+FALLBACK: if gt submit fails because the Graphite GitHub App lacks repo permissions (error mentions 'necessary permissions') or gt is unauthenticated, do it with plain git + gh instead: 'git push -f origin' every d2/ stack branch (read the order from 'gt log short'), then for each layer bottom-up 'gh pr create --draft --head <branch> --base <parent-branch>' (pr0's base is main; skip any layer that already has an open PR per 'gh pr list'). Title = the branch's commit subject; body = its commit body plus the line "Part of the D2 stacked-PR series (docs/plans/worker/d2-review-mode-plan.html)".
+Either way, verify with 'gh pr list --author @me --limit 15' and report every PR URL with its layer. Do nothing else.`,
     { label: 'submit-stack', phase: 'Wrap-up', model: 'sonnet', effort: 'low', agentType: 'general-purpose' }
   )).slice(0, 2000)
 }

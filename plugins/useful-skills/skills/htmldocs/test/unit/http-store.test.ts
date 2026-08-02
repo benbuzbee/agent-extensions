@@ -1,13 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { HostedStore } from '../../src/comments/adapters/hosted/store';
-import { chooseDeps } from '../../src/comments/adapters/runtime-select';
+import { HttpCommentsStore } from '../../src/comments/adapters/http-store';
 import type {
   Thread, Author, Op, CreateOp, ResolveOp, ReopenOp, DeleteOp,
 } from '../../src/comments/review-ux/types';
 import { asThreadId, asCommentId, asTimestamp } from '../../src/comments/review-ux/types';
 
 // The widget's doc key is derived server-side from the URL + session, so the
-// HostedStore ignores the DocKey arg and builds its collection URL from
+// HttpCommentsStore ignores the DocKey arg and builds its collection URL from
 // location.href. We assert the URL it actually fetches independently.
 const DOC = { repo: 'app-ios', ref: 'main', path: '/app-ios/guide.html' };
 const AUTHOR: Author = { login: 'octocat', name: 'Mona' };
@@ -69,9 +68,9 @@ function queueText(status: number, text: string): void {
   queue.push(new Response(text, { status, headers: { 'content-type': 'text/plain' } }));
 }
 
-describe('HostedStore — envelope mapping + OpResult unwrap', () => {
+describe('HttpCommentsStore — envelope mapping + OpResult unwrap', () => {
   it('create POSTs the create envelope with credentials and unwraps the thread', async () => {
-    const store = new HostedStore();
+    const store = new HttpCommentsStore();
     queueJson(200, { ok: true, op: 'create', thread: fakeThread('t-new') });
     const op: CreateOp = { op: 'create', anchor: { exact: 'hi' }, text: 'a note' };
 
@@ -86,7 +85,7 @@ describe('HostedStore — envelope mapping + OpResult unwrap', () => {
   });
 
   it('resolve POSTs the resolve envelope and unwraps the (resolved) thread', async () => {
-    const store = new HostedStore();
+    const store = new HttpCommentsStore();
     queueJson(200, { ok: true, op: 'resolve', thread: fakeThread('t1', 4242) });
     const op: ResolveOp = { op: 'resolve', threadId: asThreadId('t1') };
 
@@ -99,7 +98,7 @@ describe('HostedStore — envelope mapping + OpResult unwrap', () => {
   });
 
   it('reopen POSTs the reopen envelope and unwraps the thread', async () => {
-    const store = new HostedStore();
+    const store = new HttpCommentsStore();
     queueJson(200, { ok: true, op: 'reopen', thread: fakeThread('t1', null) });
     const op: ReopenOp = { op: 'reopen', threadId: asThreadId('t1') };
 
@@ -110,7 +109,7 @@ describe('HostedStore — envelope mapping + OpResult unwrap', () => {
   });
 
   it('delete POSTs the delete envelope and unwraps the threadId', async () => {
-    const store = new HostedStore();
+    const store = new HttpCommentsStore();
     queueJson(200, { ok: true, op: 'delete', threadId: 't-gone' });
     const op: DeleteOp = { op: 'delete', threadId: asThreadId('t-gone') };
 
@@ -122,7 +121,7 @@ describe('HostedStore — envelope mapping + OpResult unwrap', () => {
   });
 
   it('list GETs the collection URL and returns body.threads', async () => {
-    const store = new HostedStore();
+    const store = new HttpCommentsStore();
     queueJson(200, { threads: [fakeThread('a'), fakeThread('b')] });
 
     const out = await store.list(DOC);
@@ -136,7 +135,7 @@ describe('HostedStore — envelope mapping + OpResult unwrap', () => {
   });
 
   it('batch POSTs a JSON ARRAY and returns the 207 results (partial failure included)', async () => {
-    const store = new HostedStore();
+    const store = new HttpCommentsStore();
     const ops: Op[] = [
       { op: 'resolve', threadId: asThreadId('t1') },
       { op: 'resolve', threadId: asThreadId('ghost') },
@@ -161,9 +160,9 @@ describe('HostedStore — envelope mapping + OpResult unwrap', () => {
   });
 });
 
-describe('HostedStore — error arms mirror the LocalFileStore seam', () => {
+describe('HttpCommentsStore — error arms map non-2xx to tagged OpErrors', () => {
   it('404 carrying an OpResult body throws a not_found tagged error with threadId', async () => {
-    const store = new HostedStore();
+    const store = new HttpCommentsStore();
     queueJson(404, { ok: false, op: 'resolve', error: { code: 'not_found', threadId: 'ghost' } });
     await expect(
       store.resolve(DOC, { op: 'resolve', threadId: asThreadId('ghost') }, AUTHOR),
@@ -171,7 +170,7 @@ describe('HostedStore — error arms mirror the LocalFileStore seam', () => {
   });
 
   it('a neutral text/404 (access deny) throws a no_access tagged error', async () => {
-    const store = new HostedStore();
+    const store = new HttpCommentsStore();
     queueText(404, 'Not found or no access');
     await expect(
       store.resolve(DOC, { op: 'resolve', threadId: asThreadId('t1') }, AUTHOR),
@@ -179,15 +178,15 @@ describe('HostedStore — error arms mirror the LocalFileStore seam', () => {
   });
 
   it('a 500 throws a transient tagged error', async () => {
-    const store = new HostedStore();
+    const store = new HttpCommentsStore();
     queueJson(500, { ok: false, op: 'resolve', error: { code: 'transient', message: 'boom' } });
     await expect(
       store.resolve(DOC, { op: 'resolve', threadId: asThreadId('t1') }, AUTHOR),
     ).rejects.toMatchObject({ opError: { code: 'transient' } });
   });
 
-  it('reply and edit throw "op not yet supported" (byte-parity with LocalFileStore)', async () => {
-    const store = new HostedStore();
+  it('reply and edit throw "op not yet supported" (both reserved ops)', async () => {
+    const store = new HttpCommentsStore();
     await expect(
       store.reply(DOC, { op: 'reply', threadId: asThreadId('t1'), text: 'x' }, AUTHOR),
     ).rejects.toThrow('op not yet supported');
@@ -199,24 +198,3 @@ describe('HostedStore — error arms mirror the LocalFileStore seam', () => {
   });
 });
 
-describe('chooseDeps — the runtime discriminator', () => {
-  it('calls the hosted builder with the seed author when present', () => {
-    const hosted = vi.fn((a: Author) => ({ store: {} as never, author: a }));
-    const local = vi.fn(() => ({ store: {} as never, author: { login: 'user', name: null } }));
-
-    chooseDeps(AUTHOR, hosted, local);
-
-    expect(hosted).toHaveBeenCalledWith(AUTHOR);
-    expect(local).not.toHaveBeenCalled();
-  });
-
-  it('calls the local builder when the seed author is null', () => {
-    const hosted = vi.fn((a: Author) => ({ store: {} as never, author: a }));
-    const local = vi.fn(() => ({ store: {} as never, author: { login: 'user', name: null } }));
-
-    chooseDeps(null, hosted, local);
-
-    expect(local).toHaveBeenCalledTimes(1);
-    expect(hosted).not.toHaveBeenCalled();
-  });
-});

@@ -14,11 +14,12 @@ import {
 } from "cloudflare:test";
 import { beforeAll, beforeEach, afterEach, afterAll, describe, it, expect } from "vitest";
 import worker, { type Env } from "../../src/worker/index";
-import { buildSeedModel, injectWidget, COMMENTS_WIDGET_SRC } from "../../src/worker/inject";
+import { injectWidget, COMMENTS_WIDGET_SRC } from "../../src/worker/inject";
 import { injectionFragment } from "@shared/review-ux/inject";
 import { injectIntoHtml } from "@shared/adapters/local/inject";
+import { LOCAL_AUTHOR } from "@shared/adapters/local/author";
 import { asThreadId, asCommentId, asTimestamp } from "@shared/review-ux/types";
-import type { Thread, Author, CommentsModel } from "@shared/review-ux/types";
+import type { Thread, Author, CommentsSeed } from "@shared/review-ux/types";
 import { fetchMock } from "./fetch-mock";
 
 declare module "cloudflare:test" {
@@ -94,8 +95,8 @@ function withSession(id: string, init: RequestInit = {}): RequestInit {
 const docUrl = `${ORIGIN}/${REPO}/${DOC_PATH}?ref=${REF}`;
 const commentsUrl = `${docUrl}&comments`;
 
-// Pull the inline JSON seed model out of an injected HTML document.
-function parseSeed(html: string): (CommentsModel & { author?: Author }) | null {
+// Pull the inline { threads } JSON seed out of an injected HTML document.
+function parseSeed(html: string): (CommentsSeed & { author?: Author }) | null {
   const marker = 'id="__htmldocs_comments">';
   const start = html.indexOf(marker);
   if (start === -1) return null;
@@ -138,30 +139,31 @@ afterAll(() => {
 // ===========================================================================
 describe("unified injection (both placements emit the identical fragment)", () => {
   it("HTMLRewriter append === injectionFragment === the string-splice fragment", () => {
-    // A model carrying BOTH an open and a resolved thread (each with its own
+    // Threads carrying BOTH an open and a resolved thread (each with its own
     // resolvedAt semantics) plus an author.
-    const model = buildSeedModel(
-      [thread("t-open", "still open", null), thread("t-done", "resolved but visible", 2000)],
-      DOC_PATH,
-    );
-    // The seed carries open AND resolved, resolved_at present only on the resolved.
-    expect(model.comments).toHaveLength(2);
-    expect(model.comments.find((c) => c.id === "t-open")!.resolved_at).toBeUndefined();
-    expect(model.comments.find((c) => c.id === "t-done")!.resolved_at).toBeTruthy();
+    const threads = [
+      thread("t-open", "still open", null),
+      thread("t-done", "resolved but visible", 2000),
+    ];
+    // The seed carries open AND resolved verbatim — resolvedAt only on the resolved.
+    expect(threads).toHaveLength(2);
+    expect(threads.find((t) => t.id === "t-open")!.resolvedAt).toBeNull();
+    expect(threads.find((t) => t.id === "t-done")!.resolvedAt).toBeTruthy();
 
     const author: Author = { login: "octocat", name: "Mona", id: 7 };
-    const expected = injectionFragment(model, COMMENTS_WIDGET_SRC, author);
+    const expected = injectionFragment(threads, COMMENTS_WIDGET_SRC, author);
 
     // Hosted placement: HTMLRewriter append inside <body>.
     const fixture = "<html><body><p>hi</p></body></html>";
     const res = new Response(fixture, { headers: { "Content-Type": "text/html" } });
-    return injectWidget(res, model, COMMENTS_WIDGET_SRC, author)
+    return injectWidget(res, threads, COMMENTS_WIDGET_SRC, author)
       .text()
       .then((appended) => {
-        // Local placement: the real local adapter. Its seed carries no author
-        // by design, so its parity target is the authorless fragment.
-        const localExpected = injectionFragment(model, COMMENTS_WIDGET_SRC);
-        const spliced = injectIntoHtml(fixture, model);
+        // Local placement: the real local adapter. Its seed carries the fixed
+        // LOCAL_AUTHOR stamp, so its parity target is the fragment built with
+        // that author.
+        const localExpected = injectionFragment(threads, COMMENTS_WIDGET_SRC, LOCAL_AUTHOR);
+        const spliced = injectIntoHtml(fixture, threads);
 
         // Placement differs, the emitted fragment is byte-identical in both.
         expect(appended).toContain(expected);
@@ -197,9 +199,9 @@ describe("hosted-injection e2e (create -> reload -> resolve, seed-level)", () =>
     const html1 = await view1.text();
     const seed1 = parseSeed(html1)!;
     expect(seed1).not.toBeNull();
-    const c1 = seed1.comments.find((c) => c.id === threadId)!;
-    expect(c1.body).toBe("first note");
-    expect(c1.resolved_at).toBeUndefined(); // open
+    const c1 = seed1.threads.find((t) => t.id === threadId)!;
+    expect(c1.root.body).toBe("first note");
+    expect(c1.resolvedAt).toBeNull(); // open
     // The captured session author rides on the seed for the future MountDeps.
     expect(seed1.author).toEqual(SEEDED_IDENTITY);
     // The widget script tag is injected too.
@@ -222,10 +224,10 @@ describe("hosted-injection e2e (create -> reload -> resolve, seed-level)", () =>
     mockDoc(DOC_HTML);
     const view2 = await call(docUrl, withSession("s-e2e"));
     const seed2 = parseSeed(await view2.text())!;
-    const c2 = seed2.comments.find((c) => c.id === threadId)!;
+    const c2 = seed2.threads.find((t) => t.id === threadId)!;
     expect(c2).toBeDefined();
-    expect(c2.body).toBe("first note");
-    expect(c2.resolved_at).toBeTruthy();
+    expect(c2.root.body).toBe("first note");
+    expect(c2.resolvedAt).toBeTruthy();
   });
 });
 

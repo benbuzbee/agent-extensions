@@ -1,11 +1,11 @@
 // SidecarStore — a Node fs-backed ICommentsStore for the LOCAL server route.
 //
-// This is DISTINCT from LocalFileStore (the browser widget's store, which uses
-// document/location/fetch and cannot run in Node). SidecarStore realizes the
-// plan's "LocalFileStore = server-only JSON, the agent never reads disk" intent
-// on the Node side: each verb does a read-modify-write against a persistence
-// port, delegating the actual op semantics to api/thread-ops.* so it shares one
-// source of truth with the browser store.
+// The one place the legacy conversion runs at runtime: it loads/saves the legacy
+// `*.comments.json` disk shape (via ./legacy-format) but exposes the internal
+// Thread[] the shared API works in, so on-disk files stay byte-unchanged while
+// the wire is the op-envelope ?comments API. Each verb does a read-modify-write
+// against a persistence port, delegating the actual op semantics to
+// api/thread-ops.* so it shares one source of truth with the browser client.
 //
 // Because every op is an independent load→apply→save, a batch (a loop of single
 // ops in the handler) is naturally best-effort with no rollback needed: a
@@ -16,12 +16,11 @@ import { randomUUID } from 'node:crypto';
 import type { ICommentsStore } from '../../review-ux/store';
 import type {
   Thread, ThreadId, Comment, DocKey, Author,
-  CreateOp, ReplyOp, ResolveOp, ReopenOp, DeleteOp, EditOp, Op, OpResult,
-  CommentsModel, OpError,
+  CreateOp, ReplyOp, ResolveOp, ReopenOp, DeleteOp, EditOp, Op, OpResult, OpError,
 } from '../../review-ux/types';
-import {
-  threadToLegacy, legacyToThread, asTimestamp,
-} from '../../review-ux/types';
+import { asTimestamp } from '../../review-ux/types';
+import type { CommentsModel } from './legacy-format';
+import { threadToLegacy, legacyToThread } from './legacy-format';
 import {
   createThread, resolveThread, reopenThread, deleteThread, isNotFoundError,
 } from '../../api/thread-ops';

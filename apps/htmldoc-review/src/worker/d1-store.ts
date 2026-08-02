@@ -22,6 +22,7 @@ import {
   NotFoundError,
   isNotFoundError,
 } from "@shared/api/thread-ops";
+import { withOpThreadId } from "@shared/api/handlers";
 import { asThreadId, asCommentId, asTimestamp } from "@shared/review-ux/types";
 import type { ICommentsStore } from "@shared/review-ux/store";
 import type {
@@ -109,7 +110,7 @@ export class D1Store implements ICommentsStore {
   // are not capability secrets (they appear in list responses, seeds, DOM, shared
   // links). Adding the (repo, ref, path) predicate makes a foreign-doc id behave
   // exactly like a missing id: zero rows -> not_found, no existence leak, and the
-  // same semantics LocalFileStore has (its backing collection IS one doc).
+  // same semantics the local SidecarStore has (its backing collection IS one doc).
   private getRow(doc: DocKey, id: ThreadId): Promise<CommentRow | null> {
     return this.db
       .prepare(
@@ -222,8 +223,8 @@ export class D1Store implements ICommentsStore {
   }
 
   // Best-effort per-op: loop the single-op methods, build OpResult[] in request
-  // order, and catch EVERY throw with the same mapping LocalFileStore.batch /
-  // handlers.errorToOpError use — not_found for a NotFoundError, transient for
+  // order, and catch EVERY throw with the same mapping the shared
+  // handlers.errorToOpError uses — not_found for a NotFoundError, transient for
   // anything else (including the reserved reply/edit Error, whose message is
   // RESERVED_MESSAGE). There is no 'unsupported' OpError code, so a reserved op
   // inside a batch is a per-op transient, never a whole-batch reject.
@@ -252,7 +253,11 @@ export class D1Store implements ICommentsStore {
             break;
         }
       } catch (err) {
-        results.push({ ok: false, op: op.op, error: toOpError(err) });
+        // withOpThreadId echoes the op's threadId onto a transient/no_access
+        // failure (not_found already carries it) so every ok:false element names
+        // its target — the same rule the shared applyOp applies, shared to avoid
+        // drift between this loop and the handler's.
+        results.push({ ok: false, op: op.op, error: withOpThreadId(op, toOpError(err)) });
       }
     }
     return results;

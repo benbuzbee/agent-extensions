@@ -1,21 +1,23 @@
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
+import { seedInline, interceptComments, thread } from '../helpers/comments-route.js';
 
-// One gutter bubble per resolved highlight, each vertically aligned to the
-// midline of its highlight's bounding rect. Driven off the seeded
-// drift-exact-preserved fixture (one comment).
+// One gutter bubble per highlight, each vertically aligned to the midline of its
+// highlight's bounding rect. Driven off one seeded thread.
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const seed = JSON.parse(
-  readFileSync(path.resolve(here, '../fixtures/drift-exact-preserved/index.comments.json'), 'utf8'),
-);
+const seed = {
+  threads: [thread({
+    id: 'c1',
+    exact: 'quick brown fox',
+    prefix: 'talks about the ',
+    suffix: ' and then continues',
+    sections: ['alpha'],
+    body: 'Is this still the right metaphor here?',
+  })],
+};
 
-test('one bubble per resolved highlight; bubble aligns to highlight midline', async ({ page }) => {
+test('one bubble per highlight; bubble aligns to highlight midline', async ({ page }) => {
   await seedInline(page, seed);
-  await interceptSidecar(page, { initial: seed });
+  await interceptComments(page, { threads: seed.threads });
   await page.goto('/test/fixtures/drift-exact-preserved/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 
@@ -39,8 +41,8 @@ test('one bubble per resolved highlight; bubble aligns to highlight midline', as
 });
 
 test('after a save the gutter rerenders with one bubble per highlight', async ({ page }) => {
-  await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-  await interceptSidecar(page);
+  await seedInline(page);
+  await interceptComments(page);
   await page.goto('/test/fixtures/clean/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 

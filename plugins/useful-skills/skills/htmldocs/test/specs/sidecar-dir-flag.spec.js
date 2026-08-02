@@ -77,9 +77,11 @@ test('a fresh server pointed at the same sidecarDir resumes prior comments', asy
     const page = await ctx.newPage();
     await page.goto(`${handle.url}/index.html?test=1`);
     await page.evaluate(() => window.__htmldocsComments.whenReady());
+    // The on-disk sidecar stays in the LEGACY shape (written above, zero
+    // migration); the server converts it to the internal { threads } seed.
     const model = await page.evaluate(() => window.__htmldocsComments.getModel());
-    expect(model.comments).toHaveLength(1);
-    expect(model.comments[0].body).toBe('persisted across runs');
+    expect(model.threads).toHaveLength(1);
+    expect(model.threads[0].root.body).toBe('persisted across runs');
     await ctx.close();
   } finally {
     await handle.close();

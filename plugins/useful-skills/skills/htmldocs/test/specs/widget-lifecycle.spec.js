@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
+import { seedInline, interceptComments, thread } from '../helpers/comments-route.js';
 
 // Lifecycle invariants the singleton→class refactor introduced: after
 // `__resetForTest` swaps `activeWidget` for a fresh CommentsWidget, the
@@ -10,13 +10,7 @@ import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
 // that a poorly-detached listener or a leaked field would produce.
 
 const seedPrior = {
-  doc: 'index.html', schema: 1, comments: [{
-    id: 'c-prior',
-    anchor: { sections: ['alpha'], prefix: 'The ', exact: 'quick brown fox', suffix: ' jumps over' },
-    body: 'prior widget',
-    author: 'user',
-    created_at: '2026-05-25T00:00:00Z',
-  }],
+  threads: [thread({ id: 'c-prior', exact: 'quick brown fox', prefix: 'The ', suffix: ' jumps over', sections: ['alpha'], body: 'prior widget' })],
 };
 
 test('MountedUI.unmount detaches the window resize listener (add/remove counts balance across reset)', async ({ page }) => {
@@ -39,7 +33,7 @@ test('MountedUI.unmount detaches the window resize listener (add/remove counts b
     };
   });
   await seedInline(page, seedPrior);
-  await interceptSidecar(page, { initial: seedPrior });
+  await interceptComments(page, { threads: seedPrior.threads });
   await page.goto('/test/fixtures/clean/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 
@@ -70,18 +64,18 @@ test('fresh widget after reset reports its own model only — no leaked prior co
   // reset+re-init. The new widget reads the mutated seed; the prior
   // comment must not leak through.
   await seedInline(page, seedPrior);
-  await interceptSidecar(page, { initial: seedPrior });
+  await interceptComments(page, { threads: seedPrior.threads });
   await page.goto('/test/fixtures/clean/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 
   await page.evaluate(() => {
     const seedB = {
-      doc: 'index.html', schema: 1, comments: [{
+      threads: [{
         id: 'c-new',
-        anchor: { sections: ['alpha'], prefix: 'jumps over ', exact: 'the lazy', suffix: ' dog.' },
-        body: 'new widget',
-        author: 'user',
-        created_at: '2026-05-25T01:00:00Z',
+        anchor: { prefix: 'jumps over ', exact: 'the lazy', suffix: ' dog.', sections: ['alpha'] },
+        root: { id: 'c-new', author: { login: 'user', name: null }, body: 'new widget', createdAt: 1000 },
+        replies: [],
+        resolvedAt: null,
       }],
     };
     document.getElementById('__htmldocs_comments').textContent = JSON.stringify(seedB);
@@ -94,7 +88,7 @@ test('fresh widget after reset reports its own model only — no leaked prior co
   });
 
   const after = await page.evaluate(() => ({
-    commentIds: window.__htmldocsComments.getModel().comments.map((c) => c.id),
+    commentIds: window.__htmldocsComments.getModel().threads.map((t) => t.id),
     highlightCount: window.__htmldocsComments.getHighlights().size,
     orphanCount: window.__htmldocsComments.getOrphanCount(),
   }));
@@ -105,7 +99,7 @@ test('fresh widget after reset reports its own model only — no leaked prior co
 
 test('CSS Custom Highlight is cleared on unmount and republished by the next mount', async ({ page }) => {
   await seedInline(page, seedPrior);
-  await interceptSidecar(page, { initial: seedPrior });
+  await interceptComments(page, { threads: seedPrior.threads });
   await page.goto('/test/fixtures/clean/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 
@@ -125,12 +119,12 @@ test('CSS Custom Highlight is cleared on unmount and republished by the next mou
 
   await page.evaluate(() => {
     const seedB = {
-      doc: 'index.html', schema: 1, comments: [{
+      threads: [{
         id: 'c-new',
-        anchor: { sections: ['alpha'], prefix: 'jumps over ', exact: 'the lazy', suffix: ' dog.' },
-        body: 'new',
-        author: 'user',
-        created_at: '2026-05-25T01:00:00Z',
+        anchor: { prefix: 'jumps over ', exact: 'the lazy', suffix: ' dog.', sections: ['alpha'] },
+        root: { id: 'c-new', author: { login: 'user', name: null }, body: 'new', createdAt: 1000 },
+        replies: [],
+        resolvedAt: null,
       }],
     };
     document.getElementById('__htmldocs_comments').textContent = JSON.stringify(seedB);

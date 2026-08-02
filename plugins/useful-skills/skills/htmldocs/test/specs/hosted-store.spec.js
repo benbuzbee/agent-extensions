@@ -1,22 +1,21 @@
 import { test, expect } from '@playwright/test';
-import { seedInlineHosted, interceptComments } from '../helpers/comments-route.js';
+import { seedInlineHosted, interceptComments, thread } from '../helpers/comments-route.js';
 
-// Hosted-mode round trip. An author-carrying seed makes main.ts auto-select the
-// HostedStore (over the ?comments body-op API) instead of the LocalFileStore
-// (which would PUT /__htmldocs/sidecar). These specs prove the widget drives the
-// hosted transport end to end against a stubbed ?comments server, with the same
-// observable behavior the local runtime has.
+// Hosted-mode round trip. The widget adopts whatever author its seed carries —
+// here a real GitHub identity, the hosted stamp. Every runtime drives the SAME
+// HttpCommentsStore over the ?comments body-op API; these specs prove the
+// widget drives the transport end to end against a stubbed ?comments server.
 //
 // Harness note: the seed lands on DOMContentLoaded (addInitScript), one tick
-// after the module's load-time selection runs; production injects the seed into
-// the parsed HTML so it is present at module load. So each spec re-runs the SAME
-// selection via __resetForTest()+__init() once the seed is in the DOM — exercising
-// the real chooseDeps path, not a test-only shortcut.
+// after the module's load-time wiring runs; production injects the seed into
+// the parsed HTML so it is present at module load. So each spec re-runs the
+// SAME wiring via __resetForTest()+__init() once the seed is in the DOM —
+// exercising the real seed-author path, not a test-only shortcut.
 
 const AUTHOR = { login: 'octocat', name: 'Mona Lisa', id: 7 };
 
-async function mountHosted(page, model = { doc: 'index.html', schema: 1, comments: [] }) {
-  await seedInlineHosted(page, model, AUTHOR);
+async function mountHosted(page, seed = { threads: [] }) {
+  await seedInlineHosted(page, seed, AUTHOR);
   const api = await interceptComments(page, { author: AUTHOR });
   await page.goto('/test/fixtures/clean/index.html?test=1');
   await page.evaluate(async () => {
@@ -27,13 +26,13 @@ async function mountHosted(page, model = { doc: 'index.html', schema: 1, comment
   return api;
 }
 
-test('an author seed auto-selects the HostedStore', async ({ page }) => {
+test('an author seed builds the shared HttpCommentsStore', async ({ page }) => {
   await mountHosted(page);
-  const isHosted = await page.evaluate(() => {
+  const isHttp = await page.evaluate(() => {
     const store = window.__htmldocsComments.getStore();
-    return store instanceof window.__htmldocsComments.__HostedStore;
+    return store instanceof window.__htmldocsComments.__HttpCommentsStore;
   });
-  expect(isHosted).toBe(true);
+  expect(isHttp).toBe(true);
 });
 
 test('composing through the UI fires a ?comments create envelope and renders a bubble', async ({ page }) => {
@@ -49,8 +48,7 @@ test('composing through the UI fires a ?comments create envelope and renders a b
   });
   expect(saved.body).toBe('hosted note');
 
-  // The create went over the ?comments API as an {op:'create'} envelope — a
-  // LocalFileStore would instead PUT /__htmldocs/sidecar.
+  // The create went over the ?comments API as an {op:'create'} envelope.
   const posts = api.getCalls().filter((c) => c.method === 'POST');
   expect(posts).toHaveLength(1);
   expect(posts[0].body.op).toBe('create');
@@ -85,23 +83,21 @@ test('getStore() drives create -> resolve and unwraps a resolved thread', async 
 });
 
 test('a resolved-author seed renders a green resolved bubble that stays visible', async ({ page }) => {
-  // The state a reload sees after a resolve: the seed carries resolved_at. Soft
-  // close is never hidden — the bubble stays visible and turns green.
-  const model = {
-    doc: 'index.html',
-    schema: 1,
-    comments: [
-      {
-        id: 'c-hosted-resolved',
-        anchor: { sections: ['alpha'], prefix: 'The ', exact: 'quick brown fox', suffix: ' jumps over' },
-        body: 'hosted resolved comment',
-        author: 'octocat',
-        created_at: '2026-01-01T00:00:00Z',
-        resolved_at: '2026-01-02T00:00:00Z',
-      },
-    ],
+  // The state a reload sees after a resolve: the seeded thread carries a
+  // resolvedAt. Soft close is never hidden — the bubble stays visible, green.
+  const seed = {
+    threads: [thread({
+      id: 'c-hosted-resolved',
+      exact: 'quick brown fox',
+      prefix: 'The ',
+      suffix: ' jumps over',
+      sections: ['alpha'],
+      body: 'hosted resolved comment',
+      author: 'octocat',
+      resolvedAt: 2000,
+    })],
   };
-  await mountHosted(page, model);
+  await mountHosted(page, seed);
 
   const bubble = page.locator('.htmldocs-cmt-bubble');
   await expect(bubble.first()).toBeVisible();

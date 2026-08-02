@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
+import { seedInline, interceptComments, thread } from '../helpers/comments-route.js';
 
 // __resetForTest's contract: swap `activeWidget` for a fresh
 // CommentsWidget so a single page can exercise re-mount flows without
@@ -9,21 +9,15 @@ import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
 
 test('__resetForTest clears state; subsequent __init re-mounts UI and reloads the seed', async ({ page }) => {
   const seedA = {
-    doc: 'index.html', schema: 1, comments: [{
-      id: 'c1',
-      anchor: { sections: ['alpha'], prefix: 'The ', exact: 'quick brown fox', suffix: ' jumps over' },
-      body: 'first run',
-      author: 'user',
-      created_at: '2026-05-25T00:00:00Z',
-    }],
+    threads: [thread({ id: 'c1', exact: 'quick brown fox', prefix: 'The ', suffix: ' jumps over', sections: ['alpha'], body: 'first run' })],
   };
   await seedInline(page, seedA);
-  await interceptSidecar(page, { initial: seedA });
+  await interceptComments(page, { threads: seedA.threads });
   await page.goto('/test/fixtures/clean/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 
   const before = await page.evaluate(() => ({
-    commentBodies: window.__htmldocsComments.getModel().comments.map((c) => c.body),
+    commentBodies: window.__htmldocsComments.getModel().threads.map((t) => t.root.body),
     bubbleCount: document.querySelectorAll('.htmldocs-cmt-bubble').length,
     popoverCount: document.querySelectorAll('.htmldocs-cmt-popover').length,
     composerCount: document.querySelectorAll('.htmldocs-cmt-composer').length,
@@ -62,7 +56,7 @@ test('__resetForTest clears state; subsequent __init re-mounts UI and reloads th
     composerCount: document.querySelectorAll('.htmldocs-cmt-composer').length,
     gutterCount: document.querySelectorAll('.htmldocs-cmt-gutter').length,
   }));
-  expect(afterRebind.model.comments).toHaveLength(1);
+  expect(afterRebind.model.threads).toHaveLength(1);
   expect(afterRebind.popoverCount).toBe(1);
   expect(afterRebind.composerCount).toBe(1);
   expect(afterRebind.gutterCount).toBe(1);

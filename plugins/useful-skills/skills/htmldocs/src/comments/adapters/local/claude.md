@@ -1,1 +1,3 @@
-Transport, identity, injection placement only. Implements ICommentsStore; never touches rendering. The inject.ts here PLACES the strings produced by review-ux/inject.ts — it must not inline or re-derive the markup.
+This is the local implementation of the review UX. The goal is a shared interface with implementations differing only where necessary (e.g. storage/network-layer operations, identity, injection placement).
+
+Change how a comment looks or the composer behaves in `review-ux/`, never here.

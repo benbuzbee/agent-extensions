@@ -5416,21 +5416,24 @@ var yargs_default = Yargs;
 // src/comments/review-ux/inject.ts
 var WIDGET_BASE = "/__htmldocs";
 var COMMENTS_WIDGET_SRC = `${WIDGET_BASE}/comments.mjs`;
-function seedJsonScript(model, author) {
-  const seed = author === void 0 ? model : { ...model, author };
+function seedJsonScript(threads, author) {
+  const seed = author === void 0 ? { threads } : { threads, author };
   const json = JSON.stringify(seed).replace(/</g, "\\u003c");
   return '<script type="application/json" id="__htmldocs_comments">' + json + "</script>";
 }
 function widgetScriptTag(src) {
   return `<script type="module" src="${src}"></script>`;
 }
-function injectionFragment(model, src, author) {
-  return seedJsonScript(model, author) + "\n" + widgetScriptTag(src) + "\n";
+function injectionFragment(threads, src, author) {
+  return seedJsonScript(threads, author) + "\n" + widgetScriptTag(src) + "\n";
 }
 
+// src/comments/adapters/local/author.ts
+var LOCAL_AUTHOR = { login: "user", name: null };
+
 // src/comments/adapters/local/inject.ts
-function injectIntoHtml(html, model) {
-  const blocks = injectionFragment(model, COMMENTS_WIDGET_SRC);
+function injectIntoHtml(html, threads) {
+  const blocks = injectionFragment(threads, COMMENTS_WIDGET_SRC, LOCAL_AUTHOR);
   const idx = html.lastIndexOf("</body>");
   if (idx === -1) return html + "\n" + blocks;
   return html.slice(0, idx) + blocks + html.slice(idx);
@@ -6350,51 +6353,6 @@ function optional(innerType) {
 var asThreadId = (raw) => raw;
 var asCommentId = (raw) => raw;
 var asTimestamp = (ms) => ms;
-function threadToLegacy(thread) {
-  const out = [];
-  const toLegacy = (c, anchor) => {
-    const legacy = {
-      id: c.id,
-      anchor: {
-        sections: anchor.sections ?? [],
-        prefix: anchor.prefix ?? "",
-        exact: anchor.exact,
-        suffix: anchor.suffix ?? ""
-      },
-      body: c.body,
-      author: c.author.login,
-      created_at: new Date(c.createdAt).toISOString()
-    };
-    if (thread.resolvedAt !== null) {
-      legacy.resolved_at = new Date(thread.resolvedAt).toISOString();
-    }
-    return legacy;
-  };
-  out.push(toLegacy(thread.root, thread.anchor));
-  for (const reply of thread.replies) {
-    out.push(toLegacy(reply, thread.anchor));
-  }
-  return out;
-}
-function legacyToThread(comment) {
-  return {
-    id: asThreadId(comment.id),
-    anchor: {
-      exact: comment.anchor.exact,
-      prefix: comment.anchor.prefix || void 0,
-      suffix: comment.anchor.suffix || void 0,
-      sections: comment.anchor.sections.length > 0 ? comment.anchor.sections : void 0
-    },
-    root: {
-      id: asCommentId(comment.id),
-      author: { login: comment.author, name: null },
-      body: comment.body,
-      createdAt: asTimestamp(new Date(comment.created_at).getTime())
-    },
-    replies: [],
-    resolvedAt: comment.resolved_at ? asTimestamp(new Date(comment.resolved_at).getTime()) : null
-  };
-}
 
 // src/comments/api/schemas.ts
 var anchorSchema = object({
@@ -6566,6 +6524,14 @@ function errorToOpError(err) {
   const message = err instanceof Error ? err.message : String(err);
   return { code: "transient", message };
 }
+function opThreadId(op) {
+  return "threadId" in op ? op.threadId : void 0;
+}
+function withOpThreadId(op, error) {
+  if (error.threadId !== void 0) return error;
+  const threadId = opThreadId(op);
+  return threadId !== void 0 ? { ...error, threadId } : error;
+}
 async function applyOp(store, doc, op, author) {
   try {
     switch (op.op) {
@@ -6587,10 +6553,14 @@ async function applyOp(store, doc, op, author) {
       }
       case "reply":
       case "edit":
-        return { ok: false, op: op.op, error: { code: "transient", message: RESERVED_MESSAGE } };
+        return {
+          ok: false,
+          op: op.op,
+          error: withOpThreadId(op, { code: "transient", message: RESERVED_MESSAGE })
+        };
     }
   } catch (err) {
-    return { ok: false, op: op.op, error: errorToOpError(err) };
+    return { ok: false, op: op.op, error: withOpThreadId(op, errorToOpError(err)) };
   }
 }
 function statusForError(error) {
@@ -6636,6 +6606,55 @@ async function handleCommentsRequest(req) {
 
 // src/comments/adapters/local/sidecar-store.ts
 import { randomUUID } from "node:crypto";
+
+// src/comments/adapters/local/legacy-format.ts
+function threadToLegacy(thread) {
+  const out = [];
+  const toLegacy = (c, anchor) => {
+    const legacy = {
+      id: c.id,
+      anchor: {
+        sections: anchor.sections ?? [],
+        prefix: anchor.prefix ?? "",
+        exact: anchor.exact,
+        suffix: anchor.suffix ?? ""
+      },
+      body: c.body,
+      author: c.author.login,
+      created_at: new Date(c.createdAt).toISOString()
+    };
+    if (thread.resolvedAt !== null) {
+      legacy.resolved_at = new Date(thread.resolvedAt).toISOString();
+    }
+    return legacy;
+  };
+  out.push(toLegacy(thread.root, thread.anchor));
+  for (const reply of thread.replies) {
+    out.push(toLegacy(reply, thread.anchor));
+  }
+  return out;
+}
+function legacyToThread(comment) {
+  return {
+    id: asThreadId(comment.id),
+    anchor: {
+      exact: comment.anchor.exact,
+      prefix: comment.anchor.prefix || void 0,
+      suffix: comment.anchor.suffix || void 0,
+      sections: comment.anchor.sections.length > 0 ? comment.anchor.sections : void 0
+    },
+    root: {
+      id: asCommentId(comment.id),
+      author: { login: comment.author, name: null },
+      body: comment.body,
+      createdAt: asTimestamp(new Date(comment.created_at).getTime())
+    },
+    replies: [],
+    resolvedAt: comment.resolved_at ? asTimestamp(new Date(comment.resolved_at).getTime()) : null
+  };
+}
+
+// src/comments/adapters/local/sidecar-store.ts
 function tagNotFound(err) {
   if (isNotFoundError(err)) {
     throw Object.assign(new Error("thread not found"), { opError: { code: "not_found", threadId: err.threadId } });
@@ -6726,7 +6745,6 @@ var SidecarStore = class {
 // src/comments/serve.ts
 var HERE = path.dirname(fileURLToPath2(import.meta.url));
 var BUNDLE_PATH = path.join(HERE, "comments.mjs");
-var SIDECAR_URL_PREFIX = "/__htmldocs/sidecar/";
 var MIME = {
   ".html": "text/html; charset=utf-8",
   ".htm": "text/html; charset=utf-8",
@@ -6846,52 +6864,6 @@ async function readBody(req, limit) {
     req.on("error", reject);
   });
 }
-async function handlePutSidecar(req, res, root, sidecarDir, urlPath) {
-  const docRel = urlPath.slice(SIDECAR_URL_PREFIX.length);
-  if (!docRel) {
-    send(res, 400, "missing doc path");
-    return;
-  }
-  const htmlPath = resolveUnderRoot(root, "/" + docRel);
-  if (!htmlPath) {
-    send(res, 400, "bad doc path");
-    return;
-  }
-  if (!/\.html?$/i.test(htmlPath)) {
-    send(res, 400, "doc path must end in .html");
-    return;
-  }
-  const htmlStat = await fs.stat(htmlPath).catch(() => null);
-  if (!htmlStat || !htmlStat.isFile()) {
-    send(res, 404, "doc not found");
-    return;
-  }
-  let body;
-  try {
-    body = await readBody(req, 5 * 1024 * 1024);
-  } catch (err) {
-    const code = err.code;
-    if (code === "ETOOBIG") {
-      send(res, 413, "payload too large");
-      return;
-    }
-    send(res, 400, "bad request");
-    return;
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(body);
-  } catch {
-    send(res, 400, "invalid JSON");
-    return;
-  }
-  if (!isWellShapedModel(parsed)) {
-    send(res, 422, "invalid CommentsModel shape");
-    return;
-  }
-  await writeSidecarAtomic(sidecarPathFor(htmlPath, root, sidecarDir), parsed);
-  send(res, 204, "");
-}
 async function handleGetBundle(res) {
   try {
     const bytes = await fs.readFile(BUNDLE_PATH);
@@ -6900,7 +6872,7 @@ async function handleGetBundle(res) {
     send(res, 500, "comments.mjs not found next to serve.mjs in dist/");
   }
 }
-async function handleHtmlInject(res, root, sidecarDir, htmlPath) {
+async function handleHtmlInject(res, root, sidecarDir, htmlPath, urlPath) {
   let html;
   try {
     html = await fs.readFile(htmlPath, "utf-8");
@@ -6913,8 +6885,16 @@ async function handleHtmlInject(res, root, sidecarDir, htmlPath) {
     return;
   }
   const docLabel = path.basename(htmlPath);
-  const model = await readSidecar(sidecarPathFor(htmlPath, root, sidecarDir), docLabel);
-  const injected = injectIntoHtml(html, model);
+  const sidecarPath = sidecarPathFor(htmlPath, root, sidecarDir);
+  const store = new SidecarStore(
+    {
+      load: () => readSidecar(sidecarPath, docLabel),
+      save: (model) => writeSidecarAtomic(sidecarPath, model)
+    },
+    docLabel
+  );
+  const threads = await store.list({ repo: "", ref: "default", path: stripQueryHash(urlPath) });
+  const injected = injectIntoHtml(html, threads);
   send(res, 200, injected, { "Content-Type": MIME[".html"], "Cache-Control": "no-cache" });
 }
 async function handleStatic(res, filePath) {
@@ -6953,18 +6933,20 @@ async function handleGet(res, root, sidecarDir, urlPath) {
   }
   const ext = path.extname(finalPath).toLowerCase();
   if (ext === ".html" || ext === ".htm") {
-    await handleHtmlInject(res, root, sidecarDir, finalPath);
+    await handleHtmlInject(res, root, sidecarDir, finalPath, urlPath);
   } else {
     await handleStatic(res, finalPath);
   }
 }
-var LOCAL_AUTHOR = { login: "user", name: null };
+var LOCAL_AUTHOR2 = { login: "user", name: null };
 async function handleCommentsApi(req, res, root, sidecarDir, urlPath, params, method) {
-  const htmlPath = resolveUnderRoot(root, urlPath);
+  let htmlPath = resolveUnderRoot(root, urlPath);
   if (!htmlPath) {
     sendJson(res, 404, { error: "not found" });
     return;
   }
+  const dirStat = await fs.stat(htmlPath).catch(() => null);
+  if (dirStat?.isDirectory()) htmlPath = path.join(htmlPath, "index.html");
   if (!/\.html?$/i.test(htmlPath)) {
     sendJson(res, 404, { error: "not found" });
     return;
@@ -7016,7 +6998,7 @@ async function handleCommentsApi(req, res, root, sidecarDir, urlPath, params, me
     body,
     store,
     doc,
-    author: LOCAL_AUTHOR
+    author: LOCAL_AUTHOR2
   });
   sendJson(res, status, json);
 }
@@ -7028,13 +7010,6 @@ function createServer2(cfg) {
     const url = req.url || "/";
     const method = req.method || "GET";
     const urlPath = stripQueryHash(url);
-    if (method === "PUT" && urlPath.startsWith(SIDECAR_URL_PREFIX)) {
-      handlePutSidecar(req, res, cfg.root, cfg.sidecarDir, urlPath).catch((err) => {
-        console.error("[serve] PUT failed:", err);
-        if (!res.headersSent) send(res, 500, "write failed");
-      });
-      return;
-    }
     const query = url.indexOf("?");
     const params = new URLSearchParams(query === -1 ? "" : url.slice(query + 1));
     if (params.has("comments")) {
@@ -7049,7 +7024,7 @@ function createServer2(cfg) {
       return;
     }
     if (method !== "GET" && method !== "HEAD") {
-      send(res, 405, "method not allowed", { Allow: "GET, HEAD, PUT" });
+      send(res, 405, "method not allowed", { Allow: "GET, HEAD" });
       return;
     }
     if (urlPath === COMMENTS_WIDGET_SRC) {

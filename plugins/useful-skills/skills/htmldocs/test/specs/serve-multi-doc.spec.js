@@ -1,8 +1,9 @@
 // Multi-doc in-process server test. Boots createServer/startReviewServer
 // directly (no child subprocess) and drives a real browser through the
 // widget. Proves the per-doc-sidecar contract: every served .html gets its
-// own widget instance, and PUTs route to a sidecar mirroring the doc's
-// path under --root inside SIDECAR_DIR (including arbitrary depth).
+// own widget instance, and its ?comments ops land in a sidecar mirroring
+// the doc's path under --root inside SIDECAR_DIR (including arbitrary
+// depth, and directory-index URLs where the doc is <dir>/index.html).
 
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs/promises';
@@ -30,6 +31,12 @@ test.beforeAll(async () => {
   const nested = path.join(rootDir, 'a', 'b', 'c');
   await fs.mkdir(nested, { recursive: true });
   await fs.writeFile(path.join(nested, 'foo.html'), cleanHtml, 'utf-8');
+  // Directory-index docs: served at trailing-slash URLs, resolved to
+  // <dir>/index.html by the server.
+  await fs.writeFile(path.join(rootDir, 'index.html'), cleanHtml, 'utf-8');
+  const docsDir = path.join(rootDir, 'docs');
+  await fs.mkdir(docsDir, { recursive: true });
+  await fs.writeFile(path.join(docsDir, 'index.html'), cleanHtml, 'utf-8');
 
   handle = await startReviewServer({ root: rootDir });
 });
@@ -85,6 +92,29 @@ test('each served HTML — including nested — gets its own sidecar mirrored un
   expect(alpha.comments[0].body).not.toBe('on beta');
   expect(beta.comments[0].body).not.toBe('on alpha');
   expect(nested.comments[0].body).not.toBe('on alpha');
+
+  await ctx.close();
+});
+
+// Regression: a doc viewed at a trailing-slash URL (`/` or `/dir/`) is served
+// as <dir>/index.html with the widget mounted, and the widget POSTs ops back
+// to location.pathname verbatim — the ?comments route must resolve the
+// directory to the same index.html (Deliverable-1 behavior the deleted
+// client-side normalization used to provide).
+test('directory-index URLs save through ?comments to the mirrored index sidecar', async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+
+  await saveOn(page, `${handle.url}/?test=1`, 'on root index');
+  await saveOn(page, `${handle.url}/docs/?test=1`, 'on docs index');
+
+  const rootSidecar = JSON.parse(await fs.readFile(path.join(handle.sidecarDir, 'index.comments.json'), 'utf-8'));
+  const docsSidecar = JSON.parse(await fs.readFile(path.join(handle.sidecarDir, 'docs', 'index.comments.json'), 'utf-8'));
+
+  expect(rootSidecar.comments).toHaveLength(1);
+  expect(rootSidecar.comments[0].body).toBe('on root index');
+  expect(docsSidecar.comments).toHaveLength(1);
+  expect(docsSidecar.comments[0].body).toBe('on docs index');
 
   await ctx.close();
 });

@@ -2,7 +2,7 @@
 // runtimes inject. Adapters own only PLACEMENT (string-splice vs HTMLRewriter);
 // escaping and element-id contracts live here.
 
-import type { CommentsModel, Author } from './types';
+import type { Thread, Author } from './types';
 
 /** URL base every htmldocs widget asset lives under, in both runtimes. */
 export const WIDGET_BASE = '/__htmldocs';
@@ -11,18 +11,20 @@ export const WIDGET_BASE = '/__htmldocs';
 export const COMMENTS_WIDGET_SRC = `${WIDGET_BASE}/comments.mjs`;
 
 /**
- * Produce the inline JSON seed `<script>` tag. Escapes each `<` as the JSON
+ * Produce the inline JSON seed `<script>` tag. The seed is the internal
+ * `{ threads }` view (the same payload the GET ?comments response carries), so
+ * no legacy conversion ever runs browser-side. Escapes each `<` as the JSON
  * unicode escape `\u003c` (not an HTML entity like &lt;) so a `</script>`
  * inside a comment body can't break out of the JSON block.
  *
- * `author` is OPTIONAL. When omitted the emitted seed is byte-identical to the
- * Deliverable 1 output (local injection passes nothing, so the local seed is
- * unchanged). The hosted Worker supplies the captured session author, merged as
- * an extra top-level field for a future MountDeps — the widget's `isWellShaped`
- * check tolerates extra fields, so this is backward-compatible.
+ * `author` is OPTIONAL at this helper's level — omitting it yields a bare
+ * `{ threads }` seed. In practice every server stamps one: the local server
+ * passes LOCAL_AUTHOR, the hosted Worker the captured session author. The
+ * widget adopts whatever author the seed carries (falling back to LOCAL_AUTHOR
+ * for a missing/malformed seed); both runtimes build the same store.
  */
-export function seedJsonScript(model: CommentsModel, author?: Author): string {
-  const seed = author === undefined ? model : { ...model, author };
+export function seedJsonScript(threads: Thread[], author?: Author): string {
+  const seed = author === undefined ? { threads } : { threads, author };
   const json = JSON.stringify(seed).replace(/</g, '\\u003c');
   return '<script type="application/json" id="__htmldocs_comments">' + json + '</script>';
 }
@@ -45,6 +47,6 @@ export function widgetScriptTag(src: string): string {
  * byte-identical markup by construction — neither hand-rolls the tags or the
  * whitespace between them.
  */
-export function injectionFragment(model: CommentsModel, src: string, author?: Author): string {
-  return seedJsonScript(model, author) + '\n' + widgetScriptTag(src) + '\n';
+export function injectionFragment(threads: Thread[], src: string, author?: Author): string {
+  return seedJsonScript(threads, author) + '\n' + widgetScriptTag(src) + '\n';
 }

@@ -259,7 +259,9 @@ describe("D1Store batch", () => {
     const results: OpResult[] = await store.batch(DOC, ops, AUTHOR);
 
     expect(results).toEqual([
-      { ok: false, op: "reply", error: { code: "transient", message: "op not yet supported" } },
+      // reply names a threadId, so its error echoes it; edit names only a
+      // commentId, so it carries none.
+      { ok: false, op: "reply", error: { code: "transient", message: "op not yet supported", threadId: asThreadId("t1") } },
       { ok: false, op: "edit", error: { code: "transient", message: "op not yet supported" } },
     ]);
   });

@@ -7,6 +7,7 @@ export {
   applyOp,
   statusForError,
   handleCommentsRequest,
+  withOpThreadId,
 } from './handlers';
 export type { CommentsRequest, CommentsResponse } from './handlers';
 export {

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
+import { seedInline, interceptComments } from '../helpers/comments-route.js';
 
 // Documents with no <article> at all are an edge case: the popover gate
 // will never fire (no article to touch), so production users can't
@@ -9,8 +9,8 @@ import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
 // prefix/suffix on full-doc text.
 
 test('encoder returns sections: [] when no <article> exists in the doc', async ({ page }) => {
-  await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-  await interceptSidecar(page);
+  await seedInline(page);
+  await interceptComments(page);
   await page.goto('/test/fixtures/clean/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 

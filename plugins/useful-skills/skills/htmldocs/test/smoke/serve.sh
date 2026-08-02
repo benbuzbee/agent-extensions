@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Smoke test for ../../serve.sh: boots it against the clean fixture, asserts
 # the URL:/SIDECAR_DIR: stdout contract, exercises both the dir-arg and
-# file-arg URL shapes, and drives a PUT round-trip through the bundled
-# server to verify a real CommentsModel lands at the mirrored path under
-# SIDECAR_DIR.
+# file-arg URL shapes, and drives an op round-trip over the <doc>?comments API
+# (POST create, then GET list) through the bundled server to verify the op lands
+# and the sidecar mirrors under SIDECAR_DIR — with a served-tree leak check.
 #
 # Bash + curl only — kept off the Playwright runner so this stays a fast
 # pre-flight check on the bundle-as-shipped. Playwright specs cover the
@@ -97,12 +97,6 @@ run_phase() {
     echo "ok[$label]: ${url}${p_path} → $got"
   done
 
-  # Stash for the dir-phase PUT round-trip below.
-  if [[ "$label" == "dir" ]]; then
-    echo "$url" > "$tmp_dir/dir.url"
-    echo "$sidecar_dir" > "$tmp_dir/dir.sidecar_dir"
-  fi
-
   kill "$server_pid" 2>/dev/null || true
   wait "$server_pid" 2>/dev/null || true
   server_pid=""
@@ -119,66 +113,75 @@ run_phase "dir" "test/fixtures/clean/" '/$' \
 run_phase "file" "test/fixtures/clean/index.html" '/index\.html$' \
   ":200"
 
-# Phase 3: PUT round-trip from the dir-phase server. We re-boot here against
-# the dir arg so the server is fresh for the PUT and we can record fixture
-# mtime/hash before-and-after the write — that's the leak-detection signal.
+# Phase 3: op round-trip over the <doc>?comments API. We re-boot here against
+# the dir arg so the server is fresh, and record the served-tree fixture hash
+# before-and-after the op — that's the leak-detection signal.
 fixture_sidecar="test/fixtures/clean/index.comments.json"
 fixture_hash_before="$(sha256sum "$fixture_sidecar" | awk '{print $1}')"
 
-put_url="$(cat "$tmp_dir/dir.url" 2>/dev/null || true)"
-put_sidecar_dir="$(cat "$tmp_dir/dir.sidecar_dir" 2>/dev/null || true)"
-
-# The dir-phase server was killed at end of run_phase; boot a fresh one for
-# the PUT so the sidecar dir is a fresh auto-tmp (the prior phase's dir was
-# cleaned up implicitly when the server exited and tmp_dir teardown runs
-# at EXIT).
-out_file="$tmp_dir/put.out"
-err_file="$tmp_dir/put.err"
+# The dir-phase server was killed at end of run_phase; boot a fresh one for the
+# op round-trip so the sidecar dir is a fresh auto-tmp (the prior phase's dir was
+# cleaned up implicitly when the server exited and tmp_dir teardown runs at EXIT).
+out_file="$tmp_dir/op.out"
+err_file="$tmp_dir/op.err"
 bash serve.sh "test/fixtures/clean/" >"$out_file" 2>"$err_file" &
 server_pid=$!
 for _ in $(seq 1 50); do
   if grep -q '^URL: ' "$out_file" && grep -q '^SIDECAR_DIR: ' "$out_file"; then break; fi
-  kill -0 "$server_pid" 2>/dev/null || { echo "FAIL[put]: server died" >&2; cat "$err_file" >&2; exit 1; }
+  kill -0 "$server_pid" 2>/dev/null || { echo "FAIL[op]: server died" >&2; cat "$err_file" >&2; exit 1; }
   sleep 0.1
 done
-put_url="$(grep -m1 '^URL: ' "$out_file" | sed 's/^URL: //')"
-put_sidecar_dir="$(grep -m1 '^SIDECAR_DIR: ' "$out_file" | sed 's/^SIDECAR_DIR: //')"
+op_url="$(grep -m1 '^URL: ' "$out_file" | sed 's/^URL: //')"
+op_sidecar_dir="$(grep -m1 '^SIDECAR_DIR: ' "$out_file" | sed 's/^SIDECAR_DIR: //')"
 for _ in $(seq 1 50); do
-  curl -fs -o /dev/null "${put_url}" 2>/dev/null && break
-  kill -0 "$server_pid" 2>/dev/null || { echo "FAIL[put]: server died before accepting" >&2; exit 1; }
+  curl -fs -o /dev/null "${op_url}" 2>/dev/null && break
+  kill -0 "$server_pid" 2>/dev/null || { echo "FAIL[op]: server died before accepting" >&2; exit 1; }
   sleep 0.1
 done
 
-put_body='{"doc":"index.html","schema":1,"comments":[{"id":"smoke-1","anchor":{"sections":["alpha"],"prefix":"The ","exact":"quick brown fox","suffix":" jumps"},"body":"smoke","author":"user","created_at":"2026-05-26T00:00:00Z"}]}'
+# The collection URL for the served index.html: the doc path + ?comments.
+comments_url="${op_url}index.html?comments"
+op_body='{"op":"create","anchor":{"sections":["alpha"],"prefix":"The ","exact":"quick brown fox","suffix":" jumps"},"text":"smoke"}'
 
-got="$(curl -s -o /dev/null -w '%{http_code}' -X PUT --max-time 10 \
+# POST the create op -> 200 with the new thread.
+create_out="$(curl -s -w '\n%{http_code}' -X POST --max-time 10 \
   -H 'Content-Type: application/json' \
-  --data-raw "$put_body" \
-  "${put_url}__htmldocs/sidecar/index.html")"
-[[ "$got" == "204" ]] || { echo "FAIL[put]: PUT sidecar → $got (want 204)" >&2; cat "$err_file" >&2; exit 1; }
-echo "ok[put]: PUT sidecar → 204"
+  --data-raw "$op_body" \
+  "${comments_url}")"
+create_code="$(printf '%s' "$create_out" | tail -n1)"
+create_json="$(printf '%s' "$create_out" | sed '$d')"
+[[ "$create_code" == "200" ]] || { echo "FAIL[op]: POST create → $create_code (want 200)" >&2; echo "$create_json" >&2; cat "$err_file" >&2; exit 1; }
+printf '%s' "$create_json" | grep -q '"op":"create"' || { echo "FAIL[op]: create response missing op:create" >&2; echo "$create_json" >&2; exit 1; }
+echo "ok[op]: POST create → 200"
 
-landed="$put_sidecar_dir/index.comments.json"
-[[ -f "$landed" ]] || { echo "FAIL[put]: sidecar did not land at $landed" >&2; exit 1; }
-# Whitespace-tolerant body match so a JSON-formatting change doesn't break
-# the smoke for unrelated reasons.
+# GET the collection -> 200 {threads:[...]} listing the created thread.
+list_out="$(curl -s -w '\n%{http_code}' --max-time 10 "${comments_url}")"
+list_code="$(printf '%s' "$list_out" | tail -n1)"
+list_json="$(printf '%s' "$list_out" | sed '$d')"
+[[ "$list_code" == "200" ]] || { echo "FAIL[op]: GET list → $list_code (want 200)" >&2; echo "$list_json" >&2; exit 1; }
+printf '%s' "$list_json" | grep -q '"threads"' || { echo "FAIL[op]: list response missing threads" >&2; echo "$list_json" >&2; exit 1; }
+printf '%s' "$list_json" | grep -q '"body":"smoke"' || { echo "FAIL[op]: created thread not listed" >&2; echo "$list_json" >&2; exit 1; }
+echo "ok[op]: GET list contains the created thread"
+
+# The sidecar landed under SIDECAR_DIR in the (unchanged) legacy on-disk shape.
+landed="$op_sidecar_dir/index.comments.json"
+[[ -f "$landed" ]] || { echo "FAIL[op]: sidecar did not land at $landed" >&2; exit 1; }
 grep -Eq '"body"[[:space:]]*:[[:space:]]*"smoke"' "$landed" || {
-  echo "FAIL[put]: landed sidecar missing expected body" >&2
+  echo "FAIL[op]: landed sidecar missing expected body" >&2
   cat "$landed" >&2
   exit 1
 }
-echo "ok[put]: sidecar landed at $landed with expected body"
+echo "ok[op]: sidecar landed at $landed with expected body"
 
-# Hash-based leak detection — catches ANY write to the served-tree sidecar,
-# not just one whose body happens to contain "smoke".
+# Hash-based leak detection — catches ANY write to the served-tree sidecar.
 fixture_hash_after="$(sha256sum "$fixture_sidecar" | awk '{print $1}')"
 [[ "$fixture_hash_before" == "$fixture_hash_after" ]] || {
-  echo "FAIL[put]: served-tree sidecar was mutated by the PUT" >&2
+  echo "FAIL[op]: served-tree sidecar was mutated by the op" >&2
   echo "  before: $fixture_hash_before" >&2
   echo "  after:  $fixture_hash_after" >&2
   exit 1
 }
-echo "ok[put]: served tree unchanged by PUT"
+echo "ok[op]: served tree unchanged by the op"
 
 kill "$server_pid" 2>/dev/null || true
 wait "$server_pid" 2>/dev/null || true

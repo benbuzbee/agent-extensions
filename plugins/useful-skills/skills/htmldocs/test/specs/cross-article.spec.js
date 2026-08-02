@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
+import { seedInline, interceptComments } from '../helpers/comments-route.js';
 
 // Cross-article selections were silently impossible before: the popover
 // gate required the selection's common ancestor to be inside an <article>,
@@ -14,8 +14,8 @@ import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
 
 test.describe('cross-article selection', () => {
   test('popover surfaces when selection spans two adjacent articles', async ({ page }) => {
-    await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-    await interceptSidecar(page);
+    await seedInline(page);
+    await interceptComments(page);
     await page.goto('/test/fixtures/cross-article/index.html?test=1');
     await page.evaluate(() => window.__htmldocsComments.whenReady());
 
@@ -34,8 +34,8 @@ test.describe('cross-article selection', () => {
   });
 
   test('encoder records every touched article id in anchor.sections', async ({ page }) => {
-    await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-    await interceptSidecar(page);
+    await seedInline(page);
+    await interceptComments(page);
     await page.goto('/test/fixtures/cross-article/index.html?test=1');
     await page.evaluate(() => window.__htmldocsComments.whenReady());
 
@@ -52,8 +52,8 @@ test.describe('cross-article selection', () => {
   });
 
   test('save → reload → anchor resolves to the same span', async ({ page }) => {
-    await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-    const sidecar = await interceptSidecar(page);
+    await seedInline(page);
+    const api = await interceptComments(page);
     await page.goto('/test/fixtures/cross-article/index.html?test=1');
     await page.evaluate(() => window.__htmldocsComments.whenReady());
 
@@ -68,14 +68,16 @@ test.describe('cross-article selection', () => {
       return text;
     });
 
-    // Re-seed with the persisted state and re-init; the resolved Range
-    // must match the original selection's text.
-    const persisted = sidecar.getState();
-    expect(persisted.comments).toHaveLength(1);
-    expect(persisted.comments[0].anchor.sections).toEqual(['components', 'data-flow']);
+    // The create went over ?comments as an op envelope carrying both section
+    // ids; the persisted thread is what a reload's seed would carry.
+    const persisted = api.getThreads();
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0].anchor.sections).toEqual(['components', 'data-flow']);
 
-    await page.evaluate((seed) => {
-      document.getElementById('__htmldocs_comments').textContent = JSON.stringify(seed);
+    // Re-seed with the persisted { threads } and re-init; the resolved Range
+    // must match the original selection's text.
+    await page.evaluate((threads) => {
+      document.getElementById('__htmldocs_comments').textContent = JSON.stringify({ threads });
       window.__htmldocsComments.__resetForTest();
       window.__htmldocsComments.__init();
       return window.__htmldocsComments.whenReady();

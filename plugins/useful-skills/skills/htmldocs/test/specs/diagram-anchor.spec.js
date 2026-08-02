@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
+import { seedInline, interceptComments } from '../helpers/comments-route.js';
 
 // SVG <text> labels inside an <article> participate in the same TreeWalker
 // stream as prose, so they should anchor without any special handling.
@@ -7,8 +7,8 @@ import { seedInline, interceptSidecar } from '../helpers/sidecar-route.js';
 // the popover gate requires the selection to intersect an article.
 
 test('SVG <text> label inside <article> round-trips through anchor', async ({ page }) => {
-  await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-  await interceptSidecar(page);
+  await seedInline(page);
+  await interceptComments(page);
   await page.goto('/test/fixtures/diagram/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 
@@ -29,8 +29,8 @@ test('SVG <text> label inside <article> round-trips through anchor', async ({ pa
 });
 
 test('orphan SVG (no enclosing <article>) NOW surfaces the popover (gate removed)', async ({ page }) => {
-  await seedInline(page, { doc: 'index.html', schema: 1, comments: [] });
-  await interceptSidecar(page);
+  await seedInline(page);
+  await interceptComments(page);
   await page.goto('/test/fixtures/orphan-svg/index.html?test=1');
   await page.evaluate(() => window.__htmldocsComments.whenReady());
 

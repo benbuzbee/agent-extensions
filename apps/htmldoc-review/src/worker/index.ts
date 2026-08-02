@@ -1,4 +1,5 @@
 import { getValidAccessToken, getIdentity, deleteSession } from "../core/session";
+import { fetchIdentity } from "../core/identity";
 import { beginLogin, completeLogin, sanitizeReturnPath } from "../core/oauth";
 import { fetchDoc, parseDocRequest, InvalidPathError } from "../core/docsource";
 import {
@@ -22,12 +23,7 @@ import { KvSessionStore } from "./kv-store";
 import { checkAccess } from "./access";
 import { handleComments, type Actor } from "./comments";
 import { D1Store } from "./d1-store";
-import {
-  buildSeedModel,
-  injectWidget,
-  serveWidgetBundle,
-  COMMENTS_WIDGET_SRC,
-} from "./inject";
+import { injectWidget, serveWidgetBundle, COMMENTS_WIDGET_SRC } from "./inject";
 import { initWorkerLogging } from "./logging";
 
 const log = getLogger(["htmldoc-review", "worker"]);
@@ -124,16 +120,25 @@ type Credential =
   | { kind: "bearer"; token: string };
 
 // Resolve the author to stamp on a mutation (comments branch) or seed onto a
-// doc view (injection). Session credential: the identity captured at login —
-// guaranteed present on any record that resolved a token (identity-less
-// records die on read in getValidAccessToken); a null return means the record
-// vanished since, i.e. a dead session, and each caller picks its own
-// dead-session answer. Bearer credential: the DISTINGUISHABLE {login:"agent"}
-// placeholder — never a generic "unknown" — and NO GET /user is issued.
-// Factored so the comments branch and the doc-view seed resolve identically.
+// doc view (injection).
+//   Session credential: the identity captured at login — guaranteed present on
+//     any record that resolved a token (identity-less records die on read in
+//     getValidAccessToken); a null return means the record vanished since,
+//     i.e. a dead session, and each caller picks its own dead-session answer.
+//     No GitHub call is issued.
+//   Bearer credential: a MUTATION (`mutating`) resolves the caller's REAL GitHub
+//     identity via GET /user, so the stamped author and audit trail name the real
+//     agent instead of a placeholder; a non-mutating read stamps the
+//     DISTINGUISHABLE {login:"agent"} placeholder — never a generic "unknown" —
+//     and issues NO GitHub call, keeping bearer GET/list free of an extra round-trip.
+// Factored so the comments branch and the doc-view seed resolve the author
+// identically; the difference is only in failure handling (the comments branch
+// lets a bearer fetchIdentity failure surface as 5xx, the doc-view path issues
+// no fallible call at all).
 async function resolveAuthor(
   store: KvSessionStore,
-  cred: Credential
+  cred: Credential,
+  mutating: boolean
 ): Promise<{ author: Author; actor: Actor } | null> {
   if (cred.kind === "session") {
     const identity = await getIdentity(store, cred.id);
@@ -141,6 +146,24 @@ async function resolveAuthor(
     return {
       author: { login: identity.login, name: identity.name, id: identity.id },
       actor: "session",
+    };
+  }
+  if (mutating) {
+    // A bearer mutation resolves the caller's real identity with the same
+    // GET /user fetchIdentity the session path uses, and lets its failure
+    // propagate (non-2xx/network -> 5xx) rather than stamping a placeholder onto
+    // a real agent — mirroring getIdentity above.
+    //
+    // Cost: a bearer mutation issues TWO upstream GitHub calls — the
+    // checkAccess Contents probe AND this GET /user. They cannot be combined: no
+    // GitHub endpoint returns both a Contents authorization check and the
+    // caller's identity. The future lever is to cache identity keyed by a hash of
+    // the token with a short TTL (e.g. in KV), so repeat mutations from the same
+    // agent skip the /user round-trip; deliberately not built yet.
+    const identity = await fetchIdentity(cred.token);
+    return {
+      author: { login: identity.login, name: identity.name, id: identity.id },
+      actor: "bearer",
     };
   }
   return { author: { login: "agent", name: null }, actor: "bearer" };
@@ -300,10 +323,14 @@ export default {
       // probed with ref-or-undefined (never the literal 'default').
       if (isComments) {
         // Stamp the author server-side (never read from the body). A dead
-        // session here (record vanished since token resolution) is
-        // unauthorized — the same answer any credential-less comments request
-        // gets; the doc-view seed below instead just omits the author.
-        const resolved = await resolveAuthor(store, cred);
+        // session (record vanished since token resolution) is unauthorized —
+        // the same answer any credential-less comments request gets; a bearer
+        // fetchIdentity failure propagates (surfaces as 5xx) rather than
+        // stamping a placeholder onto a genuine author. Only a POST mutates, so
+        // only a POST resolves the bearer caller's real identity; a bearer
+        // GET/list stays on the placeholder with no GitHub call.
+        const mutating = req.method.toUpperCase() === "POST";
+        const resolved = await resolveAuthor(store, cred, mutating);
         if (!resolved) return unauthorized();
         const { author, actor } = resolved;
         return await handleComments(
@@ -331,12 +358,12 @@ export default {
         ref: ref ?? "default",
         path: docPath,
       });
-      const model = buildSeedModel(threads, docPath);
       // A dead session here (record vanished since token resolution) must not
       // break a doc VIEW that already served — seed without an author instead.
-      // No GitHub call is involved: resolveAuthor only reads the session record.
-      const author = (await resolveAuthor(store, cred))?.author;
-      return injectWidget(res, model, COMMENTS_WIDGET_SRC, author);
+      // A doc view is never a mutation, so no path here issues a GitHub call:
+      // the session arm reads the record, the bearer arm is the placeholder.
+      const author = (await resolveAuthor(store, cred, false))?.author;
+      return injectWidget(res, threads, COMMENTS_WIDGET_SRC, author);
     } catch (err) {
       // A safeSegments InvalidPathError raised from inside fetchDoc launders to
       // the same neutral 404 as a parse-time one.
