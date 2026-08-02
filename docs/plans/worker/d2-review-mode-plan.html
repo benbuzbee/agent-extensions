@@ -1785,7 +1785,7 @@ type OpResult =
     <p>
       <a href="https://github.com/benbuzbee/agent-extensions/pull/6">GitHub PR #6</a> (node-native review server + Mermaid
       <code>noscript</code> fallback) is <strong>orthogonal</strong> to this deliverable — and is unrelated to the
-      <code>PR1&hellip;PR7</code> stack in <a href="#phases">Implementation phases</a>, which are the branches that build
+      <code>PR1&hellip;PR8</code> stack in <a href="#phases">Implementation phases</a>, which are the branches that build
       this deliverable. It moves
       port/arg/file-vs-dir handling out of <code>serve.sh</code> into <code>serve.ts</code>'s yargs
       CLI (so review mode runs anywhere <code>node</code> is on PATH) and adds a Mermaid fallback. It touches only the
@@ -1849,7 +1849,7 @@ type OpResult =
     validate. Every card states its <strong>stack position</strong> (its base branch) up front, so an executor picking
     up one card in isolation still knows exactly what it branches from.
   </p>
-  <p class="lineage"><code>main &lt;- PR0 &lt;- PR1 &lt;- PR2 &lt;- PR3 &lt;- PR4 &lt;- PR5 &lt;- PR6 &lt;- PR7</code></p>
+  <p class="lineage"><code>main &lt;- PR0 &lt;- PR1 &lt;- PR2 &lt;- PR3 &lt;- PR4 &lt;- PR5 &lt;- PR6 &lt;- PR7 &lt;- PR8</code></p>
   <p>
     The stack is authored with <strong>Graphite (<code>gt</code>)</strong>. In Graphite's model each PR is a
     <strong>branch stacked on its parent</strong> above <code>trunk</code> (<code>main</code>): PR1 branches off
@@ -2525,13 +2525,13 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
 
   <section data-kind="pr-card" id="pr7">
     <h3>PR7 — Hosted browser review (widget wiring)</h3>
-    <p class="stack-pos"><strong>Stack position:</strong> layer 7 (top) — branches off <code>PR6</code> (<code>PR6 &lt;- PR7</code>).</p>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 7 — branches off <code>PR6</code> (<code>PR6 &lt;- PR7</code>).</p>
     <p>
       Fill the hosted adapter slice PR6 deferred, so a reviewer in a <em>browser</em> on a hosted doc can comment end
       to end — the gap the stack-wide exit-criteria audit flagged. The shared <a href="#widget"><code>review-ux/</code></a>
       layer is complete and needs <strong>no changes</strong>; everything here is the thin layer
       <a href="#widget-dirs"><code>adapters/hosted/</code></a> reserved (transport + identity + wiring), plus the Worker
-      serving the bundle. Four pieces: a Worker route that serves the checked-in widget bundle at the injected
+      serving the bundle. Four pieces: a Worker route that serves the skill&rsquo;s built widget bundle (its checked-in <code>dist/comments.mjs</code>, imported as a string) at the injected
       <code>WIDGET_SRC</code> path; a browser-side hosted <code>ICommentsStore</code> that drives
       <code>&lt;doc&gt;?ref=&amp;comments</code> over <code>fetch</code> with the session cookie (POST op envelopes,
       GET list — the <a href="#api">API</a> and D1 persistence already exist and are tested); hosted
@@ -2565,6 +2565,113 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
       mount against a stubbed transport does create &rarr; resolve round-trip with the green indicator and the comment
       still visible. Both packages' full gates green; dist rebuilt and committed.
     </aside>
+    <details class="validation-evidence" open>
+      <summary>Validation evidence — d2/pr7-hosted-browser-review (gate green, 0 fix round(s))</summary>
+      <ul>
+        <li><strong>Commands run:</strong> apps/htmldoc-review: npm install, tsc --noEmit, vitest run (9 files / 101 tests), wrangler deploy --dry-run, node scripts/sync-comments.mjs + git diff --exit-code (drift gate). plugins/useful-skills/skills/htmldocs: npm install, playwright install chromium, npm run check (typecheck + build + test:unit + playwright + smoke), npm run build.</li>
+        <li><strong>Code review:</strong> 1 finding confirmed (score 80) — PR7's diff did not add the per-card gate-green evidence block that every prior card (PR0–PR6) carries; this block is the fix.</li>
+        <li><strong>Fable review:</strong> plan-fidelity approve (0 blockers), security approve (0 blockers).</li>
+        <li><strong>Findings fixed:</strong> 1</li>
+      </ul>
+<pre>1. apps/htmldoc-review $ npm install
+   up to date, audited 107 packages in 467ms
+   found 0 vulnerabilities
+
+2. apps/htmldoc-review $ npm run typecheck  (tsc --noEmit)
+   (no errors — exit 0)
+
+3. apps/htmldoc-review $ npm test  (vitest run)
+    Test Files  9 passed (9)
+         Tests  101 passed (101)
+      Duration  23.64s
+
+4. apps/htmldoc-review $ npx wrangler deploy --dry-run
+   Total Upload: 312.97 KiB / gzip: 83.43 KiB
+   Bindings: env.SESSIONS (KV), env.COMMENTS_DB (D1 htmldoc-review-comments),
+             env.REPO_ORG, env.GITHUB_CLIENT_ID, env.CALLBACK_URL, env.SESSION_VALID_SINCE
+   --dry-run: exiting now.
+
+5. plugins/useful-skills/skills/htmldocs $ npm install
+   up to date, audited 119 packages in 828ms
+   1 moderate severity vulnerability (transitive; no action taken)
+
+6. plugins/useful-skills/skills/htmldocs $ npx playwright install chromium
+   (completed — browser already present/installed)
+
+7. plugins/useful-skills/skills/htmldocs $ npm run check
+   ... playwright:
+   87 passed (8.6s)
+   ... test:smoke (bash test/smoke/serve.sh):
+   ok[dir]: http://127.0.0.1:8001/index.html &rarr; 200
+   ok[dir]: http://127.0.0.1:8001/does-not-exist.html &rarr; 404
+   ok[put]: PUT sidecar &rarr; 204
+   ok[put]: sidecar landed ... with expected body
+   ok[put]: served tree unchanged by PUT
+   PASS: serve.sh smoke
+   (unit: Test Files  11 passed (11) / Tests  59 passed (59) / Duration  3.14s)
+
+8. plugins/useful-skills/skills/htmldocs $ npm run build
+   dist/comments.mjs  156.7kb  ⚡ Done in 129ms
+   dist/serve.mjs     272.3kb  ⚡ Done in 555ms
+
+9. apps/htmldoc-review $ node scripts/sync-comments.mjs &amp;&amp; git diff --exit-code -- src/comments src/worker/comments.mjs.txt
+   synced review-ux/types.ts, store.ts, inject.ts; api/thread-ops.ts, schemas.ts, handlers.ts, index.ts
+   synced widget bundle -&gt; src/worker/comments.mjs.txt
+   7 comment sources + 1 widget bundle synced
+   EXIT=0   (git diff --exit-code found NO drift after fresh build+sync)</pre>
+    </details>
+  </section>
+
+  <section data-kind="pr-card" id="pr8">
+    <h3>PR8 — Transport convergence (one client, one API, one recipe)</h3>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 8 (top) — branches off <code>PR7</code> (<code>PR7 &lt;- PR8</code>).</p>
+    <p>
+      Deletion-heavy unification. Both server runtimes already mount the same op-envelope
+      <a href="#api"><code>?comments</code></a> API through the shared <code>handleCommentsRequest</code> (the Worker
+      against D1, the local server against <code>SidecarStore</code>), and PR7's <code>HostedStore</code> is a pure
+      fetch transport with nothing hosted-specific in it — it works verbatim against the local route. So: promote
+      <code>HostedStore</code> to <em>the</em> shared browser HTTP client (rename/move per design; update the vendored
+      copy + sync manifest per the PR4 drift-gate precedent), point <code>buildLocalDeps()</code> at it, and
+      <strong>delete</strong> the legacy path — <code>LocalFileStore</code>, the whole-model
+      <code>PUT /__htmldocs/sidecar/&lt;doc&gt;</code> route, and the browser-side legacy wire conversions. The
+      <strong>on-disk sidecar format is unchanged</strong> (<code>SidecarStore</code> still reads/writes the legacy
+      JSON), so existing <code>*.comments.json</code> files keep working with zero migration. Local mode thereby
+      inherits per-op semantics: no more whole-file last-writer-wins between two tabs (per-op no-clobber — <em>not</em>
+      transactional; do not oversell). The seed-author runtime discriminator survives but now only picks the
+      <em>author</em>; both runtimes build the same store.
+    </p>
+    <p>
+      <strong>Agent recipe migration (User decision):</strong> the documented agent surface for local review moves off
+      disk-reading onto the same <code>?comments</code> API — <em>one minimal, runtime-agnostic recipe</em> that never
+      assumes local vs. hosted: parameterized by the doc URL, bearer token only when hosted. Crafted per
+      prompt-engineering best practices and given a dedicated prompt-quality review. Docs note the sidecar files remain
+      on disk for inspection, but the recipe is the API.
+    </p>
+    <details>
+      <summary>PR8 specifics — deletions, docs sweep, tests</summary>
+      <ul>
+        <li><strong>Deletions (grep-proof):</strong> <code>LocalFileStore</code> + its unit tests + the
+          <code>__LocalFileStore</code> test-handle export; the sidecar <code>PUT</code> route/handler in
+          <code>serve.ts</code>; <code>legacyToThread</code>/<code>threadToLegacy</code> in browser code. Legacy shape
+          survives in exactly one place: <code>SidecarStore</code>'s disk (de)serialization.</li>
+        <li><strong>Docs sweep:</strong> every doc that teaches or mentions the sidecar-PUT / disk-read workflow is
+          updated — <code>references/comments.md</code> (becomes the unified recipe), <code>SKILL.md</code>,
+          <code>docs/hosted_review.html</code>, <code>docs/review_system.html</code>, the adapters'
+          <code>claude.md</code> contracts, and the <code>apps/htmldoc-review</code> README. Grep for stale mentions;
+          plan/history documents stay as history.</li>
+        <li><strong>Tests:</strong> local Playwright specs assert <code>?comments</code> traffic (request shapes)
+          instead of the PUT contract; the smoke test drops its PUT phase for an op round-trip; a pre-existing legacy
+          sidecar fixture loads/mutates/persists format-unchanged; a two-client interleaved-ops test (two stores, one
+          server: create/resolve interleaved — every op lands); runtime-selection tests updated.</li>
+      </ul>
+    </details>
+    <aside data-kind="validation">
+      <strong>Validate.</strong> Grep-proof deletions; full local Playwright regression green with the widget driving
+      every verb over <code>?comments</code>; legacy sidecar fixture round-trips format-unchanged; the interleaved
+      two-client test green; hosted path observably unchanged (full app gate + vendored drift gate green); the
+      rewritten agent recipe passes a prompt-quality review (minimal, runtime-agnostic); both packages' full gates
+      green; dist rebuilt and committed.
+    </aside>
   </section>
 
   <aside data-kind="exit-criteria">
@@ -2572,110 +2679,124 @@ EXIT=0  (dist/serve.mjs unchanged after rebuild)</pre>
     across reloads and users; an agent with a GitHub token can list a doc's comments and <strong>resolve</strong> (or
     <strong>delete</strong>) one by id, and is refused with a neutral <code>404</code> on a doc it can't see; comments
     display real author names; resolved comments are retained (auditable) and <strong>stay visible with a green
-    indicator, never hidden</strong>, while a deleted thread is purged outright; and local review mode still works via
-    the shared widget with no regression.
+    indicator, never hidden</strong>, while a deleted thread is purged outright; local review mode still works via
+    the shared widget with no regression; and (PR8) local and hosted browsers share <strong>one</strong> HTTP client
+    transport over the op-envelope <code>?comments</code> API — the legacy whole-model sidecar <code>PUT</code> path is
+    deleted — with a single runtime-agnostic agent recipe driving list/resolve/delete against either runtime.
   </aside>
   <details class="validation-evidence" open>
-    <summary>Stack-wide validation evidence — d2/pr6-injection-docs (gate green, 1 fix-required finding)</summary>
+    <summary>Stack-wide validation evidence — d2/pr7-hosted-browser-review (gate green, all criteria met)</summary>
     <p>
       <strong>Full-stack gate result:</strong> PASS (pass: true, failures: [])
     </p>
     <p>
-      <strong>Exit-criteria audit verdict:</strong> fix — one blocker (see below)
+      <strong>Exit-criteria audit verdict:</strong> approve — no unmet criteria
     </p>
     <pre>
-Branch verified: git branch --show-current → d2/pr6-injection-docs (top of stack per `gt log short`).
+Branch verified: git branch --show-current -&gt; d2/pr7-hosted-browser-review (top of stack per `gt log short`).
 
---- apps/htmldoc-review ---
+=== apps/htmldoc-review ===
 1) npm install:
-up to date, audited 107 packages in 485ms
-found 0 vulnerabilities
+  up to date, audited 107 packages in 507ms
+  found 0 vulnerabilities
 
 2) npm run typecheck (tsc --noEmit):
-&gt; typecheck
-&gt; tsc --noEmit
-(no output — clean, exit 0)
+  (no output; exit 0 — clean)
 
 3) npm test (vitest run):
- Test Files  8 passed (8)
-       Tests  94 passed (94)
-    Start at  13:07:04
-    Duration  20.17s
+   Test Files  9 passed (9)
+        Tests  101 passed (101)
+     Duration  23.71s
 
 4) npx wrangler deploy --dry-run:
-⛅️ wrangler 4.105.0
-Total Upload: 155.63 KiB / gzip: 36.53 KiB
-Your Worker has access to the following bindings:
-  env.SESSIONS (REPLACE_WITH_KV_NAMESPACE_ID)              KV Namespace
-  env.COMMENTS_DB (htmldoc-review-comments)                D1 Database
-  env.REPO_ORG ("REPLACE_ME_GITHUB_ORG_SLUG")             Environment Variable
-  env.GITHUB_CLIENT_ID ("REPLACE_ME_GITHUB_APP_CLIENT_ID") Environment Variable
-  env.CALLBACK_URL ("https://REPLACE_ME_DOMAIN/auth/callback") Environment Variable
-  env.SESSION_VALID_SINCE (0)                              Environment Variable
---dry-run: exiting now.
+  ⛅️ wrangler 4.105.0
+  Total Upload: 312.97 KiB / gzip: 83.43 KiB
+  Bindings: env.SESSIONS (KV), env.COMMENTS_DB (D1 htmldoc-review-comments),
+    env.REPO_ORG, env.GITHUB_CLIENT_ID, env.CALLBACK_URL, env.SESSION_VALID_SINCE
+  --dry-run: exiting now.
 
---- plugins/useful-skills/skills/htmldocs ---
+=== plugins/useful-skills/skills/htmldocs ===
 5) npm install:
-up to date, audited 119 packages in 831ms
-1 moderate severity vulnerability (pre-existing; audit only)
+  up to date, audited 119 packages in 672ms
+  (1 moderate severity vulnerability reported by npm audit; not a gate failure)
 
 6) npx playwright install chromium:
-(no output — chromium already installed, exit 0)
+  EXIT:0 (chromium installed)
 
-7) npm run check (playwright + smoke):
-  83 passed (8.7s)
-&gt; htmldocs@0.1.0 test:smoke
-&gt; bash test/smoke/serve.sh
-ok[dir]: http://127.0.0.1:8001/index.html → 200
-ok[dir]: http://127.0.0.1:8001/does-not-exist.html → 404
-ok[file]: http://127.0.0.1:8001/index.html → 200
-ok[put]: PUT sidecar → 204
-ok[put]: sidecar landed at .../index.comments.json with expected body
-ok[put]: served tree unchanged by PUT
-PASS: serve.sh smoke</pre>
+7) npm run check (typecheck &amp;&amp; build &amp;&amp; test:unit &amp;&amp; test &amp;&amp; test:smoke) — run to file, REAL_EXIT:0:
+  typecheck: tsc --noEmit clean
+  build: dist/comments.mjs 156.7kb; build:server ok
+  test:unit -&gt;  Test Files  11 passed (11)   Tests  59 passed (59)
+  test (playwright) -&gt; 87 passed (9.4s)
+  test:smoke (serve.sh):
+    ok[dir]/ok[file]/ok[put] all ok; sidecar PUT -&gt; 204; served tree unchanged
+    PASS: serve.sh smoke
+  REAL_EXIT:0
+
+Note: an earlier `npm run check | head -25` showed EXIT:1 — that was a SIGPIPE artifact from
+head closing the pipe mid-build; the clean full run to file returned REAL_EXIT:0.
+
+Guardrails honored: no real wrangler deploy, no d1 create/remote apply, no secret put, no git
+push / gt submit. All work offline inside /mnt/c/Users/benbu/projects/agent-extensions.</pre>
     <p>
-      <strong>Exit-criteria audit — blocker (1 unmet criterion):</strong>
+      <strong>Exit-criteria audit — verdict: approve, no unmet criteria.</strong>
+      Every criterion checked against code + tests, and both package gates re-run live on
+      d2/pr7-hosted-browser-review (f66d247):
+    </p>
+    <ul>
+      <li><strong>Any-DOM-region:</strong> article gate replaced by <code>selectionInDocBody</code>
+        (<code>review-ux/popover.ts</code>; ui-popover "gate removed" + no-article-doc specs).</li>
+      <li><strong>Hosted browser path (PR7):</strong> public <code>WIDGET_SRC</code> route
+        (<code>src/worker/inject.ts serveWidgetBundle</code>; widget-bundle.workers.test proves
+        byte-match, zero outbound GitHub, no neutral-404 interplay); seed-author runtime discriminator
+        (<code>main.ts</code> + <code>adapters/runtime-select.ts</code>); <code>HostedStore</code>
+        over <code>?comments</code> (<code>adapters/hosted/store.ts</code>; unit envelope/unwrap tests
+        + Playwright hosted-store.spec drives the real widget UI); persistence across reloads proven
+        in inject.workers e2e (create → reload seed → resolve → reload, resolved_at present, still
+        visible).</li>
+      <li><strong>Agent bearer path:</strong> bearer path in <code>index.ts</code>; workerd tests:
+        bearer create ok, probe-deny → neutral 404 byte-identical to NEUTRAL_BODY with nothing
+        persisted, resolve/delete by threadId, batch 207 in order, probe fires exactly once per
+        batch, access gate precedes envelope 400.</li>
+      <li><strong>Real names:</strong> v2 session identity + lazy v1→v2 GET /user backfill; create
+        stamps captured identity, body-supplied author provably ignored (attacker test); seed carries
+        author into MountDeps.</li>
+      <li><strong>Resolve/delete:</strong> <code>thread-ops.ts</code> soft-close keeps row
+        (idempotent), delete splices; workerd "resolve soft-closes and delete hard-purges"; green
+        indicator via <code>.htmldocs-cmt-bubble--resolved</code> (<code>mount.ts</code> CSS,
+        <code>gutter.ts</code>) with visible-not-hidden asserted in resolve-indicator.spec and
+        hosted-store.spec.</li>
+      <li><strong>Local regression:</strong> <code>chooseDeps(null)→buildLocalDeps</code>, malformed
+        seed can never force hosted; full local Playwright suite green live.</li>
+    </ul>
+    <p>
+      The PR6-era stack audit blocker (hosted browser review missing) is closed by PR7.
     </p>
     <p>
-      Exit criterion 1 ("a reviewer on a hosted doc can comment on any DOM region") is only half met.
-      Persistence/API/seed machinery is real and tested (worker 94/94; skill 83 Playwright + smoke),
-      but a browser reviewer cannot yet comment on a hosted doc:
-      <code>WIDGET_SRC = '/__htmldocs/comments.mjs'</code> is a placeholder path the Worker never serves;
-      <code>plugins/useful-skills/skills/htmldocs/src/comments/adapters/hosted/deps.ts</code> is a stub;
-      and <code>src/comments/main.ts</code> hard-wires <code>buildLocalDeps()</code>.
-      PR6 and <code>docs/hosted_review.html</code> document this as a deliberate follow-up, but it is
-      offline-testable client/Worker code with no live-infra dependency — so it is an unmet criterion
-      rather than a plan-sanctioned live-infra deferral.
-      Every other exit criterion passes on code + re-run tests.
-    </p>
-    <p>
-      <strong>Required fix:</strong> (1) a Worker route serving the checked-in
-      <code>dist/comments.mjs</code> at <code>WIDGET_SRC</code> (before <code>parseDocRequest</code>);
-      (2) a hosted browser <code>ICommentsStore</code> that GET/POSTs <code>&lt;doc&gt;?ref=&amp;comments</code>
-      with credentials (the seam and API already exist); (3) hosted <code>deps.ts</code> building
-      <code>MountDeps</code> from that store + the seed author; (4) runtime selection in
-      <code>main.ts</code>. All offline-testable with the existing workerd + Playwright harnesses.
-      Alternatively, get User's explicit sign-off that D2's exit criteria are amended to defer
-      browser-hosted review to a named follow-up.
-    </p>
-    <p>
-      <strong>Human + live-infra manual checklist (deferred by plan's no-live-infra guardrail — not failures):</strong>
+      <strong>Human + live-infra manual checklist (plan-sanctioned deferrals — not failures):</strong>
     </p>
     <ol>
-      <li>First real deploy: run <code>scripts/setup/deploy.sh</code> — KV create-once, secrets, <code>wrangler deploy</code>, App install (step 8).</li>
-      <li>D1 create-once: <code>wrangler d1 create htmldoc-review-comments</code>; confirm UUID parse + in-place <code>wrangler.toml</code> wiring against real CLI output (only dry-run/Miniflare exercised).</li>
+      <li>First real deploy: <code>scripts/setup/deploy.sh</code> — KV create-once, <code>wrangler secret put</code>s, <code>wrangler deploy</code>, GitHub App install step.</li>
+      <li>D1 create-once: <code>wrangler d1 create htmldoc-review-comments</code>; confirm UUID parse + in-place <code>wrangler.toml</code> wiring against real CLI output (only <code>--dry-run</code>/Miniflare exercised).</li>
       <li>Remote migrations: <code>wrangler d1 migrations apply htmldoc-review-comments --remote</code>; confirm <code>0001_create_comments.sql</code> applies and <code>d1_migrations</code> tracking behaves as authored.</li>
-      <li>Live probe semantics: with the App installed, verify an unauthorized/private doc returns a neutral 404 byte-identical to a missing doc, and an authorized doc serves with widget seed injected. Only mocked GitHub was tested.</li>
-      <li>Live agent recipe: bearer PAT against the deployed URL — GET list, POST resolve/delete by id, batch 207 — per <code>docs/hosted_review.html</code>.</li>
-      <li>Live identity: complete a real OAuth login; confirm GET /user capture stamps real login/name on a comment; confirm a surviving D1 (v1) KV session lazy-upgrades in place without re-auth.</li>
-      <li>Live integration tests (deploy a test Worker, hit its URL) — plan-flagged "deferred"; decide if/when worth building.</li>
+      <li>Live probe semantics with the App installed: unauthorized/private doc → neutral 404 byte-identical to a missing doc; authorized doc serves with seed injected and the widget bundle actually loads at <code>/__htmldocs/comments.mjs</code> (only mocked GitHub was tested).</li>
+      <li>Live browser review: real OAuth login → comment via the widget on a deployed doc → reload persists → a second user sees it (hosted adapter tested only against stubbed transport + Miniflare).</li>
+      <li>Live agent recipe: bearer PAT against the deployed URL — GET list, POST resolve/delete by id, batch 207 — per <code>skills/htmldocs/docs/hosted_review.html</code>.</li>
+      <li>Live identity: real GET /user capture stamps login/name on a comment; a surviving pre-identity (v1) KV session lazy-upgrades in place without re-auth.</li>
     </ol>
     <p>
-      <strong>Plan verify-badge risks still unverified:</strong>
-      D1 pricing/syntax badge (wrangler.toml + migrations offline-proven; current free-tier numbers and <code>--remote</code> behavior unverified → items 2/3/7);
-      authz probe-cache short-TTL badge (documented lever, not built — open question stays open);
-      ETag/If-None-Match conditional re-probe + token-identity cache key (not built, deferred by design).
-      Verified: anchor-boundaries, widget-chrome predicate tests; <code>"default"</code> ref sentinel route/store agreement.
+      <strong>Plan verify-badge risks still unverified (by design):</strong>
+      D1 "verify" badge — current free-tier pricing numbers, exact remote-migrations syntax, DROP COLUMN support (feeds items 2–3);
+      probe-cache short-TTL "verify" badge — the cache is a documented lever, not built, so TTL guidance stays unexercised;
+      ETag/If-None-Match conditional re-probe with token-identity cache key — deferred open decision, not built;
+      D1 row aging (no TTL; cron DELETE lever) — not built;
+      live integration-test tier — plan-flagged deferred;
+      PR6 docs open decision — click-confirm external references in shipped docs.
+      Previously-open "verify" items now <strong>closed in code</strong>: anchor rendering across block/inline boundaries
+      + widget-chrome self-exclusion (anchor-boundaries, ui-popover specs); <code>'default'</code> ref sentinel
+      route/store agreement; <code>&lt;/script&gt;</code> breakout escaping confined to shared
+      <code>seedJsonScript</code>/<code>widgetScriptTag</code> helpers with worker-vs-local injection parity
+      asserted in both tiers.
     </p>
   </details>
 </article>

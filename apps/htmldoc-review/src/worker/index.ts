@@ -22,7 +22,12 @@ import { KvSessionStore } from "./kv-store";
 import { checkAccess } from "./access";
 import { handleComments, type Actor } from "./comments";
 import { D1Store } from "./d1-store";
-import { buildSeedModel, injectWidget, COMMENTS_WIDGET_SRC } from "./inject";
+import {
+  buildSeedModel,
+  injectWidget,
+  serveWidgetBundle,
+  COMMENTS_WIDGET_SRC,
+} from "./inject";
 import { initWorkerLogging } from "./logging";
 
 const log = getLogger(["htmldoc-review", "worker"]);
@@ -180,6 +185,13 @@ export default {
     const store = new KvSessionStore(env.SESSIONS);
 
     try {
+      // The widget bundle is PUBLIC and doc-independent: serve it FIRST, before
+      // the /auth switch, before token resolution, and before
+      // parseDocRequest/checkAccess. It never resolves a token, never probes
+      // GitHub, and never returns neutral() — so it has zero interplay with the
+      // neutral-404 non-leak contract.
+      if (url.pathname === COMMENTS_WIDGET_SRC) return serveWidgetBundle(req);
+
       switch (url.pathname) {
         case ROUTES.login:
           return await beginLogin(req, cfg);

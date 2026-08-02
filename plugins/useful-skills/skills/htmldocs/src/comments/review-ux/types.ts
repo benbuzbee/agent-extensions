@@ -36,6 +36,27 @@ export interface Anchor {
  */
 export type Author = { login: string; name: string | null; id?: number };
 
+/**
+ * Parse-don't-cast constructor for an Author arriving as DATA (the injected
+ * DOM seed) rather than from code. Unlike the `as*` brand casts above — which
+ * assert a value already known to be right — this validates the full shape and
+ * builds a fresh Author, so a partial object can never leak an `undefined`
+ * name (or a non-numeric id) past the type. Absent `name` normalizes to null;
+ * any other shape violation rejects the whole value.
+ */
+export function parseAuthor(raw: unknown): Author | null {
+  if (raw === null || typeof raw !== "object") return null;
+  const a = raw as { login?: unknown; name?: unknown; id?: unknown };
+  if (typeof a.login !== "string" || a.login.length === 0) return null;
+  if (a.name !== undefined && a.name !== null && typeof a.name !== "string") return null;
+  if (a.id !== undefined && typeof a.id !== "number") return null;
+  return {
+    login: a.login,
+    name: a.name ?? null,
+    ...(a.id !== undefined ? { id: a.id } : {}),
+  };
+}
+
 /** One comment within a thread. */
 export interface Comment {
   id: CommentId;
