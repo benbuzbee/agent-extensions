@@ -1,19 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import { SidecarStore } from '../../src/comments/adapters/local/sidecar-store';
-import type { SidecarPersistence } from '../../src/comments/adapters/local/sidecar-store';
-import type { CommentsModel } from '../../src/comments/adapters/local/legacy-format';
+import type { SidecarModel, SidecarPersistence } from '../../src/comments/adapters/local/sidecar-store';
 import type { CreateOp } from '../../src/comments/review-ux/types';
 import { asThreadId } from '../../src/comments/review-ux/types';
 
 const DOC = { repo: '', ref: 'default', path: '/doc.html' };
 const AUTHOR = { login: 'user', name: null };
 
-function memoryPersistence(): SidecarPersistence & { model: CommentsModel } {
-  const state = { model: { doc: 'doc.html', schema: 1, comments: [] } as CommentsModel };
+function memoryPersistence(): SidecarPersistence & { model: SidecarModel } {
+  const state = { model: { doc: 'doc.html', schema: 2, threads: [] } as SidecarModel };
   return {
     get model() { return state.model; },
     async load() { return state.model; },
-    async save(model: CommentsModel) { state.model = model; },
+    async save(model: SidecarModel) { state.model = model; },
   };
 }
 
@@ -54,17 +53,20 @@ describe('SidecarStore', () => {
     ).rejects.toMatchObject({ opError: { code: 'not_found' } });
   });
 
-  it('serialized output matches the legacy CommentsModel shape', async () => {
+  it('serialized output is the v2 model carrying the internal Thread verbatim', async () => {
     const p = memoryPersistence();
     const store = new SidecarStore(p, 'doc.html');
     await store.create(DOC, { op: 'create', anchor: { sections: ['main'], prefix: 'a ', exact: 'note', suffix: ' here' }, text: 'body' }, AUTHOR);
     const m = p.model;
-    expect(m.schema).toBe(1);
+    expect(m.schema).toBe(2);
     expect(m.doc).toBe('doc.html');
-    expect(m.comments).toHaveLength(1);
-    const c = m.comments[0]!;
-    expect(c.author).toBe('user');            // legacy: author is a string
-    expect(typeof c.created_at).toBe('string'); // legacy: ISO string
-    expect(c.anchor).toEqual({ sections: ['main'], prefix: 'a ', exact: 'note', suffix: ' here' });
+    expect(m.threads).toHaveLength(1);
+    const t = m.threads[0]!;
+    expect(t.root.author).toEqual({ login: 'user', name: null }); // internal Author object
+    expect(typeof t.root.createdAt).toBe('number');               // internal epoch-ms number
+    expect(t.root.body).toBe('body');
+    expect(t.anchor).toEqual({ sections: ['main'], prefix: 'a ', exact: 'note', suffix: ' here' });
+    expect(t.replies).toEqual([]);
+    expect(t.resolvedAt).toBeNull();
   });
 });

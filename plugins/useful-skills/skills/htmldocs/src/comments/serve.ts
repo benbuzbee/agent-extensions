@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import type { Author, DocKey } from './review-ux/types.js';
-import type { CommentsModel, LegacyComment } from './adapters/local/legacy-format.js';
+import type { SidecarModel } from './adapters/local/sidecar-store.js';
 import { injectIntoHtml } from './adapters/local/inject.js';
 import { COMMENTS_WIDGET_SRC } from './review-ux/inject.js';
 import { handleCommentsRequest } from './api/index.js';
@@ -94,34 +94,58 @@ function sidecarPathFor(htmlPath: string, root: string, sidecarDir: string): str
 
 // --- model + sidecar I/O --------------------------------------------------
 
-function isWellShapedComment(c: unknown): c is LegacyComment {
+// A field that is either an absent/undefined or a string — the JSON never
+// carries the key when the internal value is undefined, so absence is valid.
+function isOptionalString(v: unknown): boolean {
+  return v === undefined || typeof v === 'string';
+}
+
+// One internal Comment on disk: { id, author: {login, name}, body, createdAt }.
+function isWellShapedComment(c: unknown): boolean {
   if (!c || typeof c !== 'object') return false;
-  const x = c as Partial<LegacyComment>;
+  const x = c as Record<string, unknown>;
   if (typeof x.id !== 'string' || typeof x.body !== 'string') return false;
-  if (typeof x.author !== 'string' || typeof x.created_at !== 'string') return false;
+  if (typeof x.createdAt !== 'number') return false;
+  if (!x.author || typeof x.author !== 'object') return false;
+  const a = x.author as Record<string, unknown>;
+  return typeof a.login === 'string' && (a.name === null || typeof a.name === 'string');
+}
+
+// One internal Thread on disk: { id, anchor, root, replies, resolvedAt }.
+function isWellShapedThread(t: unknown): boolean {
+  if (!t || typeof t !== 'object') return false;
+  const x = t as Record<string, unknown>;
+  if (typeof x.id !== 'string') return false;
   if (!x.anchor || typeof x.anchor !== 'object') return false;
-  const a = x.anchor as Partial<LegacyComment['anchor']>;
-  if (!Array.isArray(a.sections) || !a.sections.every((s) => typeof s === 'string')) return false;
-  return typeof a.prefix === 'string'
-    && typeof a.exact === 'string' && typeof a.suffix === 'string';
+  const a = x.anchor as Record<string, unknown>;
+  if (typeof a.exact !== 'string') return false;
+  if (!isOptionalString(a.prefix) || !isOptionalString(a.suffix)) return false;
+  if (a.sections !== undefined
+    && (!Array.isArray(a.sections) || !a.sections.every((s) => typeof s === 'string'))) return false;
+  if (!isWellShapedComment(x.root)) return false;
+  if (!Array.isArray(x.replies) || !x.replies.every(isWellShapedComment)) return false;
+  return x.resolvedAt === null || typeof x.resolvedAt === 'number';
 }
 
-function isWellShapedModel(parsed: unknown): parsed is CommentsModel {
+function isWellShapedModel(parsed: unknown): parsed is SidecarModel {
   if (!parsed || typeof parsed !== 'object') return false;
-  const m = parsed as Partial<CommentsModel>;
-  if (typeof m.doc !== 'string' || m.schema !== 1 || !Array.isArray(m.comments)) return false;
+  const m = parsed as Partial<SidecarModel>;
+  if (typeof m.doc !== 'string' || m.schema !== 2 || !Array.isArray(m.threads)) return false;
   // Deep-validate so a malformed write can't land junk the widget later trips on.
-  return m.comments.every(isWellShapedComment);
+  return m.threads.every(isWellShapedThread);
 }
 
-function emptyModel(docLabel: string): CommentsModel {
-  return { doc: docLabel, schema: 1, comments: [] };
+function emptyModel(docLabel: string): SidecarModel {
+  return { doc: docLabel, schema: 2, threads: [] };
 }
 
 // Returns empty model for any recoverable failure so the widget mounts with
 // a clean slate and the next write overwrites the bad file. Other I/O errors
-// propagate so GETs fail loudly instead of silently dropping data.
-async function readSidecar(sidecarPath: string, docLabel: string): Promise<CommentsModel> {
+// propagate so GETs fail loudly instead of silently dropping data. A parseable
+// object that fails v2 validation (e.g. an older schema:1 file) is not silently
+// swallowed: it warns once per read so the reviewer knows prior comments aren't
+// being shown. ENOENT, blank files, and unparseable JSON stay silent-empty.
+export async function readSidecar(sidecarPath: string, docLabel: string): Promise<SidecarModel> {
   let text: string;
   try {
     text = await fs.readFile(sidecarPath, 'utf-8');
@@ -136,7 +160,12 @@ async function readSidecar(sidecarPath: string, docLabel: string): Promise<Comme
   } catch {
     return emptyModel(docLabel);
   }
-  if (!isWellShapedModel(parsed)) return emptyModel(docLabel);
+  if (!isWellShapedModel(parsed)) {
+    if (parsed && typeof parsed === 'object') {
+      console.warn(`[serve] ignoring sidecar ${sidecarPath}: unsupported schema (expected 2); loading as empty`);
+    }
+    return emptyModel(docLabel);
+  }
   return parsed;
 }
 
@@ -144,7 +173,7 @@ async function readSidecar(sidecarPath: string, docLabel: string): Promise<Comme
 // the prior sidecar intact. UUID-suffixed tmp avoids same-ms collisions.
 // tmp lives in the same dir as sidecar so rename never crosses volumes —
 // fs.rename is only atomic when source+target share one (Windows EXDEV).
-async function writeSidecarAtomic(sidecarPath: string, model: CommentsModel): Promise<void> {
+async function writeSidecarAtomic(sidecarPath: string, model: SidecarModel): Promise<void> {
   const dir = path.dirname(sidecarPath);
   await fs.mkdir(dir, { recursive: true });
   const json = JSON.stringify(model, null, 2) + '\n';
@@ -195,9 +224,9 @@ async function handleGetBundle(res: http.ServerResponse): Promise<void> {
 }
 
 // Serve an HTML doc with the widget bundle + inline JSON seed injected. The
-// seed is the internal { threads } view: we load through a SidecarStore so the
-// legacy disk shape is converted to Thread[] INSIDE the disk layer, never
-// browser-side. Read fresh per request so reloads always reflect on-disk state.
+// seed is the internal { threads } view: we load through a SidecarStore whose
+// on-disk model already carries Thread[] verbatim, so no conversion happens
+// anywhere. Read fresh per request so reloads always reflect on-disk state.
 // `urlPath` is the request's root-relative URL path — the DocKey speaks URL
 // paths (the same key handleCommentsApi builds), never filesystem paths.
 async function handleHtmlInject(res: http.ServerResponse, root: string, sidecarDir: string, htmlPath: string, urlPath: string): Promise<void> {

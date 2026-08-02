@@ -6613,55 +6613,6 @@ async function handleCommentsRequest(req) {
 
 // src/comments/adapters/local/sidecar-store.ts
 import { randomUUID } from "node:crypto";
-
-// src/comments/adapters/local/legacy-format.ts
-function threadToLegacy(thread) {
-  const out = [];
-  const toLegacy = (c, anchor) => {
-    const legacy = {
-      id: c.id,
-      anchor: {
-        sections: anchor.sections ?? [],
-        prefix: anchor.prefix ?? "",
-        exact: anchor.exact,
-        suffix: anchor.suffix ?? ""
-      },
-      body: c.body,
-      author: c.author.login,
-      created_at: new Date(c.createdAt).toISOString()
-    };
-    if (thread.resolvedAt !== null) {
-      legacy.resolved_at = new Date(thread.resolvedAt).toISOString();
-    }
-    return legacy;
-  };
-  out.push(toLegacy(thread.root, thread.anchor));
-  for (const reply of thread.replies) {
-    out.push(toLegacy(reply, thread.anchor));
-  }
-  return out;
-}
-function legacyToThread(comment) {
-  return {
-    id: asThreadId(comment.id),
-    anchor: {
-      exact: comment.anchor.exact,
-      prefix: comment.anchor.prefix || void 0,
-      suffix: comment.anchor.suffix || void 0,
-      sections: comment.anchor.sections.length > 0 ? comment.anchor.sections : void 0
-    },
-    root: {
-      id: asCommentId(comment.id),
-      author: { login: comment.author, name: null },
-      body: comment.body,
-      createdAt: asTimestamp(new Date(comment.created_at).getTime())
-    },
-    replies: [],
-    resolvedAt: comment.resolved_at ? asTimestamp(new Date(comment.resolved_at).getTime()) : null
-  };
-}
-
-// src/comments/adapters/local/sidecar-store.ts
 function tagNotFound(err) {
   if (isNotFoundError(err)) {
     throw Object.assign(new Error(err.message), { opError: { code: "not_found", threadId: err.threadId, message: err.message } });
@@ -6675,16 +6626,10 @@ var SidecarStore = class {
     this.mint = mint;
   }
   async loadThreads() {
-    const model = await this.persistence.load();
-    return model.comments.map(legacyToThread);
+    return (await this.persistence.load()).threads;
   }
   async saveThreads(threads) {
-    const model = {
-      doc: this.docLabel,
-      schema: 1,
-      comments: threads.flatMap(threadToLegacy)
-    };
-    await this.persistence.save(model);
+    await this.persistence.save({ doc: this.docLabel, schema: 2, threads });
   }
   async list(_doc) {
     return this.loadThreads();
@@ -6799,24 +6744,39 @@ function sidecarPathFor(htmlPath, root, sidecarDir) {
   }
   return path.join(sidecarDir, rel.replace(/\.html?$/i, "") + ".comments.json");
 }
+function isOptionalString(v) {
+  return v === void 0 || typeof v === "string";
+}
 function isWellShapedComment(c) {
   if (!c || typeof c !== "object") return false;
   const x = c;
   if (typeof x.id !== "string" || typeof x.body !== "string") return false;
-  if (typeof x.author !== "string" || typeof x.created_at !== "string") return false;
+  if (typeof x.createdAt !== "number") return false;
+  if (!x.author || typeof x.author !== "object") return false;
+  const a = x.author;
+  return typeof a.login === "string" && (a.name === null || typeof a.name === "string");
+}
+function isWellShapedThread(t) {
+  if (!t || typeof t !== "object") return false;
+  const x = t;
+  if (typeof x.id !== "string") return false;
   if (!x.anchor || typeof x.anchor !== "object") return false;
   const a = x.anchor;
-  if (!Array.isArray(a.sections) || !a.sections.every((s) => typeof s === "string")) return false;
-  return typeof a.prefix === "string" && typeof a.exact === "string" && typeof a.suffix === "string";
+  if (typeof a.exact !== "string") return false;
+  if (!isOptionalString(a.prefix) || !isOptionalString(a.suffix)) return false;
+  if (a.sections !== void 0 && (!Array.isArray(a.sections) || !a.sections.every((s) => typeof s === "string"))) return false;
+  if (!isWellShapedComment(x.root)) return false;
+  if (!Array.isArray(x.replies) || !x.replies.every(isWellShapedComment)) return false;
+  return x.resolvedAt === null || typeof x.resolvedAt === "number";
 }
 function isWellShapedModel(parsed) {
   if (!parsed || typeof parsed !== "object") return false;
   const m = parsed;
-  if (typeof m.doc !== "string" || m.schema !== 1 || !Array.isArray(m.comments)) return false;
-  return m.comments.every(isWellShapedComment);
+  if (typeof m.doc !== "string" || m.schema !== 2 || !Array.isArray(m.threads)) return false;
+  return m.threads.every(isWellShapedThread);
 }
 function emptyModel(docLabel) {
-  return { doc: docLabel, schema: 1, comments: [] };
+  return { doc: docLabel, schema: 2, threads: [] };
 }
 async function readSidecar(sidecarPath, docLabel) {
   let text;
@@ -6833,7 +6793,12 @@ async function readSidecar(sidecarPath, docLabel) {
   } catch {
     return emptyModel(docLabel);
   }
-  if (!isWellShapedModel(parsed)) return emptyModel(docLabel);
+  if (!isWellShapedModel(parsed)) {
+    if (parsed && typeof parsed === "object") {
+      console.warn(`[serve] ignoring sidecar ${sidecarPath}: unsupported schema (expected 2); loading as empty`);
+    }
+    return emptyModel(docLabel);
+  }
   return parsed;
 }
 async function writeSidecarAtomic(sidecarPath, model) {
@@ -7161,6 +7126,7 @@ if (invokedAsScript()) {
 }
 export {
   createServer2 as createServer,
+  readSidecar,
   resolveSidecarDir,
   startReviewServer
 };

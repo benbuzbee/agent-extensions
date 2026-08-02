@@ -209,10 +209,12 @@
       mirroring the doc's root-relative path (<code>sub/bar.html</code> →
       <code>&lt;SIDECAR_DIR&gt;/sub/bar.comments.json</code>). Multi-doc sessions produce
       one sidecar per doc that received a save; they never aggregate. The on-disk
-      <code>*.comments.json</code> shape is read and written unchanged by
-      <code>src/comments/adapters/local/legacy-format.ts</code>, invoked from
-      <code>SidecarStore</code>; every other layer speaks the internal
-      <code>{threads}</code> shape.
+      model is <code>{doc, schema: 2, threads}</code>, where <code>threads</code> is
+      exactly the internal <code>Thread[]</code> — the same shape a
+      <code>GET&nbsp;?comments</code> returns — so <code>SidecarStore</code> reads and
+      writes it with no format conversion; every layer speaks the one
+      <code>{threads}</code> shape. A file that fails v2 validation loads as empty
+      with a one-line warning.
     </p>
   </section>
 

@@ -163,7 +163,7 @@ printf '%s' "$list_json" | grep -q '"threads"' || { echo "FAIL[op]: list respons
 printf '%s' "$list_json" | grep -q '"body":"smoke"' || { echo "FAIL[op]: created thread not listed" >&2; echo "$list_json" >&2; exit 1; }
 echo "ok[op]: GET list contains the created thread"
 
-# The sidecar landed under SIDECAR_DIR in the (unchanged) legacy on-disk shape.
+# The sidecar landed under SIDECAR_DIR in the v2 on-disk shape.
 landed="$op_sidecar_dir/index.comments.json"
 [[ -f "$landed" ]] || { echo "FAIL[op]: sidecar did not land at $landed" >&2; exit 1; }
 grep -Eq '"body"[[:space:]]*:[[:space:]]*"smoke"' "$landed" || {
