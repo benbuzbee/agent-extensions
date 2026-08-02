@@ -37,9 +37,12 @@ test('positive: one script renders every diagram to SVG; DSL stays on disk (need
 
   // The escaping rule held: the decoded ->> arrow parsed (Worker/Postgres
   // participants render as labels) rather than erroring on the raw entities.
-  const seqText = await page.locator('#seq svg').textContent();
-  expect(seqText).toContain('Worker');
-  expect(seqText).toContain('Postgres');
+  // Use the retrying toContainText matcher, not a one-shot textContent() read:
+  // mermaid.run() makes the <svg> visible before it finishes populating the
+  // sequence diagram's label text nodes, so a single snapshot can race and see
+  // an empty string.
+  await expect(page.locator('#seq svg')).toContainText('Worker');
+  await expect(page.locator('#seq svg')).toContainText('Postgres');
 
   // Canonical source is ephemeral-SVG in the live DOM but durable DSL on disk:
   // the on-disk fixture still holds the authored <pre class="mermaid"> blocks.
