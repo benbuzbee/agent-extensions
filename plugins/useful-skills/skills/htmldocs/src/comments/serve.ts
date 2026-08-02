@@ -3,8 +3,7 @@
 // The review-server CLI lives here in full: `node dist/serve.mjs [target]`
 // resolves the served root from a positional file-or-dir target, auto-probes a
 // free port in 8000-8099, binds 127.0.0.1, and emits the two-line
-// URL:/SIDECAR_DIR: stdout contract. serve.sh beside SKILL.md is a thin exec
-// shim that forwards its arguments here — see SKILL.md § Review mode.
+// URL:/SIDECAR_DIR: stdout contract — see SKILL.md § Review mode.
 // Also exports `createServer` and `startReviewServer` for in-process callers
 // — the Playwright specs use these directly so the test boundary stops being
 // "spawn a child + parse stdout" and starts being "call a function."
@@ -577,7 +576,7 @@ async function parseCliArgs(): Promise<CliArgs> {
     .version(false)
     .parseAsync();
   // A target passed after `--` (the form that shields a dash-prefixed filename
-  // from flag parsing, e.g. `serve.sh -- -weird.html`) lands in argv._ rather
+  // from flag parsing, e.g. `serve.mjs -- -weird.html`) lands in argv._ rather
   // than the named positional, which yargs leaves at its default. Prefer that
   // leftover positional so the `--` form serves the intended target, not cwd.
   const target = argv._.length > 0 ? String(argv._[0]) : String(argv.target ?? '.');

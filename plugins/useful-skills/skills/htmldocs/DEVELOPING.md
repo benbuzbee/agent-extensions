@@ -1,7 +1,7 @@
 # Developing htmldocs
 
 Consumers of this skill need **only Node** — `dist/comments.mjs` and `dist/serve.mjs`
-are committed, so `serve.sh` runs with no `npm install`. Everything below is for
+are committed, so `node dist/serve.mjs` runs with no `npm install`. Everything below is for
 working *on* the skill.
 
 ## Setup
@@ -15,7 +15,7 @@ npx playwright install --with-deps chromium
 ## Checks
 
 ```bash
-npm run check      # typecheck + build + playwright + serve.sh smoke
+npm run check      # typecheck + build + playwright + serve smoke
 ```
 
 Individually: `npm run typecheck`, `npm run build`, `npm test`, `npm run test:smoke`.

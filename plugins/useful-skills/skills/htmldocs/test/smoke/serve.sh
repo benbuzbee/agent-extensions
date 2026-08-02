@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test for ../../serve.sh (the exec shim over dist/serve.mjs): boots it
+# Smoke test for ../../dist/serve.mjs (the review server as shipped): boots it
 # against the clean fixture, asserts
 # the URL:/SIDECAR_DIR: stdout contract, exercises both the dir-arg and
 # file-arg URL shapes, and drives an op round-trip over the <doc>?comments API
@@ -9,7 +9,7 @@
 # Bash + curl only — kept off the Playwright runner so this stays a fast
 # pre-flight check on the bundle-as-shipped. Playwright specs cover the
 # server logic in-process; this smoke is the one thing that exercises
-# serve.sh + dist/serve.mjs as a unit.
+# dist/serve.mjs exactly as a consumer runs it.
 
 set -euo pipefail
 
@@ -31,7 +31,7 @@ cleanup() {
 }
 trap 'cleanup' EXIT
 
-# Each phase: boot `serve.sh $arg`, capture both stdout lines, assert the
+# Each phase: boot `node dist/serve.mjs $arg`, capture both stdout lines, assert the
 # URL matches the shape regex, and confirm any status-code expectations
 # the caller listed as <path>:<status> pairs.
 run_phase() {
@@ -40,7 +40,7 @@ run_phase() {
   local out_file="$tmp_dir/${label}.out"
   local err_file="$tmp_dir/${label}.err"
 
-  bash serve.sh "$arg" >"$out_file" 2>"$err_file" &
+  node dist/serve.mjs "$arg" >"$out_file" 2>"$err_file" &
   server_pid=$!
 
   local url="" sidecar_dir=""
@@ -125,7 +125,7 @@ fixture_hash_before="$(sha256sum "$fixture_sidecar" | awk '{print $1}')"
 # cleaned up implicitly when the server exited and tmp_dir teardown runs at EXIT).
 out_file="$tmp_dir/op.out"
 err_file="$tmp_dir/op.err"
-bash serve.sh "test/fixtures/clean/" >"$out_file" 2>"$err_file" &
+node dist/serve.mjs "test/fixtures/clean/" >"$out_file" 2>"$err_file" &
 server_pid=$!
 for _ in $(seq 1 50); do
   if grep -q '^URL: ' "$out_file" && grep -q '^SIDECAR_DIR: ' "$out_file"; then break; fi
@@ -188,5 +188,5 @@ kill "$server_pid" 2>/dev/null || true
 wait "$server_pid" 2>/dev/null || true
 server_pid=""
 
-echo "PASS: serve.sh smoke"
+echo "PASS: serve smoke"
 exit_rc=0
