@@ -32,6 +32,16 @@ set -euo pipefail
 #   7) final deploy so the Worker runs with the real CALLBACK_URL + client_id
 #   8) remind admin to confirm 'User-to-server token expiration' is ON
 #
+# FORCED RE-LOGIN LEVER: wrangler.toml [vars] has SESSION_VALID_SINCE (ms epoch,
+# default 0 = disabled). This script does NOT auto-fill it (unlike CLIENT_ID /
+# CALLBACK_URL) — it is an operator lever. To log everyone out at once, set it to
+# the current time in ms and redeploy: getValidAccessToken then deletes-on-read
+# any session whose login-time iat predates the cutoff. Idempotent, no KV
+# enumeration. e.g.:  date +%s%3N  -> paste into SESSION_VALID_SINCE, then deploy.
+# (Sessions written before identity capture existed need no lever: a record
+# without a captured identity is deleted-on-read automatically, forcing that
+# one browser through a fresh login.)
+#
 # This script lives in scripts/setup/ but operates on the app root (where
 # wrangler.toml lives). We cd to the app root (two levels up) so it is in cwd.
 

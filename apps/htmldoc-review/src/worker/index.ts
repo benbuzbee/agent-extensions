@@ -1,7 +1,13 @@
-import { getValidAccessToken, deleteSession } from "../core/session";
-import { beginLogin, completeLogin } from "../core/oauth";
+import { getValidAccessToken, getIdentity, deleteSession } from "../core/session";
+import { beginLogin, completeLogin, sanitizeReturnPath } from "../core/oauth";
 import { fetchDoc, parseDocRequest, InvalidPathError } from "../core/docsource";
-import { neutral, setupComplete, unauthorized } from "../core/responses";
+import {
+  neutral,
+  setupComplete,
+  unauthorized,
+  loginFailed,
+  LOGIN_ERROR_PATH,
+} from "../core/responses";
 import {
   readCookie,
   clearCookieString,
@@ -9,11 +15,12 @@ import {
   SESSION_COOKIE,
 } from "../core/cookies";
 import { asSessionId, type SessionId } from "../core/store";
+import type { Author } from "@shared/review-ux/types";
 import type { Config } from "../core/config";
 import { getLogger } from "@logtape/logtape";
 import { KvSessionStore } from "./kv-store";
 import { checkAccess } from "./access";
-import { handleComments } from "./comments";
+import { handleComments, type Actor } from "./comments";
 import { initWorkerLogging } from "./logging";
 
 const log = getLogger(["htmldoc-review", "worker"]);
@@ -24,6 +31,7 @@ const ROUTES = {
   login: "/auth/login",
   callback: "/auth/callback",
   logout: "/auth/logout",
+  error: LOGIN_ERROR_PATH,
 } as const;
 
 /**
@@ -42,6 +50,10 @@ const ROUTES = {
  * - `STATE_SIGNING_KEY`  HMAC key for the signed OAuth `state` cookie (secret).
  * - `CALLBACK_URL`       Absolute OAuth callback URL for this deployment.
  * - `REPO_ORG`           The GitHub org/owner this Worker proxies docs for.
+ * - `SESSION_VALID_SINCE` OPTIONAL ms-epoch forced-re-login cutoff (0 = disabled).
+ *                        TOML/.dev.vars deliver it as a string, and a Worker that
+ *                        hasn't been redeployed since this shipped delivers
+ *                        undefined — hence `number | string | undefined`.
  */
 export interface Env {
   SESSIONS: KVNamespace;
@@ -51,6 +63,7 @@ export interface Env {
   STATE_SIGNING_KEY: string;
   CALLBACK_URL: string;
   REPO_ORG: string;
+  SESSION_VALID_SINCE?: number | string;
 }
 
 // Composition root: turn Worker bindings into the portable Config the core sees.
@@ -61,7 +74,18 @@ function configOf(env: Env): Config {
     callbackUrl: env.CALLBACK_URL,
     stateSigningKey: env.STATE_SIGNING_KEY,
     repoOrg: env.REPO_ORG,
+    sessionValidSince: sessionValidSinceOf(env.SESSION_VALID_SINCE),
   };
+}
+
+// `?? 0` + Number() is honest against all three shapes (TOML integer, .dev.vars
+// string, undefined on a not-yet-redeployed Worker). The isFinite guard matters
+// because a malformed string parses to NaN, whose comparisons are always false —
+// the cutoff in getValidAccessToken would be silently disabled (fail-open).
+// Treat that misconfiguration as "no cutoff set" explicitly instead.
+function sessionValidSinceOf(raw: number | string | undefined): number {
+  const n = Number(raw ?? 0);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function loginRedirect(url: URL): Response {
@@ -150,6 +174,13 @@ export default {
           headers.append("Set-Cookie", clearCookieString(SESSION_COOKIE, "/"));
           return new Response(null, { status: 302, headers });
         }
+        case ROUTES.error:
+          // Refresh-safe home for the login-failure retry page: completeLogin
+          // 303s here so the browser never parks on the spent callback URL.
+          // The ?return= is user-editable, so re-sanitize before embedding.
+          return loginFailed(
+            sanitizeReturnPath(url.searchParams.get("return") ?? "/", url.origin)
+          );
       }
 
       // Everything past the /auth/* switch is either a doc view or a comments
@@ -221,13 +252,35 @@ export default {
 
       // The store agrees on the 'default' sentinel for a missing ref; GitHub was
       // probed with ref-or-undefined (never the literal 'default').
-      return isComments
-        ? await handleComments(env.COMMENTS_DB, req, {
-            repo,
-            ref: ref ?? "default",
-            path: docPath,
-          })
-        : await serveDoc(cfg, store, url, refreshSid, token, repo, docPath, ref);
+      if (isComments) {
+        // Stamp the author server-side. Session path: the identity captured at
+        // login (guaranteed present — getValidAccessToken deletes identity-less
+        // records on read). Bearer/agent path: the DISTINGUISHABLE
+        // {login:"agent"} placeholder; no GET /user is issued for a bearer.
+        let author: Author;
+        let actor: Actor;
+        if (refreshSid) {
+          const identity = await getIdentity(store, refreshSid);
+          // The record vanished between token resolution and this read
+          // (concurrent logout/cutoff) — the session is dead; same answer as
+          // arriving with no credential.
+          if (!identity) return unauthorized();
+          author = { login: identity.login, name: identity.name, id: identity.id };
+          actor = "session";
+        } else {
+          author = { login: "agent", name: null };
+          actor = "bearer";
+        }
+        return await handleComments(
+          env.COMMENTS_DB,
+          req,
+          { repo, ref: ref ?? "default", path: docPath },
+          author,
+          refreshSid,
+          actor,
+        );
+      }
+      return await serveDoc(cfg, store, url, refreshSid, token, repo, docPath, ref);
     } catch (err) {
       // A safeSegments InvalidPathError raised from inside fetchDoc launders to
       // the same neutral 404 as a parse-time one.

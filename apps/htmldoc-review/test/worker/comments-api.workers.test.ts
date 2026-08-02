@@ -52,9 +52,33 @@ const NEUTRAL_BODY = "Not found or no access";
 const PLACEHOLDER: Author = { login: "unknown", name: null };
 const DOC: DocKey = { repo: REPO, ref: REF, path: DOC_PATH };
 
+// The identity a v2 session carries. A create on such a session stamps THIS
+// author (login/name/id), never the PR4 placeholder and never a body-supplied one.
+const SEEDED_IDENTITY = { login: "octocat", name: "Mona Lisa", id: 583231 };
+
 const sessKey = (id: string) => `sess:${id}`;
 
+// Seed a v2 (identity-bearing) session — the only kind that serves requests
+// (getValidAccessToken deletes identity-less records on read).
 async function seedSession(id: string): Promise<string> {
+  await env.SESSIONS.put(
+    sessKey(id),
+    JSON.stringify({
+      version: 2,
+      iat: Date.now(),
+      identity: SEEDED_IDENTITY,
+      access_token: KNOWN_TOKEN,
+      refresh_token: "refresh_canned",
+      expires_at: Date.now() + 3_600_000,
+    }),
+    { expirationTtl: 3600 },
+  );
+  return id;
+}
+
+// Seed a pre-identity (version 1) session — the Deliverable 1 record shape, with
+// NO version/iat/identity — to exercise the delete-on-read forced re-login.
+async function seedV1Session(id: string): Promise<string> {
   await env.SESSIONS.put(
     sessKey(id),
     JSON.stringify({
@@ -66,6 +90,7 @@ async function seedSession(id: string): Promise<string> {
   );
   return id;
 }
+
 
 /**
  * Queue a single-use mock for the checkAccess probe. The probe hits the GitHub
@@ -150,7 +175,7 @@ describe("GET list", () => {
 });
 
 describe("POST single ops", () => {
-  it("create stamps the placeholder author, never a body-supplied one", async () => {
+  it("create stamps the captured session identity, never a body-supplied one", async () => {
     await seedSession("s-create");
     mockProbe(200);
     // Body carries an `author` field that MUST be ignored (author is server-side).
@@ -168,17 +193,51 @@ describe("POST single ops", () => {
     );
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; op: string; thread: { id: string } };
+    const body = (await res.json()) as {
+      ok: boolean;
+      op: string;
+      thread: { id: string; root: { author: { login: string; name: string | null } } };
+    };
     expect(body).toMatchObject({ ok: true, op: "create" });
+    // The REAL captured author surfaces on the created thread (card validation).
+    expect(body.thread.root.author.login).toBe(SEEDED_IDENTITY.login);
+    expect(body.thread.root.author.name).toBe(SEEDED_IDENTITY.name);
 
     const row = await env.COMMENTS_DB.prepare(
-      "SELECT author_login, author_name FROM comments WHERE id = ?",
+      "SELECT author_login, author_name, author_id FROM comments WHERE id = ?",
     )
       .bind(body.thread.id)
-      .first<{ author_login: string; author_name: string | null }>();
-    expect(row?.author_login).toBe("unknown");
+      .first<{ author_login: string; author_name: string | null; author_id: number }>();
+    expect(row?.author_login).toBe(SEEDED_IDENTITY.login);
     expect(row?.author_login).not.toBe("attacker");
-    expect(row?.author_name).toBeNull();
+    expect(row?.author_name).toBe(SEEDED_IDENTITY.name);
+    // The stable numeric id round-trips from the session identity into the row.
+    expect(row?.author_id).toBe(SEEDED_IDENTITY.id);
+  });
+
+  it("an identity-less v1 session is dead on read: 401, record deleted, NO GitHub call, no D1 write", async () => {
+    await seedV1Session("s-v1");
+    // No probe and no /user mock queued: token resolution must reject the
+    // record before any GitHub call — an unmocked outbound fetch would fail
+    // the afterEach interceptor assertion.
+    const res = await call(
+      commentsUrl(),
+      withSession("s-v1", {
+        method: "POST",
+        body: JSON.stringify(createOp("from a legacy session")),
+      }),
+    );
+    expect(res.status).toBe(401);
+
+    // Deleted-on-read: the next request has no session and re-logs-in — the
+    // fresh login is what mints the identity (capture is fatal there).
+    expect(await env.SESSIONS.get(sessKey("s-v1"))).toBeNull();
+
+    // Nothing was written for the rejected create.
+    const { results } = await env.COMMENTS_DB.prepare(
+      "SELECT id FROM comments",
+    ).all();
+    expect(results).toHaveLength(0);
   });
 
   it("resolve soft-closes (row stays visible) and delete hard-purges", async () => {

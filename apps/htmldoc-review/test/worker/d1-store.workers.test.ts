@@ -36,7 +36,7 @@ declare global {
   }
 }
 
-const AUTHOR: Author = { login: "alice", name: "Alice Example" };
+const AUTHOR: Author = { login: "alice", name: "Alice Example", id: 42 };
 const DOC: DocKey = { repo: "app-ios", ref: "main", path: "guide.html" };
 
 function createOp(text: string, exact = "the quick brown fox"): CreateOp {
@@ -73,7 +73,8 @@ describe("D1Store round-trips", () => {
     expect(threads).toHaveLength(1);
     const t = threads[0]!;
     expect(t.id).toBe(created.id);
-    expect(t.root.author).toEqual({ login: "alice", name: "Alice Example" });
+    // The numeric author id round-trips through the author_id column.
+    expect(t.root.author).toEqual({ login: "alice", name: "Alice Example", id: 42 });
     expect(t.root.body).toBe("first comment");
     // Anchor JSON blob survives unchanged.
     expect(t.anchor).toEqual({
@@ -85,6 +86,18 @@ describe("D1Store round-trips", () => {
     expect(typeof t.root.createdAt).toBe("number");
     expect(t.resolvedAt).toBeNull();
     expect(t.replies).toEqual([]);
+  });
+
+  it("an id-less author (placeholder author_id 0) reads back with NO id field", async () => {
+    const store = newStore();
+    await store.create(DOC, createOp("agent comment"), { login: "agent", name: null });
+
+    const threads = await store.list(DOC);
+    expect(threads).toHaveLength(1);
+    // The stored placeholder 0 is storage-only — it must not surface as a
+    // "real" numeric GitHub id on the way back out.
+    expect(threads[0]!.root.author).toEqual({ login: "agent", name: null });
+    expect("id" in threads[0]!.root.author).toBe(false);
   });
 
   it("lists multiple threads in created_at order", async () => {

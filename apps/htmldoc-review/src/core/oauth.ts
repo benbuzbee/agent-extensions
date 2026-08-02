@@ -6,8 +6,10 @@
 // runs unchanged anywhere those globals exist.
 import * as arctic from "arctic";
 import type { Config } from "./config";
-import type { SessionStore } from "./store";
-import { createSession } from "./session";
+import { auditId, type Identity, type SessionStore } from "./store";
+import { createSession, type Grant } from "./session";
+import { fetchIdentity } from "./identity";
+import { LOGIN_ERROR_PATH } from "./responses";
 import {
   readCookie,
   serializeCookie,
@@ -73,6 +75,14 @@ export function clearStateCookieString(): string {
   return clearCookieString(STATE_COOKIE, STATE_COOKIE_PATH);
 }
 
+// EVERY response leaving the callback must burn the now-spent state cookie —
+// rejections, the identity-failure redirect, and the success 302 alike. One
+// helper so a newly added exit can't forget it.
+function withStateCleared(res: Response): Response {
+  res.headers.append("Set-Cookie", clearStateCookieString());
+  return res;
+}
+
 // Single choke point for every OAuth callback rejection (bad/missing state,
 // signature mismatch, authorization failed). It logs and clears the now-spent
 // state cookie. Called from four distinct guard arms below, so it earns its
@@ -80,9 +90,32 @@ export function clearStateCookieString(): string {
 // fixed, non-sensitive reason string — it carries no token/code/secret.
 function rejectAndClearState(status: number, body: string): Response {
   log.error("OAuth callback rejected", { status, reason: body });
-  const headers = new Headers({ "Content-Type": "text/plain; charset=utf-8" });
-  headers.append("Set-Cookie", clearStateCookieString());
-  return new Response(body, { status, headers });
+  return withStateCleared(
+    new Response(body, {
+      status,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    })
+  );
+}
+
+/**
+ * Collapse an untrusted return path to a same-origin absolute path, else "/".
+ * The prefix checks reject the plain scheme-relative ("//evil") and backslash
+ * ("/\\evil") forms; the parse check is the real guarantee — WHATWG URL
+ * parsing strips ASCII tab/newline, so a path like "/\t/evil.com" survives the
+ * prefixes yet resolves off-origin. Only a value that PARSES back to the same
+ * origin survives. Used by completeLogin and by the Worker's LOGIN_ERROR_PATH
+ * route (whose ?return= is user-editable).
+ */
+export function sanitizeReturnPath(raw: string, origin: string): string {
+  if (!raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) {
+    return "/";
+  }
+  try {
+    return new URL(raw, origin).origin === origin ? raw : "/";
+  } catch {
+    return "/";
+  }
 }
 
 /**
@@ -128,9 +161,11 @@ export async function beginLogin(req: Request, cfg: Config): Promise<Response> {
  * trust anchor. We require the cookie's signature to be a valid HMAC over its
  * own nonce AND that nonce to equal the nonce echoed back in the URL `state`.
  * Any mismatch, missing piece, or failed code exchange routes through
- * `rejectAndClearState` (4xx + clear cookie). On success we persist the tokens
- * server-side (only an opaque session id reaches the browser), redirect to the
- * sanitized return path, and clear the spent state cookie.
+ * `rejectAndClearState` (4xx + clear cookie). A successful exchange whose
+ * GET /user identity capture fails 303s to LOGIN_ERROR_PATH (the retry page)
+ * having persisted nothing. On success we persist the tokens server-side (only
+ * an opaque session id reaches the browser) and redirect to the sanitized
+ * return path. Every exit clears the spent state cookie (withStateCleared).
  */
 export async function completeLogin(
   req: Request,
@@ -148,8 +183,19 @@ export async function completeLogin(
 
   const colon = stateParam.indexOf(":");
   const stateNonce = colon === -1 ? stateParam : stateParam.slice(0, colon);
-  const ret =
-    colon === -1 ? "/" : decodeURIComponent(stateParam.slice(colon + 1));
+  // The return segment is attacker-influenced transit data: malformed
+  // percent-encoding (a link truncated by a mail client, or a crafted
+  // callback) must not throw out of the handler as a raw 500 with the state
+  // cookie left live. A segment that won't decode just means "no return
+  // path" — whether the login proceeds is decided by the HMAC check below.
+  let ret = "/";
+  if (colon !== -1) {
+    try {
+      ret = decodeURIComponent(stateParam.slice(colon + 1));
+    } catch {
+      ret = "/";
+    }
+  }
 
   const dot = cookie.indexOf(".");
   if (dot === -1) return rejectAndClearState(400, "Invalid OAuth state");
@@ -183,23 +229,47 @@ export async function completeLogin(
   const refreshTtl = Number(
     (tokens.data as Record<string, unknown>).refresh_token_expires_in
   );
-  const sid = await createSession(
-    store,
-    {
-      access_token: tokens.accessToken(),
-      refresh_token: tokens.refreshToken(),
-      expires_at: tokens.accessTokenExpiresAt().getTime(),
-    },
-    Number.isFinite(refreshTtl) ? refreshTtl : undefined
-  );
+  const grant: Grant = {
+    access_token: tokens.accessToken(),
+    refresh_token: tokens.refreshToken(),
+    expires_at: tokens.accessTokenExpiresAt().getTime(),
+    // Fall back to the 180-day cookie horizon when GitHub omits the refresh
+    // horizon (same value session.ts's DEFAULT_TTL uses).
+    refresh_ttl: Number.isFinite(refreshTtl) ? refreshTtl : SESSION_COOKIE_MAX_AGE,
+  };
 
-  // Only allow same-origin absolute paths. Reject scheme-relative ("//evil")
-  // and backslash ("/\\evil") forms that new URL() would resolve off-origin.
-  const safeRet =
-    ret.startsWith("/") && !ret.startsWith("//") && !ret.startsWith("/\\")
-      ? ret
-      : "/";
-  log.info("login completed", { sessionId: sid, return: safeRet });
+  const safeRet = sanitizeReturnPath(ret, url.origin);
+
+  // Capture reviewer identity here, with the fresh access token. Capture is
+  // fatal: a session is never minted without knowing who it belongs to, so a
+  // /user failure fails the whole login BEFORE createSession — no record
+  // written, no session cookie set — and the page offers a clean retry through
+  // /auth/login. The message is safe to log (fetchIdentity's own text, or a
+  // runtime network error) — NEVER the token. No session id exists yet, so
+  // there is no auditId to correlate; the return path is the useful breadcrumb.
+  let identity: Identity;
+  try {
+    identity = await fetchIdentity(tokens.accessToken());
+  } catch (e) {
+    log.error("login failed: identity capture", {
+      error: e instanceof Error ? e.constructor.name : typeof e,
+      message: e instanceof Error ? e.message : String(e),
+      return: safeRet,
+    });
+    // 303 to the retry page rather than rendering it here: the callback URL's
+    // code and state are spent, so a page PARKED on it would dead-end on the
+    // CSRF guard the moment the user refreshes. LOGIN_ERROR_PATH re-renders
+    // safely on refresh, and its retry link re-enters /auth/login.
+    const errorUrl = new URL(LOGIN_ERROR_PATH, url.origin);
+    errorUrl.searchParams.set("return", safeRet);
+    return withStateCleared(
+      new Response(null, { status: 303, headers: { Location: errorUrl.toString() } })
+    );
+  }
+
+  const sid = await createSession(store, grant, identity);
+
+  log.info("login completed", { sessionId: auditId(sid), return: safeRet });
 
   const dest = new URL(safeRet, url.origin);
   const headers = new Headers({ Location: dest.toString() });
@@ -210,8 +280,7 @@ export async function completeLogin(
       maxAge: SESSION_COOKIE_MAX_AGE,
     })
   );
-  headers.append("Set-Cookie", clearStateCookieString());
-  return new Response(null, { status: 302, headers });
+  return withStateCleared(new Response(null, { status: 302, headers }));
 }
 
 /**

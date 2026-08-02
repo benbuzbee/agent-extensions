@@ -6,23 +6,28 @@
 // before the fork), so this function assumes the caller may see the doc.
 
 import { D1Store } from "./d1-store";
-import { handleCommentsRequest } from "@shared/api/handlers";
-import type { Author, DocKey } from "@shared/review-ux/types";
+import { handleCommentsRequest, type CommentsResponseBody } from "@shared/api/handlers";
+import type { Author, DocKey, OpResult } from "@shared/review-ux/types";
+import { auditId, type SessionId } from "../core/store";
+import { getLogger } from "@logtape/logtape";
 
-// GitHub identity is not captured yet — capturing the session/token-derived
-// {login, name, id} is a later concern. Until then every write is stamped with
-// this server-supplied placeholder, which satisfies the NOT NULL author columns
-// (author_login) without reaching forward to identity capture. The value is
-// deliberately non-real so a placeholder-authored comment is visibly
-// distinguishable. The author is ALWAYS server-supplied here — never read from
-// the request body.
-const PLACEHOLDER_AUTHOR: Author = { login: "unknown", name: null };
+const log = getLogger(["htmldoc-review", "comments"]);
+
+// Which credential authorized the request: a session cookie (browser reviewer)
+// or an Authorization bearer token (agent). Decided once at index.ts's auth
+// fork and carried through for the audit log — never re-derived downstream.
+export type Actor = "bearer" | "session";
 
 /**
  * Serve one comments-API request for an already-authorized doc.
  *
  *   GET  → 200 {threads}
  *   POST → single op (200 / op-status) or batch array (207 {results})
+ *
+ * The `author` is stamped server-side by the caller (index.ts) — the captured
+ * session identity, or the distinguishable {login:"agent"} placeholder for a
+ * bearer/agent request — never read from the request body. `sessionId`/`actor`
+ * feed the audit log only.
  *
  * A POST body that is not valid JSON is a client syntax error: reject with 400
  * BEFORE touching the store (mirrors the envelope 400, which also precedes any
@@ -31,7 +36,10 @@ const PLACEHOLDER_AUTHOR: Author = { login: "unknown", name: null };
 export async function handleComments(
   db: D1Database,
   req: Request,
-  doc: DocKey
+  doc: DocKey,
+  author: Author,
+  sessionId: SessionId | null,
+  actor: Actor
 ): Promise<Response> {
   const method = req.method.toUpperCase();
 
@@ -56,9 +64,47 @@ export async function handleComments(
     body,
     store,
     doc,
-    author: PLACEHOLDER_AUTHOR,
+    author,
   });
+  auditMutations(payload, author, sessionId, actor, doc);
   return json(status, payload);
+}
+
+// Audit the create/resolve mutations in a response. We log identity ON PURPOSE
+// (public GitHub login/name, for "who left / resolved this" — resolve is the
+// most audit-worthy mutation, being the agent's primary verb). Tokens and the
+// session record are NEVER logged, and the session id appears only as its
+// auditId prefix — the full id is the credential the cookie carries.
+// Non-mutating GETs and other ops are skipped.
+function auditMutations(
+  payload: CommentsResponseBody,
+  author: Author,
+  sessionId: SessionId | null,
+  actor: Actor,
+  doc: DocKey
+): void {
+  for (const r of resultsOf(payload)) {
+    if (r.op !== "create" && r.op !== "resolve") continue;
+    log.info(`comment ${r.op}`, {
+      author_login: author.login,
+      author_name: author.name,
+      actor,
+      sessionId: sessionId === null ? null : auditId(sessionId),
+      repo: doc.repo,
+      ref: doc.ref,
+      path: doc.path,
+      outcome: r.ok ? "ok" : r.error.code,
+    });
+  }
+}
+
+// Normalize the handler payload to the OpResult list it carries: a batch is
+// {results:[...]}, a single op is the bare OpResult (the arm with an `op`
+// field), and a GET ({threads}) / error ({error}) carries none.
+function resultsOf(payload: CommentsResponseBody): OpResult[] {
+  if ("results" in payload) return payload.results;
+  if ("op" in payload) return [payload];
+  return [];
 }
 
 function json(status: number, payload: unknown): Response {

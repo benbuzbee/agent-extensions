@@ -12,4 +12,10 @@ export interface Config {
   // (`/{repo}/{...docPath}`), and the optional branch/tag/SHA from `?ref=`.
   // See core/docsource.ts.
   repoOrg: string;
+  // Forced-re-login lever: a ms-epoch cutoff. getValidAccessToken deletes-on-read
+  // any session whose login-time `iat` predates this, forcing a fresh login. 0
+  // (the default) disables it — every session passes. Bumping it to "now" and
+  // redeploying logs everyone out idempotently, with no KV enumeration. Sourced
+  // from wrangler.toml [vars] SESSION_VALID_SINCE.
+  sessionValidSince: number;
 }

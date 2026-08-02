@@ -50,9 +50,10 @@ const REF_DEFAULT = "default";
 // the shared api/handlers reserves so a batch surfaces it as a per-op transient.
 const RESERVED_MESSAGE = "op not yet supported";
 
-// PR3 has no captured numeric identity (the shared Author type is {login, name}
-// only). author_id is NOT NULL, so we stamp a placeholder; PR4/PR5 supply the
-// real GitHub numeric id when the Author type gains one.
+// author_id is NOT NULL. A session-authored create supplies a real numeric id
+// (from the captured identity), but a bearer/agent create stamps the
+// {login:"agent"} placeholder with no id — "no agent-create" is deliberately
+// unenforced in v1, so that path does reach this fallback.
 const AUTHOR_ID_PLACEHOLDER = 0;
 
 // One persisted row. `author_name` and `resolved_at` are the only nullable
@@ -85,7 +86,14 @@ export class D1Store implements ICommentsStore {
       anchor: JSON.parse(row.anchor) as Anchor,
       root: {
         id: asCommentId(row.id),
-        author: { login: row.author_login, name: row.author_name },
+        // The placeholder 0 satisfies the NOT NULL column but is not a real
+        // GitHub id — surface it as an ABSENT id, never as a numeric one a
+        // client might treat as stable.
+        author: {
+          login: row.author_login,
+          name: row.author_name,
+          ...(row.author_id === AUTHOR_ID_PLACEHOLDER ? {} : { id: row.author_id }),
+        },
         body: row.body,
         createdAt: asTimestamp(row.created_at),
       },
@@ -149,7 +157,7 @@ export class D1Store implements ICommentsStore {
         thread.root.body,
         author.login,
         author.name,
-        AUTHOR_ID_PLACEHOLDER,
+        author.id ?? AUTHOR_ID_PLACEHOLDER,
         thread.root.createdAt,
         thread.resolvedAt,
       )

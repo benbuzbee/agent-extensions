@@ -28,8 +28,13 @@ export interface Anchor {
   sections?: string[];
 }
 
-/** Reviewer identity, stamped server-side from the session. */
-export type Author = { login: string; name: string | null };
+/**
+ * Reviewer identity, stamped server-side from the session. `id` is the OPTIONAL
+ * stable GitHub numeric id — supplied only on the hosted Worker path (from the
+ * captured session identity); the local path (adapter/LocalFileStore/playwright)
+ * never sets or reads it, so the local JSON carries no id.
+ */
+export type Author = { login: string; name: string | null; id?: number };
 
 /** One comment within a thread. */
 export interface Comment {
