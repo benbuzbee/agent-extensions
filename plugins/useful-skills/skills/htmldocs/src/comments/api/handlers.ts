@@ -16,7 +16,7 @@ const RESERVED_MESSAGE = 'op not yet supported';
 function errorToOpError(err: unknown): OpError {
   const tagged = (err as { opError?: OpError }).opError;
   if (tagged && typeof tagged.code === 'string') return tagged;
-  if (isNotFoundError(err)) return { code: 'not_found', threadId: err.threadId };
+  if (isNotFoundError(err)) return { code: 'not_found', threadId: err.threadId, message: err.message };
   const message = err instanceof Error ? err.message : String(err);
   return { code: 'transient', message };
 }

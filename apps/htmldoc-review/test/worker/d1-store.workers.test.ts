@@ -238,7 +238,11 @@ describe("D1Store batch", () => {
     expect(results[1]).toEqual({
       ok: false,
       op: "resolve",
-      error: { code: "not_found", threadId: ghost },
+      error: {
+        code: "not_found",
+        threadId: ghost,
+        message: `the document is accessible but thread '${ghost}' was not found`,
+      },
     });
     expect(results[2]).toMatchObject({ ok: true, op: "create" });
 

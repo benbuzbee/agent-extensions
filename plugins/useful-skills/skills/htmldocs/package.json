@@ -11,7 +11,8 @@
     "test": "playwright test --config=test/playwright.config.js",
     "test:unit": "vitest run --config test/vitest.config.ts",
     "test:smoke": "bash test/smoke/serve.sh",
-    "check": "npm run typecheck && npm run build && npm run test:unit && npm run test && npm run test:smoke"
+    "test:smoke:api": "bash test/smoke/comments-api.sh",
+    "check": "npm run typecheck && npm run build && npm run test:unit && npm run test && npm run test:smoke && npm run test:smoke:api"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

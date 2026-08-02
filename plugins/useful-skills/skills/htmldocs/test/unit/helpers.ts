@@ -16,7 +16,7 @@ export const TEST_AUTHOR: Author = { login: 'user', name: null };
 
 function tagNotFound(err: unknown): never {
   if (isNotFoundError(err)) {
-    throw Object.assign(new Error('thread not found'), { opError: { code: 'not_found', threadId: err.threadId } as OpError });
+    throw Object.assign(new Error(err.message), { opError: { code: 'not_found', threadId: err.threadId, message: err.message } as OpError });
   }
   throw err;
 }

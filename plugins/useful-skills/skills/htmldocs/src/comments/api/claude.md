@@ -1,7 +1,6 @@
-Runtime-agnostic comment API — pure business logic. Every file here is imported
-by both the local Node server (serve.ts) and the hosted Cloudflare Worker;
-it is NOT part of main.ts's widget-bundle graph, so `zod` never enters
-dist/comments.mjs.
+Runtime-agnostic comment API — pure business logic, imported by both the local
+server (serve.ts) and the worker (apps/htmldoc-review); it is NOT part of
+main.ts's widget-bundle graph, so `zod` never enters dist/comments.mjs.
 
 Sharing contract:
 - May reference ONLY `review-ux/` types + `review-ux/store` (ICommentsStore) and,

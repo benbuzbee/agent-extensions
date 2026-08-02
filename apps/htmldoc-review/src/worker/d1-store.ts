@@ -269,7 +269,7 @@ export class D1Store implements ICommentsStore {
 // (carrying the message). D1Store throws NotFoundError directly, so there is no
 // `.opError`-tagged form to unwrap here.
 function toOpError(err: unknown): OpError {
-  if (isNotFoundError(err)) return { code: "not_found", threadId: err.threadId };
+  if (isNotFoundError(err)) return { code: "not_found", threadId: err.threadId, message: err.message };
   const message = err instanceof Error ? err.message : String(err);
   return { code: "transient", message };
 }

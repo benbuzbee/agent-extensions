@@ -16,7 +16,9 @@ import { asThreadId, asCommentId, asTimestamp } from '../review-ux/types';
 export class NotFoundError extends Error {
   readonly notFound = true as const;
   constructor(public readonly threadId: ThreadId) {
-    super('thread not found');
+    // Thrown only after the doc's threads loaded, so the message can assert
+    // doc accessibility — it distinguishes this from the doc-level bare 404.
+    super(`the document is accessible but thread '${threadId}' was not found`);
     this.name = 'NotFoundError';
   }
 }

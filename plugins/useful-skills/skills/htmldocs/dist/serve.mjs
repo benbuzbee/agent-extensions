@@ -6462,7 +6462,7 @@ function parseEnvelope(raw) {
 // src/comments/api/thread-ops.ts
 var NotFoundError = class extends Error {
   constructor(threadId) {
-    super("thread not found");
+    super(`the document is accessible but thread '${threadId}' was not found`);
     this.threadId = threadId;
     this.name = "NotFoundError";
   }
@@ -6520,7 +6520,7 @@ var RESERVED_MESSAGE = "op not yet supported";
 function errorToOpError(err) {
   const tagged = err.opError;
   if (tagged && typeof tagged.code === "string") return tagged;
-  if (isNotFoundError(err)) return { code: "not_found", threadId: err.threadId };
+  if (isNotFoundError(err)) return { code: "not_found", threadId: err.threadId, message: err.message };
   const message = err instanceof Error ? err.message : String(err);
   return { code: "transient", message };
 }
@@ -6657,7 +6657,7 @@ function legacyToThread(comment) {
 // src/comments/adapters/local/sidecar-store.ts
 function tagNotFound(err) {
   if (isNotFoundError(err)) {
-    throw Object.assign(new Error("thread not found"), { opError: { code: "not_found", threadId: err.threadId } });
+    throw Object.assign(new Error(err.message), { opError: { code: "not_found", threadId: err.threadId, message: err.message } });
   }
   throw err;
 }
