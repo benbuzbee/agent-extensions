@@ -56,33 +56,7 @@ export async function interceptSidecar(page, opts = {}) {
   let state = initial ? JSON.parse(JSON.stringify(initial)) : null;
   const calls = [];
 
-  await page.route('**/__htmldocs/sidecar/**', async (route) => {
-    const req = route.request();
-    const method = req.method();
-    const url = req.url();
-    // Strip protocol/host so the recorded path matches what the widget PUT.
-    const idx = url.indexOf('/__htmldocs/sidecar/');
-    const docPath = idx >= 0 ? url.slice(idx + '/__htmldocs/sidecar/'.length) : '';
-    if (method === 'PUT') {
-      let body = null;
-      try { body = JSON.parse(req.postData() || 'null'); } catch (err) { body = { __parseError: String(err) }; }
-      calls.push({ method, docPath, body });
-      state = body;
-      await route.fulfill({ status: 204, body: '' });
-      return;
-    }
-    if (method === 'GET') {
-      calls.push({ method, docPath });
-      const payload = state || { doc: basename, schema: 1, comments: [] };
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(payload),
-      });
-      return;
-    }
-    await route.fulfill({ status: 405, body: 'method not allowed' });
-  });
+  await install();
 
   return {
     getState: () => (state ? JSON.parse(JSON.stringify(state)) : null),
@@ -104,5 +78,40 @@ export async function interceptSidecar(page, opts = {}) {
         });
       });
     },
+    /** Restore normal PUT-capturing behavior after `breakWrites`, so a test
+     * can exercise a failed save followed by a successful one. */
+    restoreWrites: async () => {
+      await page.unroute('**/__htmldocs/sidecar/**');
+      await install();
+    },
   };
+
+  async function install() {
+    await page.route('**/__htmldocs/sidecar/**', async (route) => {
+      const req = route.request();
+      const method = req.method();
+      const url = req.url();
+      const idx = url.indexOf('/__htmldocs/sidecar/');
+      const docPath = idx >= 0 ? url.slice(idx + '/__htmldocs/sidecar/'.length) : '';
+      if (method === 'PUT') {
+        let body = null;
+        try { body = JSON.parse(req.postData() || 'null'); } catch (err) { body = { __parseError: String(err) }; }
+        calls.push({ method, docPath, body });
+        state = body;
+        await route.fulfill({ status: 204, body: '' });
+        return;
+      }
+      if (method === 'GET') {
+        calls.push({ method, docPath });
+        const payload = state || { doc: basename, schema: 1, comments: [] };
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(payload),
+        });
+        return;
+      }
+      await route.fulfill({ status: 405, body: 'method not allowed' });
+    });
+  }
 }

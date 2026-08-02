@@ -53,15 +53,31 @@ test('collapsed selection inside <article> keeps popover hidden', async ({ page 
   await expect(page.locator('.htmldocs-cmt-popover')).toBeHidden();
 });
 
-test('selection outside any <article> keeps popover hidden', async ({ page }) => {
-  await selectQuickBrownFox(page);
-  await expect(page.locator('.htmldocs-cmt-popover')).toBeVisible();
-
+test('selection in body but outside article shows popover (gate removed)', async ({ page }) => {
   await page.evaluate(() => {
     const h1 = document.querySelector('h1');
     const r = document.createRange();
     r.setStart(h1.firstChild, 0);
     r.setEnd(h1.firstChild, 5);
+    const sel = document.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+  });
+  await expect(page.locator('.htmldocs-cmt-popover')).toBeVisible();
+});
+
+test('selection inside widget UI keeps popover hidden', async ({ page }) => {
+  // The gutter has class htmldocs-cmt-gutter, so selecting inside it
+  // should NOT show the popover.
+  await page.evaluate(() => {
+    const gutter = document.querySelector('.htmldocs-cmt-gutter');
+    if (!gutter) return;
+    // Insert some text into the gutter to select
+    const textNode = document.createTextNode('test text');
+    gutter.appendChild(textNode);
+    const r = document.createRange();
+    r.setStart(textNode, 0);
+    r.setEnd(textNode, 4);
     const sel = document.getSelection();
     sel.removeAllRanges();
     sel.addRange(r);

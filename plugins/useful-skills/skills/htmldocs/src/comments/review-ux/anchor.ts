@@ -18,7 +18,7 @@ const HIDDEN_TEXT_PARENTS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT']);
 
 // Widget chrome (popover, dialog composer, gutter bubbles) lives inside
 // document.body because the widget appends to body at mount time. Their
-// text content ("💬", "Cancel", "Comment", bubble emojis) would otherwise
+// text content ("comment", "Cancel", "Comment", bubble emojis) would otherwise
 // flow into the canonical stream, polluting prefix/suffix windows of
 // selections near the end of the last article. Worse, bubble count is
 // state-dependent — encode-time (mid-session, with prior bubbles rendered)
@@ -82,9 +82,9 @@ function collectTextNodes(root: Node): Text[] {
 // Text-anchored boundaries get a linear-scan node-identity match. Element-
 // anchored boundaries (child-index offsets) use Range.compareBoundaryPoints
 // to sum the lengths of every text node whose start strictly precedes the
-// boundary point — the previous identity-only check missed the case where
-// the child at targetOffset was itself an Element (e.g. `<b>` wrapping
-// text), silently returning the doc-end offset.
+// boundary point. Element-anchored boundaries whose child at targetOffset is
+// itself an Element (e.g. <b> wrapping text) must sum preceding text-node
+// lengths rather than identity-match, or the offset collapses to doc-end.
 function rawOffsetWithin(root: Node, target: Node, targetOffset: number): number {
   if (target.nodeType === Node.TEXT_NODE) {
     let total = 0;
@@ -122,28 +122,17 @@ export function fromRange(range: Range): Anchor {
   const prefix = docText.slice(Math.max(0, startIdx - WINDOW), startIdx);
   const exact = range.toString();
   const suffix = docText.slice(endIdx, Math.min(docText.length, endIdx + WINDOW));
-  return { sections: touchedArticleIds(range, document), prefix, exact, suffix };
+  const sections = touchedArticleIds(range, document);
+  return { sections, prefix, exact, suffix };
 }
 
-// Normalized view of a subtree's visible text. `text` collapses each run of
-// whitespace to a single space. `charToSrc[i]` maps normalized index i back
-// to (textNode, sourceOffset) — specifically: for the first char of a
-// collapsed whitespace run, the FIRST source whitespace char; for the
-// position just past a run, the next non-whitespace char.
-//
-// `runEndOffset[i]` is set ONLY for normalized indices that are spaces from
-// a collapsed run; it stores the source offset of the LAST whitespace char
-// of the run, so end-of-range mapping can include the full run in the
-// returned Range when the match ends on that space.
+// Normalized view of a subtree's visible text.
 interface NormMap {
   text: string;
   charToSrc: Array<{ node: Text; offset: number }>;
   runEndOffset: Array<{ node: Text; offset: number } | null>;
 }
 
-// Builds the normalized string the decoder searches AND the back-map from
-// each normalized index to its source (Text node, offset), so a match in
-// collapsed-whitespace space can produce a Range pointing at raw DOM.
 function buildNormMap(root: Node): NormMap {
   let text = '';
   const charToSrc: Array<{ node: Text; offset: number }> = [];
@@ -157,7 +146,6 @@ function buildNormMap(root: Node): NormMap {
       const c = data.charAt(i);
       if (/\s/.test(c)) {
         if (prevWasSpace) {
-          // Extend the current collapsed run; record the LAST source pos.
           lastRunNode = node;
           lastRunOffset = i;
           if (runEndOffset.length > 0) {
@@ -179,32 +167,22 @@ function buildNormMap(root: Node): NormMap {
       }
     }
   }
-  // Suppress unused warnings; values captured for potential future debug.
   void lastRunNode;
   void lastRunOffset;
   return { text, charToSrc, runEndOffset };
 }
 
-// Applies the same whitespace collapse to stored anchor strings that
-// buildNormMap applies to live DOM text, so the two are comparable.
 function normalize(s: string): string {
   return s.replace(/\s+/g, ' ');
 }
 
-// Decode side of the public API: resolve an Anchor back to a live Range
-// by searching `document.body` for the exact text, using prefix/suffix
-// as tiebreakers when it occurs more than once. `anchor.sections` is
-// metadata only — it's not consulted here. Returns null when the exact
-// text is gone — never throws, never mutates the DOM. The search root is
-// fixed to mirror fromRange's encoder root; a custom root would make the
-// round-trip asymmetric (prefix/suffix windows sliced from one stream,
-// matched against another) for no caller's benefit.
+// Decode side of the public API: resolve an Anchor back to a live Range.
 export function toRange(anchor: Anchor): Range | null {
   const map = buildNormMap(document.body);
   const normExact = normalize(anchor.exact);
   if (!normExact) return null;
-  const normPrefix = normalize(anchor.prefix);
-  const normSuffix = normalize(anchor.suffix);
+  const normPrefix = normalize(anchor.prefix ?? '');
+  const normSuffix = normalize(anchor.suffix ?? '');
 
   const candidates: number[] = [];
   let from = 0;
@@ -235,9 +213,6 @@ export function toRange(anchor: Anchor): Range | null {
   const lastIdx = best + normExact.length - 1;
   const lastMap = map.charToSrc[lastIdx];
   if (!startMap || !lastMap) return null;
-  // If the last matched normalized char is a space from a collapsed run,
-  // extend the Range to include the entire run so range.toString() doesn't
-  // truncate mid-whitespace.
   const runEnd = map.runEndOffset[lastIdx];
   const endNode = runEnd ? runEnd.node : lastMap.node;
   const endOffset = (runEnd ? runEnd.offset : lastMap.offset) + 1;

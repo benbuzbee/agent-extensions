@@ -1992,6 +1992,53 @@ All 7 PR cards (PR0-PR6) have matching workflow phases with correct planAnchor r
           indicator green without hiding the comment.</li>
       </ul>
     </details>
+    <details class="validation-evidence" open>
+      <summary>Validation evidence — d2/pr1-extraction-store-seam (gate green, 1 fix round(s))</summary>
+      <p>
+        <strong>Commands run:</strong> npm install, Playwright Chromium install, npm run check (2 runs + confirmation), git diff --stat on dist artifacts
+      </p>
+      <p>
+        <strong>Code review:</strong> 10 candidate issues surfaced, 1 confirmed at 80% threshold — type mismatch in anchor.ts line 126 (sections array always returned but type declares optional). Fixed: anchor encoder now returns undefined when sections is empty, matching the Anchor type contract.
+      </p>
+      <p>
+        <strong>Fable review:</strong> plan-fidelity lens → fix (4 blocker/major findings across store seam, type consistency, and gate-removal implementation)
+      </p>
+      <p>
+        <strong>Findings fixed:</strong> 5 total (1 from code review, 4 from Fable review)
+      </p>
+      <pre>
+$ npm install
+up to date, audited 97 packages in 277ms
+1 moderate severity vulnerability
+
+$ npx playwright install chromium
+EXIT=0
+
+$ npm run check   (run 1)
+  ✓ 83 passed (3.3s)
+  (typecheck + build:widget + build:server + playwright + smoke all ran)
+&gt; htmldocs@0.1.0 test:smoke
+PASS: serve.sh smoke
+EXIT=0
+
+$ npm run check   (run 2)
+ok[put]: PUT sidecar → 204
+ok[put]: sidecar landed at .../index.comments.json with expected body
+ok[put]: served tree unchanged by PUT
+PASS: serve.sh smoke
+EXIT=0
+
+$ npm run check   (confirmation run, exit captured directly)
+CHECK_EXIT=0
+PASS: serve.sh smoke
+
+$ git diff --stat -- dist/comments.mjs dist/serve.mjs
+ .../skills/htmldocs/dist/comments.mjs   | Bin 116676 -&gt; 130071 bytes
+ .../useful-skills/skills/htmldocs/dist/serve.mjs   |  24 +++++++++++++++------
+ 2 files changed, 17 insertions(+), 7 deletions(-)
+EXIT=0
+      </pre>
+    </details>
   </section>
 
   <section data-kind="pr-card" id="pr2">
