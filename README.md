@@ -37,6 +37,8 @@ agent-extensions/
 
 PRs welcome, but don't expect urgency. Repo may change shape with no notice as the needs evolve.
 
+Working on `htmldocs`? See [its developer setup](plugins/useful-skills/skills/htmldocs/DEVELOPING.md).
+
 ## Authorship
 
 Created by Ben Buzbee on personal time, personal equipment, and personal token spend. Copyright is held solely by the author under the terms of the LICENSE file, and these works are not assigned to any employer. Copy and use under the MIT License below.

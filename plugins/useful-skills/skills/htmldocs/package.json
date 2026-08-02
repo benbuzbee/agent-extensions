@@ -15,7 +15,7 @@
     "check": "npm run typecheck && npm run build && npm run test:unit && npm run test && npm run test:smoke && npm run test:smoke:api"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0",
+    "@playwright/test": "^1.62.0",
     "@types/node": "^25.9.1",
     "@types/yargs": "^17.0.35",
     "esbuild": "^0.24.0",
