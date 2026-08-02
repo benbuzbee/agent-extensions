@@ -1,6 +1,6 @@
 # Review mode — the comment API
 
-Optional capability: mount a comments widget into htmldocs pages so User can select text and leave inline notes anchored to it. `serve.sh` boots the local review server; then use **`scripts/comments-api.sh`** to interact with the comments programmatically — the same helper whether the doc is served locally or hosted on the Worker.
+Optional capability: mount a comments widget into htmldocs pages so User can select text and leave inline notes anchored to it. `node <skill>/dist/serve.mjs <target>` boots the local review server; then use **`scripts/comments-api.sh`** to interact with the comments programmatically — the same helper whether the doc is served locally or hosted on the Worker.
 
 See `SKILL.md` § Review mode for the entry point; this file is the recipe.
 

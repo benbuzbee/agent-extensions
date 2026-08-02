@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Smoke test for ../../scripts/comments-api.sh — the agent transport helper.
-# Drives the helper against the REAL local review server (booted via serve.sh)
-# and a dumb static server, asserting the documented exit code + stderr
+# Drives the helper against the REAL local review server (booted via the
+# serve.sh shim over dist/serve.mjs) and a dumb static server, asserting the
+# documented exit code + stderr
 # contract for each failure class, and proving the token never leaks under
 # `bash -x`.
 #
@@ -70,9 +71,9 @@ echo "ok: usage errors + hostile threadId → exit 2"
 run_api list "http://127.0.0.1:9/index.html"
 [[ "$RC" == 4 ]] || fail "connection refused → $RC (want 4)"
 grep -qi "server isn't running" <<<"$ERRTXT" || fail "conn-refused: missing server-not-running hint"
-grep -q 'serve.sh' <<<"$ERRTXT" || fail "conn-refused: missing serve.sh guidance"
+grep -q 'serve.mjs' <<<"$ERRTXT" || fail "conn-refused: missing serve.mjs guidance"
 [[ -z "$OUT" ]] || fail "conn-refused: stdout should be empty"
-echo "ok: connection refused → exit 4, serve.sh guidance"
+echo "ok: connection refused → exit 4, serve.mjs guidance"
 
 # ── 4. Hosted URL without token → exit 3, no request fired ──────────────────
 # PATH-prepend a failing `gh` stub + empty GITHUB_TOKEN + a non-localhost URL.

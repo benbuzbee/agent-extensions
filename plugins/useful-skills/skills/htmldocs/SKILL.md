@@ -74,7 +74,7 @@ Default to portable: one `<style>` block in `<head>`, no external CSS, JS, or fo
 
 ## Review mode (optional)
 
-If User wants to leave inline comments on a doc — or several related docs in the same folder — run `bash <htmldocs-skill>/serve.sh path/to/doc.html` via `Bash` with `run_in_background=true` (`<htmldocs-skill>` = this skill's root on disk). The server emits two stdout lines: `URL: …` (hand to User) and `SIDECAR_DIR: …` (an on-disk backup of the comments, for inspection). Read and act on comments through `scripts/comments-api.sh` — the read/write twin of `serve.sh` — which drives the doc's `?comments` HTTP API (`list` / `resolve` / `reopen` / `delete`), the same call shape locally or hosted; the sidecar files are storage, not the interface. Requires `node` on PATH. Full recipe in `references/comments.md`.
+If User wants to leave inline comments on a doc — or several related docs in the same folder — run `node <htmldocs-skill>/dist/serve.mjs <target>` via `Bash` with `run_in_background=true` (`<htmldocs-skill>` = this skill's root on disk). Pass the **repo root** as `<target>` so relative links between docs resolve while browsing; the server auto-probes a free port in 8000–8099 and emits two stdout lines: `URL: …` and `SIDECAR_DIR: …` (an on-disk backup of the comments, for inspection). Hand User the `URL:` value joined with the doc's path under root (e.g. `…/docs/reviewing.html`). Read and act on comments through `scripts/comments-api.sh` — the read/write twin of the server — which drives the doc's `?comments` HTTP API (`list` / `resolve` / `reopen` / `delete`), the same call shape locally or hosted; the sidecar files are storage, not the interface. Requires `node` on PATH. Full recipe in `references/comments.md`.
 
 The review system — the `?comments` API and the injected widget, shared between the local server and the org-wide, GitHub-gated htmldoc-review Cloudflare Worker — is documented in `docs/reviewing.html`. The API and UI are the same either way; only the implementations differ (the doc calls out the local-vs-Worker split, and links the plan doc as the design record).
 
@@ -82,5 +82,5 @@ The review system — the `?comments` API and the injected widget, shared betwee
 
 - `references/conventions.md` — default `data-*` vocabularies, ID naming, document-type schemas, escaping rules.
 - `references/examples.md` — bad/good pairs for each principle.
-- `references/comments.md` — review-mode recipe: enable on a doc, run `serve.sh`, and drive comments via `scripts/comments-api.sh`, the agent's transport helper for the `?comments` API (list / resolve / reopen / delete).
+- `references/comments.md` — review-mode recipe: enable on a doc, run `node <skill>/dist/serve.mjs <target>`, and drive comments via `scripts/comments-api.sh`, the agent's transport helper for the `?comments` API (list / resolve / reopen / delete).
 - `references/mermaid.md` — use inline Mermaid to generate diagrams; read it for complex diagrams or if rendering issues come up.

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Smoke test for ../../serve.sh: boots it against the clean fixture, asserts
+# Smoke test for ../../serve.sh (the exec shim over dist/serve.mjs): boots it
+# against the clean fixture, asserts
 # the URL:/SIDECAR_DIR: stdout contract, exercises both the dir-arg and
 # file-arg URL shapes, and drives an op round-trip over the <doc>?comments API
 # (POST create, then GET list) through the bundled server to verify the op lands
@@ -107,9 +108,9 @@ run_phase "dir" "test/fixtures/clean/" '/$' \
   "index.html:200" \
   "does-not-exist.html:404"
 
-# Phase 2: file arg → URL ends in `/index.html`. Re-checks that serve.sh's
-# basename-derivation still works (was deleted-then-restored coverage that
-# the in-process Playwright specs cannot cover, since they bypass serve.sh).
+# Phase 2: file arg → URL ends in `/index.html`. Exercises serve.mjs's
+# basename derivation — a file target serves its parent dir and points the URL
+# at the file — through the shim, a path the in-process Playwright specs bypass.
 run_phase "file" "test/fixtures/clean/index.html" '/index\.html$' \
   ":200"
 

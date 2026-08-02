@@ -1,16 +1,20 @@
 // serve.ts — multi-doc review-mode HTTP server.
 //
-// CLI runtime entry (via `node dist/serve.mjs`, normally exec'd from serve.sh).
+// The review-server CLI lives here in full: `node dist/serve.mjs [target]`
+// resolves the served root from a positional file-or-dir target, auto-probes a
+// free port in 8000-8099, binds 127.0.0.1, and emits the two-line
+// URL:/SIDECAR_DIR: stdout contract. serve.sh beside SKILL.md is a thin exec
+// shim that forwards its arguments here — see SKILL.md § Review mode.
 // Also exports `createServer` and `startReviewServer` for in-process callers
 // — the Playwright specs use these directly so the test boundary stops being
 // "spawn a child + parse stdout" and starts being "call a function."
 //
-// Behavior shipped in docs/plans/no_copies.html: sidecars live under a
-// server-chosen directory (auto-tmp by default, pinned via `--sidecar-dir`),
-// mirroring each doc's path under --root. The served tree itself stays
-// untouched.
+// Sidecars live under a server-chosen directory (auto-tmp by default, pinned
+// via `--sidecar-dir`), mirroring each doc's path under the served root. The
+// served tree itself stays untouched.
 
 import * as http from 'node:http';
+import * as net from 'node:net';
 import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import * as os from 'node:os';
@@ -495,11 +499,34 @@ export async function startReviewServer(opts: StartReviewServerOpts): Promise<Re
   return { server, url: `http://${addr.address}:${addr.port}`, sidecarDir, close };
 }
 
+// --- port probe -----------------------------------------------------------
+
+// The URL uses 127.0.0.1, never `localhost`: on macOS `localhost` resolves to
+// ::1 first, and an IPv6 listener owned by another process (e.g. Docker) on the
+// same port silently wins. The probe binds IPv4 only, so the chosen port is
+// exactly the one the announced URL points at.
+function isPortFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.once('error', () => resolve(false));
+    probe.once('listening', () => probe.close(() => resolve(true)));
+    probe.listen(port, '127.0.0.1');
+  });
+}
+
+// First free port in 8000-8099, scanned in order; null if every port is taken.
+async function probeFreePort(): Promise<number | null> {
+  for (let port = 8000; port <= 8099; port++) {
+    if (await isPortFree(port)) return port;
+  }
+  return null;
+}
+
 // --- CLI entry ------------------------------------------------------------
 
 interface CliArgs {
-  port: number;
-  root: string;
+  target: string;
+  port: number | null;
   sidecarDir: string | null;
 }
 
@@ -507,22 +534,24 @@ async function parseCliArgs(): Promise<CliArgs> {
   const argv = await yargs(hideBin(process.argv))
     .scriptName('serve.mjs')
     .strict()
+    .command('$0 [target]', 'Serve an htmldocs file or directory for review', (y) =>
+      y.positional('target', {
+        type: 'string',
+        default: '.',
+        describe: 'File or directory to serve; a file serves its parent dir',
+      }),
+    )
     .option('port', {
       type: 'number',
-      demandOption: true,
-      describe: 'TCP port to bind on 127.0.0.1 (1..65535)',
-    })
-    .option('root', {
-      type: 'string',
-      demandOption: true,
-      describe: 'Directory to serve static files from',
+      describe: 'TCP port to bind on 127.0.0.1 (1..65535); probes 8000-8099 if omitted',
     })
     .option('sidecar-dir', {
       type: 'string',
       describe: 'Directory for sidecar JSON; auto-tmp if omitted',
     })
     .check((args) => {
-      if (!Number.isInteger(args.port) || args.port < 1 || args.port > 65535) {
+      if (args.port !== undefined
+        && (!Number.isInteger(args.port) || args.port < 1 || args.port > 65535)) {
         throw new Error('--port must be an integer in 1..65535');
       }
       // Catch `--sidecar-dir ''` (shell-quoted empty value) and the `=`
@@ -538,21 +567,54 @@ async function parseCliArgs(): Promise<CliArgs> {
     .version(false)
     .parseAsync();
   return {
-    port: argv.port,
-    root: path.resolve(argv.root),
+    target: String(argv.target ?? '.'),
+    port: argv.port ?? null,
     sidecarDir: argv['sidecar-dir'] ? path.resolve(argv['sidecar-dir']) : null,
   };
 }
 
 async function main(): Promise<void> {
   const cli = await parseCliArgs();
-  const handle = await startReviewServer({
-    root: cli.root,
-    sidecarDir: cli.sidecarDir,
-    port: cli.port,
-  });
-  // serve.sh already printed URL:; serve.mjs prints the matching
-  // SIDECAR_DIR: so the caller (test, agent, smoke) can locate sidecars.
+
+  // Resolve the positional target into a served root + URL suffix. A directory
+  // serves its whole tree (empty suffix ⇒ URL ends in `/`); a file serves its
+  // parent directory and the URL points at the file's basename. A missing
+  // target is a hard error before anything binds.
+  const targetAbs = path.resolve(cli.target);
+  const targetStat = await fs.stat(targetAbs).catch(() => null);
+  if (!targetStat) {
+    console.error(`serve.mjs: not found: ${cli.target}`);
+    process.exit(1);
+  }
+  let root: string;
+  let suffix: string;
+  if (targetStat.isDirectory()) {
+    root = targetAbs;
+    suffix = '';
+  } else {
+    root = path.dirname(targetAbs);
+    suffix = path.basename(targetAbs);
+  }
+
+  // Port: an explicit --port wins; otherwise probe 8000-8099 for the first free
+  // one and fail loudly if the whole range is taken.
+  let port: number;
+  if (cli.port !== null) {
+    port = cli.port;
+  } else {
+    const probed = await probeFreePort();
+    if (probed === null) {
+      console.error('serve.mjs: no free port in 8000-8099');
+      process.exit(1);
+    }
+    port = probed;
+  }
+
+  const handle = await startReviewServer({ root, sidecarDir: cli.sidecarDir, port });
+  // Two fixed-prefix stdout lines, in order, after a successful bind: the URL
+  // to hand User, then the sidecar directory so the caller (test, agent, smoke)
+  // can locate the on-disk comment backup.
+  console.log(`URL: ${handle.url}/${suffix}`);
   console.log(`SIDECAR_DIR: ${handle.sidecarDir}`);
   const shutdown = () => {
     const s = handle.server as unknown as { closeAllConnections?: () => void };
