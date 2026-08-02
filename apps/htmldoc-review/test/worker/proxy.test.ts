@@ -383,6 +383,17 @@ describe("doc route: unauthenticated", () => {
     expect(decodeURIComponent(loc)).toContain(`/${DOC_PATH}`);
   });
 
+  it("keeps the query string in the return-to, so a ?ref= pin survives login", async () => {
+    const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}?ref=feature/pinned`, {
+      redirect: "manual",
+    });
+    expect(res.status).toBe(302);
+    const loc = new URL(res.headers.get("location")!);
+    expect(loc.searchParams.get("return")).toBe(
+      `/${DOC_URL}?ref=feature/pinned`,
+    );
+  });
+
   it("a session id with no KV row -> 302 to login (treated as no session)", async () => {
     const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       redirect: "manual",
