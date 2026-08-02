@@ -202,15 +202,10 @@ export function legacyToThread(comment: LegacyComment): Thread {
   };
 }
 
-// --- AnchorAPI interface ---
-
-/**
- * Pure encode/decode surface for one Range <-> one Anchor.
- */
-export interface AnchorAPI {
-  fromRange(range: Range): Anchor;
-  toRange(anchor: Anchor): Range | null;
-}
+// NOTE: `AnchorAPI` (the Range<->Anchor encode/decode surface) lives in
+// review-ux/anchor.ts, NOT here — its `Range` references are DOM globals, and
+// keeping types.ts DOM-free lets non-DOM importers (the hosted Worker's
+// D1Store seam) pull these domain types under an es2022-only lib.
 
 // NOTE: the TestHandle interface and its `Window` global live in the entry
 // point (main.ts), NOT here. TestHandle names the concrete LocalFileStore

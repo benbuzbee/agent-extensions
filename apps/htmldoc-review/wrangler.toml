@@ -13,6 +13,16 @@ workers_dev = true
 binding = "SESSIONS"
 id = "REPLACE_WITH_KV_NAMESPACE_ID"   # deploy.sh fills from: wrangler kv namespace create SESSIONS
 
+# Comment store: one shared Cloudflare D1 (SQLite) database for the whole Worker.
+# Schema evolves via version-controlled Wrangler migrations in migrations/ (unlike
+# the schemaless SESSIONS KV above). deploy.sh creates it once (parsing the UUID
+# into database_id) and runs `d1 migrations apply --remote` on every deploy.
+[[d1_databases]]
+binding = "COMMENTS_DB"
+database_name = "htmldoc-review-comments"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"   # deploy.sh fills from: wrangler d1 create htmldoc-review-comments
+migrations_dir = "migrations"
+
 # Non-secret config ONLY (committed plaintext). Secrets go via `wrangler secret put`.
 # This Worker is scoped to ONE GitHub account (org or individual) via REPO_ORG. The
 # repo + doc path come from the request URL (/{repo}/{...docPath}) and the optional
@@ -34,4 +44,4 @@ CALLBACK_URL = "https://REPLACE_ME_DOMAIN/auth/callback"  # deploy.sh fills this
 # custom_domain = true
 
 # DO NOT ADD: compatibility_flags/nodejs_compat (arctic+fetch are Workers-native),
-# [[d1_databases]], [durable_objects], [site], usage_model, type, webpack_config.
+# [durable_objects], [site], usage_model, type, webpack_config.

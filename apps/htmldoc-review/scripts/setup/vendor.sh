@@ -69,6 +69,18 @@ echo "    from $SRC_REMOTE @ $SRC_SHORT$SRC_DIRTY"
 # .dev.vars.example template — deploy.sh seeds .dev.vars from it on a fresh copy.
 # wrangler.toml (operator-owned) and wrangler.toml.upstream (the re-vendor baseline)
 # are both handled below and must survive rsync --delete, so exclude them here.
+#
+# migrations/ is deliberately NOT excluded — the D1 schema must ride along so the
+# vendored deploy.sh can `d1 migrations apply` it. Do not add it to EXCLUDES.
+#
+# KNOWN GAP (PR4 precondition, not fixed here): the app reaches into
+# ../../../../plugins/useful-skills/skills/htmldocs/src/comments/ via
+# src/core/comments-seam.ts (the D1Store contract), which lives ABOVE this app
+# root and so cannot be carried by rsyncing apps/htmldoc-review. The seam is inert
+# in Deliverable-1 deploys (unreachable from src/worker/index.ts, so wrangler never
+# bundles it) and this vendor step intentionally does NOT try to fix the transport.
+# Before PR4 mounts D1Store into index.ts, the shared comments sources MUST be given
+# a physical home inside the app — see comments-seam.ts header and the PR3 handoff.
 EXCLUDES=(node_modules dist .dev.vars worker-configuration.d.ts .wrangler wrangler.toml wrangler.toml.upstream .git)
 if command -v rsync >/dev/null 2>&1; then
   RSYNC_ARGS=(-a --delete)

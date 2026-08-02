@@ -2166,6 +2166,73 @@ EXIT9=0</pre>
           resolve round-trips asserted from inside the Worker.</li>
       </ul>
     </details>
+    <details class="validation-evidence" open>
+      <summary>Validation evidence — d2/pr3-worker-d1-store (gate green, 0 fix round(s))</summary>
+      <ul>
+        <li><strong>Commands run:</strong> <code>npm install</code>, <code>npm run typecheck</code> (tsc --noEmit), <code>npm test</code> (vitest workerd pool), <code>npx wrangler deploy --dry-run</code>, <code>npm run cf-typegen</code>, shell-script syntax check (<code>bash -n</code>), htmldocs skill typecheck + build + unit tests, dist rebuild verified.</li>
+        <li><strong>Code-review:</strong> 6 candidate issues surfaced; 3 confirmed at ≥80 confidence — stale vitest.config.ts comment claiming isolatedStorage resets D1 (contradicted by the test's own beforeEach note), contradictory file-header comment in d1-store.workers.test.ts, and stale deploy.sh header claiming "No D1" (disproved by this PR). All three were cosmetic/comment accuracy issues; 0 logic bugs.</li>
+        <li><strong>Fable review:</strong> plan-fidelity lens → approve (0 blocker/major); security lens → fix (1 blocker). Both lenses reviewed; security finding addressed.</li>
+        <li><strong>Findings fixed:</strong> 4 total (3 code-review + 1 Fable security finding). 0 fix rounds needed on gate commands — all commands passed clean after fixes were applied.</li>
+      </ul>
+<pre>
+$ (1) npm install [apps/htmldoc-review]
+up to date, audited 106 packages in 456ms
+40 packages are looking for funding
+found 0 vulnerabilities
+
+$ (2) npm run typecheck
+&gt; tsc --noEmit
+(no output; exit 0)
+
+$ (3) npm test
+ RUN  v4.1.9 .../apps/htmldoc-review
+Using secrets defined in .dev.vars
+ Test Files  5 passed (5)
+       Tests  62 passed (62)
+    Duration  9.64s
+
+$ (4) npx wrangler deploy --dry-run
+ ⛅️ wrangler 4.105.0
+Total Upload: 104.18 KiB / gzip: 23.84 KiB
+Bindings: env.SESSIONS (KV), env.COMMENTS_DB (htmldoc-review-comments D1), env.REPO_ORG, env.GITHUB_CLIENT_ID, env.CALLBACK_URL
+--dry-run: exiting now.
+
+$ (6) [ -f .dev.vars ] || cp .dev.vars.example .dev.vars &amp;&amp; npm run cf-typegen
+Generating runtime types...
+Runtime types generated.
+✨ Types written to worker-configuration.d.ts
+
+$ (7) npm run typecheck
+&gt; tsc --noEmit
+(no output; exit 0)
+
+$ (8) npm test
+ Test Files  5 passed (5)
+       Tests  62 passed (62)
+    Duration  9.88s
+
+$ (9) npx wrangler deploy --dry-run --outdir dist
+ ⛅️ wrangler 4.105.0
+Total Upload: 104.18 KiB / gzip: 23.84 KiB
+--dry-run: exiting now.
+
+$ (10) bash -n scripts/setup/deploy.sh &amp;&amp; bash -n scripts/setup/vendor.sh
+SYNTAX_OK
+
+$ (11) [plugins/useful-skills/skills/htmldocs] npm run typecheck &amp;&amp; npm run build &amp;&amp; npm run test:unit
+&gt; tsc --noEmit  (exit 0)
+build:server -&gt; dist/serve.mjs  272.1kb  ⚡ Done in 425ms
+ RUN  v4.1.9 .../skills/htmldocs
+ Test Files  9 passed (9)
+       Tests  40 passed (40)
+    Duration  2.41s
+
+$ (12) git diff --stat -- dist/
+ .../skills/htmldocs/dist/comments.mjs | Bin 138363 -&gt; 139223 bytes
+ 1 file changed, 0 insertions(+), 0 deletions(-)
+(expected: dist/comments.mjs rebuilt by the cmd-11 build step)
+</pre>
+    </details>
   </section>
 
   <section data-kind="pr-card" id="pr4">
