@@ -193,6 +193,14 @@ emit_operator_toml() {
         print "globs = [\"**/*-comments.mjs\"]"
         print "fallthrough = true"
       }' > "$out"
+  # Fail fast if the rewrite missed: the sed above anchors on the exact upstream
+  # `main = "src/worker/index.ts"` line, and a silently untransformed toml would
+  # point the operator copy at src/ it does not ship.
+  if ! grep -q '^main = "dist/index.js"$' "$out"; then
+    echo 'error: wrangler.toml transform failed — no main = "dist/index.js" in the output.' >&2
+    echo '       The upstream template no longer matches: main = "src/worker/index.ts".' >&2
+    exit 1
+  fi
 }
 
 # First vendor: the transformed template becomes your wrangler.toml, and the

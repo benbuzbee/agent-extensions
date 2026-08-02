@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Offline smoke gate for the vendoring pipeline (npm run vendor:smoke). Vendors
-# into a temp dir and asserts the operator-copy contract:
+# Offline smoke gate for the vendoring pipeline (npm run vendor:smoke) — OUR
+# validation, never shipped to or run by operators. Vendors into a temp dir and
+# asserts the operator-copy contract:
 #   1) shipped shape — prebuilt dist/ (one content-hashed widget Text module),
 #      migrations, setup scripts; NO TypeScript source, tests, or tsconfig; a
 #      .gitignore that does not ignore the dist/ payload.
 #   2) the emitted no_bundle/find_additional_modules wrangler.toml accepts the
 #      artifact set: `wrangler deploy --dry-run` passes FROM the vendored dir.
-#   3) re-vendor semantics — the operator's edited wrangler.toml survives, and
-#      an unchanged template neither rewrites the sidecar baseline nor nags.
+#   3) re-vendor semantics, unchanged template — the operator's edited
+#      wrangler.toml survives; no sidecar rewrite, no nag.
+#   4) re-vendor semantics, changed template — the sidecar baseline refreshes
+#      and the merge nag fires; the operator's wrangler.toml still survives.
 # Uses the monorepo's own wrangler binary so the gate needs no install step and
 # no network. deploy.sh's npm-install path is an operator concern, not this gate's.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+APP_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -35,7 +38,9 @@ WIDGET_COUNT="$(find "$TMP/dist" -name '*-comments.mjs' | wc -l | tr -d ' ')"
 [ ! -e "$TMP/test" ] || fail "test/ must not ship"
 [ ! -e "$TMP/tsconfig.json" ] || fail "tsconfig.json must not ship"
 [ ! -e "$TMP/scripts/setup/vendor.sh" ] || fail "vendor.sh must not ship"
-grep -q "dist" "$TMP/.gitignore" && fail ".gitignore must not ignore dist/ (it is the payload)"
+# An actual un-negated ignore RULE for dist — not a substring match, which would
+# false-fail on a comment or an unrelated pattern that merely mentions dist.
+grep -qE '^/?dist/?[[:space:]]*$' "$TMP/.gitignore" && fail ".gitignore must not ignore dist/ (it is the payload)"
 ok "shipped shape (prebuilt dist, migrations, scripts; no source)"
 
 # --- 3) operator-side dry-run against the no_bundle toml ----------------------
@@ -51,5 +56,16 @@ grep -q "smoke-org" "$TMP/wrangler.toml" || fail "re-vendor overwrote the operat
 printf '%s' "$REVENDOR_OUT" | grep -q "Re-vendored" && fail "re-vendor nagged although the template is unchanged"
 [ "$(cat "$TMP/wrangler.toml.upstream")" = "$SIDECAR_BEFORE" ] || fail "re-vendor rewrote the sidecar baseline although the template is unchanged"
 ok "re-vendor preserves the operator config and stays silent on an unchanged template"
+
+# --- 5) re-vendor semantics: CHANGED template ---------------------------------
+# Age the sidecar baseline — to vendor.sh's comparison this is indistinguishable
+# from the upstream template having changed since the last vendor.
+printf '\n# aged-baseline marker\n' >> "$TMP/wrangler.toml.upstream"
+AGED="$(cat "$TMP/wrangler.toml.upstream")"
+REVENDOR_OUT="$("$APP_ROOT/scripts/setup/vendor.sh" "$TMP")"
+printf '%s' "$REVENDOR_OUT" | grep -q "Re-vendored" || fail "changed template: the merge nag did not fire"
+[ "$(cat "$TMP/wrangler.toml.upstream")" != "$AGED" ] || fail "changed template: the sidecar baseline was not refreshed"
+grep -q "smoke-org" "$TMP/wrangler.toml" || fail "changed template: the operator's wrangler.toml was clobbered"
+ok "re-vendor on a changed template refreshes the baseline and nags; operator config survives"
 
 echo "PASS: vendor smoke"

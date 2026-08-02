@@ -7,7 +7,7 @@
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "vendor:smoke": "bash scripts/vendor-smoke.sh",
+    "vendor:smoke": "bash test/smoke/vendor.sh",
     "cf-typegen": "wrangler types"
   },
   "dependencies": {
