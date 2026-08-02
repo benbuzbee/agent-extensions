@@ -2,7 +2,7 @@
 // directly (no child subprocess) and drives a real browser through the
 // widget. Proves the per-doc-sidecar contract: every served .html gets its
 // own widget instance, and its ?comments ops land in a sidecar mirroring
-// the doc's path under --root inside SIDECAR_DIR (including arbitrary
+// the doc's path under the served root inside SIDECAR_DIR (including arbitrary
 // depth, and directory-index URLs where the doc is <dir>/index.html).
 
 import { test, expect } from '@playwright/test';

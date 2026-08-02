@@ -199,7 +199,7 @@
       <code>207</code> with per-op results). The local route is the doc path plus
       <code>?comments</code> with no <code>&lt;repo&gt;</code> segment; the hosted Worker
       URL adds the repo. The path is validated like a static <code>GET</code>: it must
-      resolve under <code>--root</code> to an <code>.html</code>/<code>.htm</code> file.
+      resolve under the served root to an <code>.html</code>/<code>.htm</code> file.
       Behind the local route, <code>SidecarStore</code> does an atomic read-modify-write
       per op — see <a href="#known-friction">§ Known friction</a>.
     </p>

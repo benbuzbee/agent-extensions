@@ -166,7 +166,13 @@ export async function readSidecar(sidecarPath: string, docLabel: string): Promis
   }
   if (!isWellShapedModel(parsed)) {
     if (parsed && typeof parsed === 'object') {
-      console.warn(`[serve] ignoring sidecar ${sidecarPath}: unsupported schema (expected 2); loading as empty`);
+      // A schema:2 object that still fails deep validation is a v2 file with a
+      // corrupt field/thread, not a wrong-version file — say so, so the warning
+      // points at the real cause instead of blaming the schema number.
+      const reason = (parsed as Record<string, unknown>).schema === 2
+        ? 'malformed v2 sidecar (a field or thread failed validation)'
+        : 'unsupported schema (expected 2)';
+      console.warn(`[serve] ignoring sidecar ${sidecarPath}: ${reason}; loading as empty`);
     }
     return emptyModel(docLabel);
   }
@@ -177,7 +183,7 @@ export async function readSidecar(sidecarPath: string, docLabel: string): Promis
 // the prior sidecar intact. UUID-suffixed tmp avoids same-ms collisions.
 // tmp lives in the same dir as sidecar so rename never crosses volumes —
 // fs.rename is only atomic when source+target share one (Windows EXDEV).
-async function writeSidecarAtomic(sidecarPath: string, model: SidecarModel): Promise<void> {
+export async function writeSidecarAtomic(sidecarPath: string, model: SidecarModel): Promise<void> {
   const dir = path.dirname(sidecarPath);
   await fs.mkdir(dir, { recursive: true });
   const json = JSON.stringify(model, null, 2) + '\n';
@@ -543,6 +549,10 @@ async function parseCliArgs(): Promise<CliArgs> {
     )
     .option('port', {
       type: 'number',
+      // requiresArg so a bare `--port` (e.g. `--port $PORT` with $PORT unset)
+      // errors instead of yielding undefined and silently falling into the
+      // probe path as if no port were pinned at all.
+      requiresArg: true,
       describe: 'TCP port to bind on 127.0.0.1 (1..65535); probes 8000-8099 if omitted',
     })
     .option('sidecar-dir', {
@@ -566,8 +576,13 @@ async function parseCliArgs(): Promise<CliArgs> {
     .help(false)
     .version(false)
     .parseAsync();
+  // A target passed after `--` (the form that shields a dash-prefixed filename
+  // from flag parsing, e.g. `serve.sh -- -weird.html`) lands in argv._ rather
+  // than the named positional, which yargs leaves at its default. Prefer that
+  // leftover positional so the `--` form serves the intended target, not cwd.
+  const target = argv._.length > 0 ? String(argv._[0]) : String(argv.target ?? '.');
   return {
-    target: String(argv.target ?? '.'),
+    target,
     port: argv.port ?? null,
     sidecarDir: argv['sidecar-dir'] ? path.resolve(argv['sidecar-dir']) : null,
   };

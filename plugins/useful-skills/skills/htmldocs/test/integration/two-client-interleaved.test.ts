@@ -11,7 +11,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { SidecarStore } from '../../src/comments/adapters/local/sidecar-store';
 import type { SidecarPersistence } from '../../src/comments/adapters/local/sidecar-store';
-import { readSidecarFile, writeSidecarFile } from './sidecar-fs';
+import { readSidecar, writeSidecarAtomic } from '../../src/comments/serve';
 
 const DOC = { repo: '', ref: 'default', path: '/doc.html' };
 const AUTHOR = { login: 'user', name: null };
@@ -32,8 +32,8 @@ afterEach(async () => {
 function makeStore(mintPrefix: string): SidecarStore {
   let n = 0;
   const persistence: SidecarPersistence = {
-    load: () => readSidecarFile(file, 'doc.html'),
-    save: (model) => writeSidecarFile(file, model),
+    load: () => readSidecar(file, 'doc.html'),
+    save: (model) => writeSidecarAtomic(file, model),
   };
   return new SidecarStore(persistence, 'doc.html', () => `${mintPrefix}-${++n}`);
 }

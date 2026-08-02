@@ -6796,7 +6796,8 @@ async function readSidecar(sidecarPath, docLabel) {
   }
   if (!isWellShapedModel(parsed)) {
     if (parsed && typeof parsed === "object") {
-      console.warn(`[serve] ignoring sidecar ${sidecarPath}: unsupported schema (expected 2); loading as empty`);
+      const reason = parsed.schema === 2 ? "malformed v2 sidecar (a field or thread failed validation)" : "unsupported schema (expected 2)";
+      console.warn(`[serve] ignoring sidecar ${sidecarPath}: ${reason}; loading as empty`);
     }
     return emptyModel(docLabel);
   }
@@ -7089,6 +7090,10 @@ async function parseCliArgs() {
     })
   ).option("port", {
     type: "number",
+    // requiresArg so a bare `--port` (e.g. `--port $PORT` with $PORT unset)
+    // errors instead of yielding undefined and silently falling into the
+    // probe path as if no port were pinned at all.
+    requiresArg: true,
     describe: "TCP port to bind on 127.0.0.1 (1..65535); probes 8000-8099 if omitted"
   }).option("sidecar-dir", {
     type: "string",
@@ -7102,8 +7107,9 @@ async function parseCliArgs() {
     }
     return true;
   }).help(false).version(false).parseAsync();
+  const target = argv._.length > 0 ? String(argv._[0]) : String(argv.target ?? ".");
   return {
-    target: String(argv.target ?? "."),
+    target,
     port: argv.port ?? null,
     sidecarDir: argv["sidecar-dir"] ? path.resolve(argv["sidecar-dir"]) : null
   };
@@ -7169,7 +7175,8 @@ export {
   createServer3 as createServer,
   readSidecar,
   resolveSidecarDir,
-  startReviewServer
+  startReviewServer,
+  writeSidecarAtomic
 };
 /*! Bundled license information:
 
