@@ -16,18 +16,20 @@ set -euo pipefail
 # Then:
 #   cd <dest-dir>
 #   # set REPO_ORG in wrangler.toml (deploy.sh fills CALLBACK_URL after first deploy)
-#   npm install
-#   ./scripts/setup/deploy.sh
+#   ./scripts/setup/deploy.sh   # installs wrangler itself
 #
-# What it copies: the whole app EXCEPT build artifacts, deps, local secrets, and
-# wrangler's local state (node_modules/, dist/, .dev.vars*, generated types,
-# .wrangler/). The app's own .gitignore is copied too, so those stay ignored in
-# your repo. A PROVENANCE.md is written recording the exact upstream commit so
-# updates are a known re-copy.
+# What it ships: the COMPILED Worker (dist/ — built here at vendor time with
+# `wrangler deploy --dry-run --outdir`), the D1 migrations, the setup scripts,
+# and a minimal package.json (wrangler + open) — never TypeScript source. The
+# vendored copy deploys the prebuilt artifacts as-is (its wrangler.toml sets
+# `main = "dist/index.js"` + `no_bundle`), so it needs no tsconfig, no tests,
+# and no access to this monorepo. A PROVENANCE.md records the exact upstream
+# commit so updates are a known re-vendor.
 #
 # wrangler.toml is special: it is the ONE file you own (REPO_ORG, CALLBACK_URL,
-# and the client id + KV id deploy.sh writes in). On a FIRST vendor we copy the
-# template. On a RE-vendor we never overwrite yours — instead we drop the fresh
+# and the client id + KV id deploy.sh writes in). On a FIRST vendor we emit the
+# operator config (the upstream template transformed to prebuilt mode). On a
+# RE-vendor we never overwrite yours — instead we drop the fresh transformed
 # template beside it as wrangler.toml.upstream (gitignored) so you can diff/merge
 # any template changes by hand.
 
@@ -63,57 +65,173 @@ fi
 echo "==> Vendoring htmldoc-review -> $DEST"
 echo "    from $SRC_REMOTE @ $SRC_SHORT$SRC_DIRTY"
 
-# wrangler.toml is operator-owned, so it's excluded from the bulk copy and handled
-# separately below — rsync --delete must never touch it.
-# Exclude the operator's real local secrets (.dev.vars) but KEEP the committed
-# .dev.vars.example template — deploy.sh seeds .dev.vars from it on a fresh copy.
-# wrangler.toml (operator-owned) and wrangler.toml.upstream (the re-vendor baseline)
-# are both handled below and must survive rsync --delete, so exclude them here.
-#
-# migrations/ is deliberately NOT excluded — the D1 schema must ride along so the
-# vendored deploy.sh can `d1 migrations apply` it. Do not add it to EXCLUDES.
-#
-# KNOWN GAP (PR4 precondition, not fixed here): the app reaches into
-# ../../../../plugins/useful-skills/skills/htmldocs/src/comments/ via
-# src/core/comments-seam.ts (the D1Store contract), which lives ABOVE this app
-# root and so cannot be carried by rsyncing apps/htmldoc-review. The seam is inert
-# in Deliverable-1 deploys (unreachable from src/worker/index.ts, so wrangler never
-# bundles it) and this vendor step intentionally does NOT try to fix the transport.
-# Before PR4 mounts D1Store into index.ts, the shared comments sources MUST be given
-# a physical home inside the app — see comments-seam.ts header and the PR3 handoff.
-EXCLUDES=(node_modules dist .dev.vars worker-configuration.d.ts .wrangler wrangler.toml wrangler.toml.upstream .git)
-if command -v rsync >/dev/null 2>&1; then
-  RSYNC_ARGS=(-a --delete)
-  for e in "${EXCLUDES[@]}"; do RSYNC_ARGS+=(--exclude "$e"); done
-  rsync "${RSYNC_ARGS[@]}" "$APP_ROOT"/ "$DEST"/
-else
-  TAR_ARGS=()
-  for e in "${EXCLUDES[@]}"; do TAR_ARGS+=(--exclude "$e"); done
-  ( cd "$APP_ROOT" && tar cf - "${TAR_ARGS[@]}" . ) | ( cd "$DEST" && tar xf - )
+# The build needs the app's own wrangler (a devDependency); install if missing.
+if [ ! -x "$APP_ROOT/node_modules/.bin/wrangler" ]; then
+  echo "==> Installing upstream dependencies (wrangler not found in node_modules)..."
+  ( cd "$APP_ROOT" && npm install )
 fi
 
-# wrangler.toml: first vendor copies the template. On re-vendor we never overwrite
-# yours; instead we keep the latest template beside it as wrangler.toml.upstream
-# (gitignored) so you can diff/merge. The sidecar doubles as the baseline of "last
-# template you saw", so we only nag when the template actually CHANGED since the
-# last re-vendor (new template != existing sidecar) rather than on every run.
+# The @shared/* alias resolves into the skill's source tree, so esbuild resolves
+# the skill's bare imports (zod) against the SKILL's node_modules — the app's own
+# install doesn't cover them. Install the skill's deps too if missing.
+SKILL_ROOT="$(cd "$APP_ROOT/../../plugins/useful-skills/skills/htmldocs" && pwd)"
+if [ ! -d "$SKILL_ROOT/node_modules/zod" ]; then
+  echo "==> Installing skill dependencies (zod not found in the skill's node_modules)..."
+  ( cd "$SKILL_ROOT" && npm install )
+fi
+
+# Build the Worker into a FRESH temp dir — never the app's dist/ — so stale
+# content-hashed additional modules from earlier builds can never ride along.
+# --dry-run bundles + validates without uploading, so no Cloudflare auth is
+# needed. Output: index.js + index.js.map + the content-hashed widget Text
+# module (<hash>-comments.mjs — the skill's dist bundle, emitted as text via
+# wrangler.toml's scoped [[rules]] entry) that index.js imports relatively.
+BUILD_DIR="$(mktemp -d)"
+trap 'rm -rf "$BUILD_DIR"' EXIT
+echo "==> Building the Worker (wrangler deploy --dry-run --outdir)..."
+( cd "$APP_ROOT" && npx wrangler deploy --dry-run --outdir "$BUILD_DIR" )
+
+# Assemble the destination from curated copies: the built dist/, the D1
+# migrations, and the setup scripts (deploy.sh + create-worker-app.mjs;
+# vendor.sh itself only ever runs from the upstream checkout, so it is not
+# shipped). No src/, no tests, no tsconfig — the operator copy has nothing to
+# compile.
+copy_tree() {
+  local from="$1" to="$2"; shift 2
+  mkdir -p "$to"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete "$@" "$from"/ "$to"/
+  else
+    local tar_args=()
+    while [ $# -gt 0 ]; do
+      [ "$1" = "--exclude" ] && { tar_args+=(--exclude "$2"); shift 2; continue; }
+      shift
+    done
+    rm -rf "$to"; mkdir -p "$to"
+    # ${arr[@]+...} keeps an empty exclude list from tripping set -u on bash < 4.4
+    # (macOS /bin/bash), the very hosts this no-rsync fallback exists for.
+    ( cd "$from" && tar cf - ${tar_args[@]+"${tar_args[@]}"} . ) | ( cd "$to" && tar xf - )
+  fi
+}
+# The build also emits a timestamp-stamped README.md and a source map whose
+# sourceRoot/sources embed this machine's temp and checkout paths. Neither is
+# part of the deploy upload (the module rules cover only the *-comments.mjs
+# widget Text module), and shipping them would dirty every re-vendor with
+# per-run noise — exclude them so an unchanged upstream re-vendors byte-identical.
+copy_tree "$BUILD_DIR" "$DEST/dist" --exclude README.md --exclude index.js.map
+copy_tree "$APP_ROOT/migrations" "$DEST/migrations"
+copy_tree "$APP_ROOT/scripts/setup" "$DEST/scripts/setup" --exclude vendor.sh
+# Operator README: the app README minus the dev sections from "Running tests" on
+# — they drive files (tests, tsconfig, .dev.vars.example) the prebuilt copy
+# doesn't ship. Everything before that (setup, config reference, API) applies
+# verbatim to the vendored copy.
+awk '/^## Running tests$/ { exit } { print }' "$APP_ROOT/README.md" > "$DEST/README.md"
+
+# Minimal operator package.json, generated from the app's so there is no second
+# manifest to drift: wrangler (deploy.sh drives it) and open
+# (create-worker-app.mjs imports it), nothing else.
+node - "$APP_ROOT/package.json" "$DEST/package.json" <<'EOF'
+const { readFileSync, writeFileSync } = require("node:fs");
+const [src, dest] = process.argv.slice(2);
+const app = JSON.parse(readFileSync(src, "utf8"));
+writeFileSync(
+  dest,
+  JSON.stringify(
+    {
+      name: app.name,
+      private: true,
+      type: "module",
+      scripts: { deploy: "./scripts/setup/deploy.sh" },
+      devDependencies: {
+        wrangler: app.devDependencies.wrangler,
+        open: app.devDependencies.open,
+      },
+    },
+    null,
+    2,
+  ) + "\n",
+);
+EOF
+
+# The operator repo must COMMIT dist/ (it is the deployable payload), so the
+# app's own .gitignore — which ignores dist/ as a build artifact — must not be
+# copied. Emit one scoped to what the operator copy actually generates.
+cat > "$DEST/.gitignore" <<'EOF'
+node_modules/
+.wrangler/
+
+# Fresh template dropped by vendor.sh on re-vendor for manual merge; not your config.
+wrangler.toml.upstream
+EOF
+
+# Operator wrangler.toml: the upstream template transformed to prebuilt mode —
+# main points at the built dist/index.js and wrangler uploads the artifact set
+# as-is instead of bundling. Deterministic, so the re-vendor comparison below
+# runs against the SAME transformed output every time the template is unchanged.
+emit_operator_toml() {
+  local out="$1"
+  sed 's|^main = "src/worker/index.ts"|main = "dist/index.js"|' "$APP_ROOT/wrangler.toml" \
+    | awk '{
+        print
+        if ($0 ~ /^main = "dist\/index.js"/) {
+          print "# Prebuilt deploy: dist/ ships the already-bundled Worker (index.js plus the"
+          print "# content-hashed widget Text module it imports). Wrangler uploads these files"
+          print "# as-is — no bundling here, no src/ in this copy. find_additional_modules picks"
+          print "# up the sidecar module via the Text rule appended at the END of this file,"
+          print "# whose glob matches the emitted <hash>-comments.mjs name (the source-mode"
+          print "# [[rules]] entry below is inert here — its glob matches nothing in the"
+          print "# prebuilt layout)."
+          print "no_bundle = true"
+          print "find_additional_modules = true"
+        }
+      }
+      END {
+        print ""
+        print "# The prebuilt widget Text module (see the note under `main` above)."
+        print "[[rules]]"
+        print "type = \"Text\""
+        print "globs = [\"**/*-comments.mjs\"]"
+        print "fallthrough = true"
+      }' > "$out"
+  # Fail fast if the rewrite missed: the sed above anchors on the exact upstream
+  # `main = "src/worker/index.ts"` line, and a silently untransformed toml would
+  # point the operator copy at src/ it does not ship.
+  if ! grep -q '^main = "dist/index.js"$' "$out"; then
+    echo 'error: wrangler.toml transform failed — no main = "dist/index.js" in the output.' >&2
+    echo '       The upstream template no longer matches: main = "src/worker/index.ts".' >&2
+    exit 1
+  fi
+}
+
+# First vendor: the transformed template becomes your wrangler.toml, and the
+# SAME bytes land as wrangler.toml.upstream (gitignored) — the baseline of "last
+# template you saw". On re-vendor we never overwrite your wrangler.toml; we
+# compare the fresh transformed template against that baseline and only when the
+# template actually CHANGED do we refresh the sidecar and nag you to diff/merge
+# it — an unchanged template re-vendors silently, no matter how much of your own
+# config (REPO_ORG, ids, callback) you have filled in.
 REVENDORED=""
 SIDECAR="$DEST/wrangler.toml.upstream"
+FRESH_TOML="$BUILD_DIR/wrangler.toml.operator"
+emit_operator_toml "$FRESH_TOML"
 if [ -f "$DEST/wrangler.toml" ]; then
-  if [ ! -f "$SIDECAR" ] || ! cmp -s "$APP_ROOT/wrangler.toml" "$SIDECAR"; then
-    cp "$APP_ROOT/wrangler.toml" "$SIDECAR"
+  if [ ! -f "$SIDECAR" ] || ! cmp -s "$FRESH_TOML" "$SIDECAR"; then
+    cp "$FRESH_TOML" "$SIDECAR"
     REVENDORED=1
   fi
 else
-  cp "$APP_ROOT/wrangler.toml" "$DEST/wrangler.toml"
+  cp "$FRESH_TOML" "$DEST/wrangler.toml"
+  cp "$FRESH_TOML" "$SIDECAR"
 fi
 
 # Stamp provenance.
 cat > "$DEST/PROVENANCE.md" <<EOF
 # Provenance
 
-This directory was **vendored** (copied) from the upstream htmldoc-review template.
-Local edits here (wrangler.toml config, etc.) are expected and intentional.
+This directory is a **vendored prebuilt copy** of the upstream htmldoc-review
+template: \`dist/\` was compiled at vendor time from the source commit below (no
+TypeScript source ships here). Local edits (wrangler.toml config, etc.) are
+expected and intentional.
 
 - Source repo:   $SRC_REMOTE
 - Source path:   apps/htmldoc-review
@@ -121,11 +239,12 @@ Local edits here (wrangler.toml config, etc.) are expected and intentional.
 
 ## Updating
 
-To pull a newer version of the template, re-run \`vendor.sh <this-dir>\` from a fresh
-checkout of the upstream repo at the desired commit. Your \`wrangler.toml\` is never
-overwritten; if the template's changed, the new one lands as \`wrangler.toml.upstream\`
-for you to diff/merge by hand. Secrets (Worker-side) and the KV namespace are
-untouched. Review the diff before deploying.
+To pull a newer version, re-run \`vendor.sh <this-dir>\` from a fresh checkout of
+the upstream repo at the desired commit — it rebuilds and refreshes \`dist/\`,
+\`migrations/\`, \`scripts/setup/\`, and \`package.json\`. Your \`wrangler.toml\` is
+never overwritten; if the template changed, the new one lands as
+\`wrangler.toml.upstream\` for you to diff/merge by hand. Secrets (Worker-side)
+and the KV namespace are untouched. Review the diff before deploying.
 EOF
 
 echo "==> Wrote $DEST/PROVENANCE.md"
@@ -137,6 +256,6 @@ else
   echo "Next:"
   echo "  cd $DEST"
   echo "  # edit wrangler.toml: set REPO_ORG (your org/user slug) -- the only value you set by hand"
-  echo "  ./scripts/setup/deploy.sh   # installs deps, deploys to discover the URL, creates the"
+  echo "  ./scripts/setup/deploy.sh   # installs wrangler, deploys to discover the URL, creates the"
   echo "                              # GitHub App with that callback, pushes secrets, redeploys"
 fi

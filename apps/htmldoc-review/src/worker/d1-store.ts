@@ -3,8 +3,9 @@
 // `D1Database` global — the same boundary that puts kv-store.ts here and keeps
 // core/ portable.
 //
-// It owns ONLY persistence (SELECT/INSERT/UPDATE/DELETE) and the ref sentinel.
-// Op semantics — id minting, author/createdAt stamping, resolve/reopen
+// It owns the specifics of SQL storage (the table shape, SELECT/INSERT/UPDATE/
+// DELETE), including mapping a missing ref to the string 'default' on store and
+// load. Op semantics — id minting, author/createdAt stamping, resolve/reopen
 // idempotency, not_found — are delegated to the shared api/thread-ops so this
 // store and the local sidecar store can never drift. Timestamps are epoch-ms
 // INTEGERs; the anchor triple is stored as an opaque JSON blob (the DB never
@@ -43,18 +44,20 @@ import type {
   OpError,
 } from "@shared/review-ux/types";
 
-// The literal `?ref=` sentinel: a missing/empty ref is stored AND queried as
-// this exact string so route and store agree (never '' or NULL).
+// A missing/empty ref maps to this exact string, applied on both store and load
+// (normalizeRef), so this store is the single owner of the default — the route
+// forwards the raw ref and never substitutes it. Never '' or NULL in the table.
 const REF_DEFAULT = "default";
 
 // Thrown by the reserved (v1-unsupported) reply/edit ops. Matches the message
 // the shared api/handlers reserves so a batch surfaces it as a per-op transient.
 const RESERVED_MESSAGE = "op not yet supported";
 
-// author_id is NOT NULL. A session-authored create supplies a real numeric id
-// (from the captured identity), but a bearer/agent create stamps the
-// {login:"agent"} placeholder with no id — "no agent-create" is deliberately
-// unenforced in v1, so that path does reach this fallback.
+// author_id is NOT NULL. Every Worker create carries a real numeric id: a
+// session create uses the captured identity, and a bearer mutation resolves the
+// caller's via GET /user (failure there is a 5xx, never a placeholder). The
+// fallback exists only because the shared Author type leaves `id` optional
+// (the local adapter's fixed author has none); no Worker path stamps one.
 const AUTHOR_ID_PLACEHOLDER = 0;
 
 // One persisted row. `author_name` and `resolved_at` are the only nullable
@@ -120,12 +123,14 @@ export class D1Store implements ICommentsStore {
       .first<CommentRow>();
   }
 
-  // Q1 — the hot path: list a doc's threads in created order.
+  // Q1 — the hot path: list a doc's threads in created order. The id tiebreaker
+  // makes same-millisecond creates deterministic (and matches idx_comments_doc,
+  // so the whole query is one ordered index scan).
   async list(doc: DocKey): Promise<Thread[]> {
     const ref = this.normalizeRef(doc.ref);
     const { results } = await this.db
       .prepare(
-        "SELECT * FROM comments WHERE repo = ? AND ref = ? AND path = ? ORDER BY created_at",
+        "SELECT * FROM comments WHERE repo = ? AND ref = ? AND path = ? ORDER BY created_at, id",
       )
       .bind(doc.repo, ref, doc.path)
       .all<CommentRow>();
@@ -166,6 +171,24 @@ export class D1Store implements ICommentsStore {
     return thread;
   }
 
+  // Shared UPDATE for resolve/reopen: doc-scoped like every mutation (see
+  // getRow) and CHECKED — a row that vanished between the SELECT and this
+  // UPDATE (concurrent delete) changes zero rows, which must surface as
+  // not_found, never as a phantom success.
+  private async setResolvedAt(
+    doc: DocKey,
+    id: ThreadId,
+    resolvedAt: number | null,
+  ): Promise<void> {
+    const res = await this.db
+      .prepare(
+        "UPDATE comments SET resolved_at = ? WHERE id = ? AND repo = ? AND ref = ? AND path = ?",
+      )
+      .bind(resolvedAt, id, doc.repo, this.normalizeRef(doc.ref), doc.path)
+      .run();
+    if (res.meta.changes === 0) throw new NotFoundError(id);
+  }
+
   // Q2 — soft-close. SELECT the target (zero rows -> not_found), let thread-ops
   // decide the transition (idempotent when already resolved), UPDATE only on a
   // real change so the original resolved_at is never overwritten.
@@ -175,10 +198,7 @@ export class D1Store implements ICommentsStore {
     const current = this.rowToThread(row);
     const { thread } = resolveThread([current], op, asTimestamp(Date.now()));
     if (thread.resolvedAt !== current.resolvedAt) {
-      await this.db
-        .prepare("UPDATE comments SET resolved_at = ? WHERE id = ?")
-        .bind(thread.resolvedAt, op.threadId)
-        .run();
+      await this.setResolvedAt(doc, op.threadId, thread.resolvedAt);
     }
     return thread;
   }
@@ -191,10 +211,7 @@ export class D1Store implements ICommentsStore {
     const current = this.rowToThread(row);
     const { thread } = reopenThread([current], op);
     if (thread.resolvedAt !== current.resolvedAt) {
-      await this.db
-        .prepare("UPDATE comments SET resolved_at = ? WHERE id = ?")
-        .bind(thread.resolvedAt, op.threadId)
-        .run();
+      await this.setResolvedAt(doc, op.threadId, thread.resolvedAt);
     }
     return thread;
   }
