@@ -2987,6 +2987,35 @@ exit-3/exit-7 token-non-leak checks).</pre>
       worker-vs-local injection parity asserted in both test tiers.
     </p>
   </details>
+
+  <details class="validation-evidence" open>
+    <summary>Validation evidence — d2/pr13-sidecar-v2-serve-cli (gate green)</summary>
+    <pre>
+Rung 1 (npm run check — skill dir):
+  typecheck: tsc --noEmit (exit 0)
+  build:widget: dist/comments.mjs  124.3kb
+  build:server: dist/serve.mjs  273.8kb
+  test:unit: Test Files  15 passed (15) / Tests  78 passed (78)
+  test (playwright):   78 passed (4.7s)
+  test:smoke: PASS: serve.sh smoke
+  test:smoke:api: PASS: comments-api.sh smoke
+
+Rung 2 (dist freshness — skill dir):
+  npm run build → ---BUILD EXIT 0---
+  git status --short → (no output; tree clean)
+
+Rung 3 (apps/htmldoc-review):
+  typecheck: tsc --noEmit → ===TYPECHECK EXIT 0===
+  test (vitest): Test Files  9 passed (9) / Tests  117 passed (117) → ===TEST EXIT 0===
+  vendor:smoke: PASS: vendor smoke → ===VENDOR EXIT 0===
+
+Rung 4 (marker sweep):
+  git grep -lE '^(&lt;&lt;&lt;&lt;&lt;&lt;&lt;|=======$|&gt;&gt;&gt;&gt;&gt;&gt;&gt;)' -- . → (no output; nothing found)
+
+Rung 5 (surface accounting):
+  git diff --stat d2/pr12-playwright-bump..d2/pr13-sidecar-v2-serve-cli | tail -1 →
+   24 files changed, 494 insertions(+), 568 deletions(-)</pre>
+  </details>
 </article>
 
 <article id="questions" data-kind="decisions">
