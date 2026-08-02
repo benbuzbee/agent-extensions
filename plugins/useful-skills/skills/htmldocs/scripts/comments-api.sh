@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # comments-api.sh — the agent's transport helper for the htmldocs review API.
 #
-# This is serve.sh's read/write twin. serve.sh BOOTS a local review server;
-# this script TALKS to a review collection (local or hosted) over the one
+# This is the review server's read/write twin. `node <skill>/dist/serve.mjs`
+# BOOTS a local review server; this script TALKS to a review collection (local
+# or hosted) over the one
 # `<doc-url>?comments` HTTP API. It is PURE TRANSPORT: it composes the URL,
 # sources a token, sends the request, and translates the outcome into a raw
 # JSON body on stdout plus an actionable diagnostic + distinct exit code on
@@ -48,7 +49,7 @@
 #     0  success (2xx, including a 207 batch)
 #     2  usage / bad args        → synopsis, or a specific hint (e.g. bad threadId)
 #     3  hosted URL but no token → detected BEFORE any request; how to fix
-#     4  connection refused / unreachable (local → "start serve.sh")
+#     4  connection refused / unreachable (local → "start dist/serve.mjs")
 #     5  HTTP 401  → token invalid or expired; re-authenticate
 #     6  HTTP 404  → deliberately ambiguous (see the message)
 #     7  HTML/redirect where JSON was expected → wrong URL shape / browser path
@@ -168,7 +169,7 @@ request() {
   if (( curl_rc != 0 )); then
     err "comments-api.sh: could not connect to $url (curl exit $curl_rc)."
     err "  If this is a LOCAL doc, the review server isn't running."
-    err "  Start it with:  bash serve.sh path/to/doc.html   (see SKILL.md § Review mode)"
+    err "  Start it with:  node <skill>/dist/serve.mjs <target>   (see SKILL.md § Review mode)"
     err "  If the host is remote, check the URL and your network."
     exit 4
   fi

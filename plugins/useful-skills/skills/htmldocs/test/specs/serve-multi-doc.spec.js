@@ -2,7 +2,7 @@
 // directly (no child subprocess) and drives a real browser through the
 // widget. Proves the per-doc-sidecar contract: every served .html gets its
 // own widget instance, and its ?comments ops land in a sidecar mirroring
-// the doc's path under --root inside SIDECAR_DIR (including arbitrary
+// the doc's path under the served root inside SIDECAR_DIR (including arbitrary
 // depth, and directory-index URLs where the doc is <dir>/index.html).
 
 import { test, expect } from '@playwright/test';
@@ -76,12 +76,12 @@ test('each served HTML — including nested — gets its own sidecar mirrored un
   const beta = JSON.parse(await fs.readFile(path.join(handle.sidecarDir, 'beta.comments.json'), 'utf-8'));
   const nested = JSON.parse(await fs.readFile(path.join(handle.sidecarDir, 'a', 'b', 'c', 'foo.comments.json'), 'utf-8'));
 
-  expect(alpha.comments).toHaveLength(1);
-  expect(alpha.comments[0].body).toBe('on alpha');
-  expect(beta.comments).toHaveLength(1);
-  expect(beta.comments[0].body).toBe('on beta');
-  expect(nested.comments).toHaveLength(1);
-  expect(nested.comments[0].body).toBe('on nested foo');
+  expect(alpha.threads).toHaveLength(1);
+  expect(alpha.threads[0].root.body).toBe('on alpha');
+  expect(beta.threads).toHaveLength(1);
+  expect(beta.threads[0].root.body).toBe('on beta');
+  expect(nested.threads).toHaveLength(1);
+  expect(nested.threads[0].root.body).toBe('on nested foo');
 
   // Nothing leaked into the served tree.
   await expect(fs.stat(path.join(rootDir, 'alpha.comments.json'))).rejects.toMatchObject({ code: 'ENOENT' });
@@ -89,9 +89,9 @@ test('each served HTML — including nested — gets its own sidecar mirrored un
   await expect(fs.stat(path.join(rootDir, 'a', 'b', 'c', 'foo.comments.json'))).rejects.toMatchObject({ code: 'ENOENT' });
 
   // Cross-doc isolation.
-  expect(alpha.comments[0].body).not.toBe('on beta');
-  expect(beta.comments[0].body).not.toBe('on alpha');
-  expect(nested.comments[0].body).not.toBe('on alpha');
+  expect(alpha.threads[0].root.body).not.toBe('on beta');
+  expect(beta.threads[0].root.body).not.toBe('on alpha');
+  expect(nested.threads[0].root.body).not.toBe('on alpha');
 
   await ctx.close();
 });
@@ -111,10 +111,10 @@ test('directory-index URLs save through ?comments to the mirrored index sidecar'
   const rootSidecar = JSON.parse(await fs.readFile(path.join(handle.sidecarDir, 'index.comments.json'), 'utf-8'));
   const docsSidecar = JSON.parse(await fs.readFile(path.join(handle.sidecarDir, 'docs', 'index.comments.json'), 'utf-8'));
 
-  expect(rootSidecar.comments).toHaveLength(1);
-  expect(rootSidecar.comments[0].body).toBe('on root index');
-  expect(docsSidecar.comments).toHaveLength(1);
-  expect(docsSidecar.comments[0].body).toBe('on docs index');
+  expect(rootSidecar.threads).toHaveLength(1);
+  expect(rootSidecar.threads[0].root.body).toBe('on root index');
+  expect(docsSidecar.threads).toHaveLength(1);
+  expect(docsSidecar.threads[0].root.body).toBe('on docs index');
 
   await ctx.close();
 });

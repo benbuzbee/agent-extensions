@@ -1,9 +1,9 @@
 // SidecarStore — a Node fs-backed ICommentsStore for the LOCAL server route.
 //
-// The one place the legacy conversion runs at runtime: it loads/saves the legacy
-// `*.comments.json` disk shape (via ./legacy-format) but exposes the internal
-// Thread[] the shared API works in, so on-disk files stay byte-unchanged while
-// the wire is the op-envelope ?comments API. Each verb does a read-modify-write
+// The on-disk sidecar carries the internal Thread[] verbatim: it loads/saves the
+// v2 `*.comments.json` model ({ doc, schema: 2, threads }) and exposes the same
+// Thread[] the shared API works in, so the disk shape and the op-envelope
+// ?comments wire agree with zero conversion. Each verb does a read-modify-write
 // against a persistence port, delegating the actual op semantics to
 // api/thread-ops.* so it shares one source of truth with the browser client.
 //
@@ -19,8 +19,6 @@ import type {
   CreateOp, ReplyOp, ResolveOp, ReopenOp, DeleteOp, EditOp, Op, OpResult, OpError,
 } from '../../review-ux/types';
 import { asTimestamp } from '../../review-ux/types';
-import type { CommentsModel } from './legacy-format';
-import { threadToLegacy, legacyToThread } from './legacy-format';
 import {
   createThread, resolveThread, reopenThread, deleteThread, isNotFoundError,
   NotImplementedError,
@@ -28,14 +26,25 @@ import {
 import { applyOp } from '../../api/handlers';
 
 /**
+ * Top-level shape of the JSON sidecar on disk. `threads` is EXACTLY the internal
+ * Thread[] (the same shape a GET ?comments returns), so persistence is a plain
+ * read/write with no format conversion. One definition serves SidecarStore and
+ * the local server's disk layer.
+ */
+export interface SidecarModel {
+  doc: string;
+  schema: 2;
+  threads: Thread[];
+}
+
+/**
  * The seam SidecarStore persists through — one bound sidecar file. The local
- * server wires this to its existing readSidecar/writeSidecarAtomic helpers.
- * Keyed by the bound file, so the DocKey tuple is ignored (one sidecar per
- * page).
+ * server wires this to its readSidecar/writeSidecarAtomic helpers. Keyed by the
+ * bound file, so the DocKey tuple is ignored (one sidecar per page).
  */
 export interface SidecarPersistence {
-  load(): Promise<CommentsModel>;
-  save(model: CommentsModel): Promise<void>;
+  load(): Promise<SidecarModel>;
+  save(model: SidecarModel): Promise<void>;
 }
 
 /** Wrap a not_found from thread-ops as the tagged error the handler maps. */
@@ -54,17 +63,11 @@ export class SidecarStore implements ICommentsStore {
   ) {}
 
   private async loadThreads(): Promise<Thread[]> {
-    const model = await this.persistence.load();
-    return model.comments.map(legacyToThread);
+    return (await this.persistence.load()).threads;
   }
 
   private async saveThreads(threads: Thread[]): Promise<void> {
-    const model: CommentsModel = {
-      doc: this.docLabel,
-      schema: 1,
-      comments: threads.flatMap(threadToLegacy),
-    };
-    await this.persistence.save(model);
+    await this.persistence.save({ doc: this.docLabel, schema: 2, threads });
   }
 
   async list(_doc: DocKey): Promise<Thread[]> {

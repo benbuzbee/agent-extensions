@@ -1,16 +1,19 @@
 // serve.ts — multi-doc review-mode HTTP server.
 //
-// CLI runtime entry (via `node dist/serve.mjs`, normally exec'd from serve.sh).
+// The review-server CLI lives here in full: `node dist/serve.mjs [target]`
+// resolves the served root from a positional file-or-dir target, auto-probes a
+// free port in 8000-8099, binds 127.0.0.1, and emits the two-line
+// URL:/SIDECAR_DIR: stdout contract — see SKILL.md § Review mode.
 // Also exports `createServer` and `startReviewServer` for in-process callers
 // — the Playwright specs use these directly so the test boundary stops being
 // "spawn a child + parse stdout" and starts being "call a function."
 //
-// Behavior shipped in docs/plans/no_copies.html: sidecars live under a
-// server-chosen directory (auto-tmp by default, pinned via `--sidecar-dir`),
-// mirroring each doc's path under --root. The served tree itself stays
-// untouched.
+// Sidecars live under a server-chosen directory (auto-tmp by default, pinned
+// via `--sidecar-dir`), mirroring each doc's path under the served root. The
+// served tree itself stays untouched.
 
 import * as http from 'node:http';
+import * as net from 'node:net';
 import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import * as os from 'node:os';
@@ -19,8 +22,9 @@ import * as crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { parseAuthor } from './review-ux/types.js';
 import type { Author, DocKey } from './review-ux/types.js';
-import type { CommentsModel, LegacyComment } from './adapters/local/legacy-format.js';
+import type { SidecarModel } from './adapters/local/sidecar-store.js';
 import { injectIntoHtml } from './adapters/local/inject.js';
 import { COMMENTS_WIDGET_SRC } from './review-ux/inject.js';
 import { handleCommentsRequest } from './api/index.js';
@@ -94,34 +98,59 @@ function sidecarPathFor(htmlPath: string, root: string, sidecarDir: string): str
 
 // --- model + sidecar I/O --------------------------------------------------
 
-function isWellShapedComment(c: unknown): c is LegacyComment {
+// A field that is either an absent/undefined or a string — the JSON never
+// carries the key when the internal value is undefined, so absence is valid.
+function isOptionalString(v: unknown): boolean {
+  return v === undefined || typeof v === 'string';
+}
+
+// One internal Comment on disk: { id, author: {login, name}, body, createdAt }.
+// The author shape is parseAuthor's — ONE definition of a valid Author, so this
+// validator can never drift from it (non-empty login; name string|null|absent;
+// id number|absent).
+function isWellShapedComment(c: unknown): boolean {
   if (!c || typeof c !== 'object') return false;
-  const x = c as Partial<LegacyComment>;
+  const x = c as Record<string, unknown>;
   if (typeof x.id !== 'string' || typeof x.body !== 'string') return false;
-  if (typeof x.author !== 'string' || typeof x.created_at !== 'string') return false;
+  if (typeof x.createdAt !== 'number') return false;
+  return parseAuthor(x.author) !== null;
+}
+
+// One internal Thread on disk: { id, anchor, root, replies, resolvedAt }.
+function isWellShapedThread(t: unknown): boolean {
+  if (!t || typeof t !== 'object') return false;
+  const x = t as Record<string, unknown>;
+  if (typeof x.id !== 'string') return false;
   if (!x.anchor || typeof x.anchor !== 'object') return false;
-  const a = x.anchor as Partial<LegacyComment['anchor']>;
-  if (!Array.isArray(a.sections) || !a.sections.every((s) => typeof s === 'string')) return false;
-  return typeof a.prefix === 'string'
-    && typeof a.exact === 'string' && typeof a.suffix === 'string';
+  const a = x.anchor as Record<string, unknown>;
+  if (typeof a.exact !== 'string') return false;
+  if (!isOptionalString(a.prefix) || !isOptionalString(a.suffix)) return false;
+  if (a.sections !== undefined
+    && (!Array.isArray(a.sections) || !a.sections.every((s) => typeof s === 'string'))) return false;
+  if (!isWellShapedComment(x.root)) return false;
+  if (!Array.isArray(x.replies) || !x.replies.every(isWellShapedComment)) return false;
+  return x.resolvedAt === null || typeof x.resolvedAt === 'number';
 }
 
-function isWellShapedModel(parsed: unknown): parsed is CommentsModel {
+function isWellShapedModel(parsed: unknown): parsed is SidecarModel {
   if (!parsed || typeof parsed !== 'object') return false;
-  const m = parsed as Partial<CommentsModel>;
-  if (typeof m.doc !== 'string' || m.schema !== 1 || !Array.isArray(m.comments)) return false;
+  const m = parsed as Partial<SidecarModel>;
+  if (typeof m.doc !== 'string' || m.schema !== 2 || !Array.isArray(m.threads)) return false;
   // Deep-validate so a malformed write can't land junk the widget later trips on.
-  return m.comments.every(isWellShapedComment);
+  return m.threads.every(isWellShapedThread);
 }
 
-function emptyModel(docLabel: string): CommentsModel {
-  return { doc: docLabel, schema: 1, comments: [] };
+function emptyModel(docLabel: string): SidecarModel {
+  return { doc: docLabel, schema: 2, threads: [] };
 }
 
 // Returns empty model for any recoverable failure so the widget mounts with
 // a clean slate and the next write overwrites the bad file. Other I/O errors
-// propagate so GETs fail loudly instead of silently dropping data.
-async function readSidecar(sidecarPath: string, docLabel: string): Promise<CommentsModel> {
+// propagate so GETs fail loudly instead of silently dropping data. A parseable
+// object that fails v2 validation (e.g. an older schema:1 file) is not silently
+// swallowed: it warns once per read so the reviewer knows prior comments aren't
+// being shown. ENOENT, blank files, and unparseable JSON stay silent-empty.
+export async function readSidecar(sidecarPath: string, docLabel: string): Promise<SidecarModel> {
   let text: string;
   try {
     text = await fs.readFile(sidecarPath, 'utf-8');
@@ -136,7 +165,18 @@ async function readSidecar(sidecarPath: string, docLabel: string): Promise<Comme
   } catch {
     return emptyModel(docLabel);
   }
-  if (!isWellShapedModel(parsed)) return emptyModel(docLabel);
+  if (!isWellShapedModel(parsed)) {
+    if (parsed && typeof parsed === 'object') {
+      // A schema:2 object that still fails deep validation is a v2 file with a
+      // corrupt field/thread, not a wrong-version file — say so, so the warning
+      // points at the real cause instead of blaming the schema number.
+      const reason = (parsed as Record<string, unknown>).schema === 2
+        ? 'malformed v2 sidecar (a field or thread failed validation)'
+        : 'unsupported schema (expected 2)';
+      console.warn(`[serve] ignoring sidecar ${sidecarPath}: ${reason}; loading as empty`);
+    }
+    return emptyModel(docLabel);
+  }
   return parsed;
 }
 
@@ -144,7 +184,7 @@ async function readSidecar(sidecarPath: string, docLabel: string): Promise<Comme
 // the prior sidecar intact. UUID-suffixed tmp avoids same-ms collisions.
 // tmp lives in the same dir as sidecar so rename never crosses volumes —
 // fs.rename is only atomic when source+target share one (Windows EXDEV).
-async function writeSidecarAtomic(sidecarPath: string, model: CommentsModel): Promise<void> {
+export async function writeSidecarAtomic(sidecarPath: string, model: SidecarModel): Promise<void> {
   const dir = path.dirname(sidecarPath);
   await fs.mkdir(dir, { recursive: true });
   const json = JSON.stringify(model, null, 2) + '\n';
@@ -195,9 +235,9 @@ async function handleGetBundle(res: http.ServerResponse): Promise<void> {
 }
 
 // Serve an HTML doc with the widget bundle + inline JSON seed injected. The
-// seed is the internal { threads } view: we load through a SidecarStore so the
-// legacy disk shape is converted to Thread[] INSIDE the disk layer, never
-// browser-side. Read fresh per request so reloads always reflect on-disk state.
+// seed is the internal { threads } view: we load through a SidecarStore whose
+// on-disk model already carries Thread[] verbatim, so no conversion happens
+// anywhere. Read fresh per request so reloads always reflect on-disk state.
 // `urlPath` is the request's root-relative URL path — the DocKey speaks URL
 // paths (the same key handleCommentsApi builds), never filesystem paths.
 async function handleHtmlInject(res: http.ServerResponse, root: string, sidecarDir: string, htmlPath: string, urlPath: string): Promise<void> {
@@ -466,11 +506,34 @@ export async function startReviewServer(opts: StartReviewServerOpts): Promise<Re
   return { server, url: `http://${addr.address}:${addr.port}`, sidecarDir, close };
 }
 
+// --- port probe -----------------------------------------------------------
+
+// The URL uses 127.0.0.1, never `localhost`: on macOS `localhost` resolves to
+// ::1 first, and an IPv6 listener owned by another process (e.g. Docker) on the
+// same port silently wins. The probe binds IPv4 only, so the chosen port is
+// exactly the one the announced URL points at.
+function isPortFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.once('error', () => resolve(false));
+    probe.once('listening', () => probe.close(() => resolve(true)));
+    probe.listen(port, '127.0.0.1');
+  });
+}
+
+// First free port in 8000-8099, scanned in order; null if every port is taken.
+async function probeFreePort(): Promise<number | null> {
+  for (let port = 8000; port <= 8099; port++) {
+    if (await isPortFree(port)) return port;
+  }
+  return null;
+}
+
 // --- CLI entry ------------------------------------------------------------
 
 interface CliArgs {
-  port: number;
-  root: string;
+  target: string;
+  port: number | null;
   sidecarDir: string | null;
 }
 
@@ -478,22 +541,28 @@ async function parseCliArgs(): Promise<CliArgs> {
   const argv = await yargs(hideBin(process.argv))
     .scriptName('serve.mjs')
     .strict()
+    .command('$0 [target]', 'Serve an htmldocs file or directory for review', (y) =>
+      y.positional('target', {
+        type: 'string',
+        default: '.',
+        describe: 'File or directory to serve; a file serves its parent dir',
+      }),
+    )
     .option('port', {
       type: 'number',
-      demandOption: true,
-      describe: 'TCP port to bind on 127.0.0.1 (1..65535)',
-    })
-    .option('root', {
-      type: 'string',
-      demandOption: true,
-      describe: 'Directory to serve static files from',
+      // requiresArg so a bare `--port` (e.g. `--port $PORT` with $PORT unset)
+      // errors instead of yielding undefined and silently falling into the
+      // probe path as if no port were pinned at all.
+      requiresArg: true,
+      describe: 'TCP port to bind on 127.0.0.1 (1..65535); probes 8000-8099 if omitted',
     })
     .option('sidecar-dir', {
       type: 'string',
       describe: 'Directory for sidecar JSON; auto-tmp if omitted',
     })
     .check((args) => {
-      if (!Number.isInteger(args.port) || args.port < 1 || args.port > 65535) {
+      if (args.port !== undefined
+        && (!Number.isInteger(args.port) || args.port < 1 || args.port > 65535)) {
         throw new Error('--port must be an integer in 1..65535');
       }
       // Catch `--sidecar-dir ''` (shell-quoted empty value) and the `=`
@@ -508,22 +577,60 @@ async function parseCliArgs(): Promise<CliArgs> {
     .help(false)
     .version(false)
     .parseAsync();
+  // A target passed after `--` (the form that shields a dash-prefixed filename
+  // from flag parsing, e.g. `serve.mjs -- -weird.html`) lands in argv._ rather
+  // than the named positional, which yargs leaves at its default. Prefer that
+  // leftover positional so the `--` form serves the intended target, not cwd.
+  const target = argv._.length > 0 ? String(argv._[0]) : String(argv.target ?? '.');
   return {
-    port: argv.port,
-    root: path.resolve(argv.root),
+    target,
+    port: argv.port ?? null,
     sidecarDir: argv['sidecar-dir'] ? path.resolve(argv['sidecar-dir']) : null,
   };
 }
 
 async function main(): Promise<void> {
   const cli = await parseCliArgs();
-  const handle = await startReviewServer({
-    root: cli.root,
-    sidecarDir: cli.sidecarDir,
-    port: cli.port,
-  });
-  // serve.sh already printed URL:; serve.mjs prints the matching
-  // SIDECAR_DIR: so the caller (test, agent, smoke) can locate sidecars.
+
+  // Resolve the positional target into a served root + URL suffix. A directory
+  // serves its whole tree (empty suffix ⇒ URL ends in `/`); a file serves its
+  // parent directory and the URL points at the file's basename. A missing
+  // target is a hard error before anything binds.
+  const targetAbs = path.resolve(cli.target);
+  const targetStat = await fs.stat(targetAbs).catch(() => null);
+  if (!targetStat) {
+    console.error(`serve.mjs: not found: ${cli.target}`);
+    process.exit(1);
+  }
+  let root: string;
+  let suffix: string;
+  if (targetStat.isDirectory()) {
+    root = targetAbs;
+    suffix = '';
+  } else {
+    root = path.dirname(targetAbs);
+    suffix = path.basename(targetAbs);
+  }
+
+  // Port: an explicit --port wins; otherwise probe 8000-8099 for the first free
+  // one and fail loudly if the whole range is taken.
+  let port: number;
+  if (cli.port !== null) {
+    port = cli.port;
+  } else {
+    const probed = await probeFreePort();
+    if (probed === null) {
+      console.error('serve.mjs: no free port in 8000-8099');
+      process.exit(1);
+    }
+    port = probed;
+  }
+
+  const handle = await startReviewServer({ root, sidecarDir: cli.sidecarDir, port });
+  // Two fixed-prefix stdout lines, in order, after a successful bind: the URL
+  // to hand User, then the sidecar directory so the caller (test, agent, smoke)
+  // can locate the on-disk comment backup.
+  console.log(`URL: ${handle.url}/${suffix}`);
   console.log(`SIDECAR_DIR: ${handle.sidecarDir}`);
   const shutdown = () => {
     const s = handle.server as unknown as { closeAllConnections?: () => void };

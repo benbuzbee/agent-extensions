@@ -34,9 +34,9 @@ describe('parseAuthor — seed identity is parsed, never cast', () => {
 });
 
 describe('LOCAL_AUTHOR — the shared fixed identity', () => {
-  it('matches the legacy sidecar author string on its login', () => {
-    // threadToLegacy persists author.login as the on-disk author, so this
-    // login is part of the sidecar format.
+  it('is the fixed local reviewer identity', () => {
+    // The sidecar persists the Author object verbatim (root.author), so this
+    // identity is what a local review's on-disk threads carry.
     expect(LOCAL_AUTHOR).toEqual({ login: 'user', name: null });
   });
 });

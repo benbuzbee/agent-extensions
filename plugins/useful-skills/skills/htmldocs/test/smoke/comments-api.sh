@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Smoke test for ../../scripts/comments-api.sh — the agent transport helper.
-# Drives the helper against the REAL local review server (booted via serve.sh)
-# and a dumb static server, asserting the documented exit code + stderr
+# Drives the helper against the REAL local review server (booted via
+# node dist/serve.mjs) and a dumb static server, asserting the
+# documented exit code + stderr
 # contract for each failure class, and proving the token never leaks under
 # `bash -x`.
 #
-# Bash + curl + grep only (no jq) — mirrors serve.sh's smoke posture and boot/
+# Bash + curl + grep only (no jq) — mirrors the serve smoke's posture and boot/
 # teardown harness, kept off the Playwright runner so it stays a fast pre-flight
 # check on the script-as-shipped.
 
@@ -70,9 +71,9 @@ echo "ok: usage errors + hostile threadId → exit 2"
 run_api list "http://127.0.0.1:9/index.html"
 [[ "$RC" == 4 ]] || fail "connection refused → $RC (want 4)"
 grep -qi "server isn't running" <<<"$ERRTXT" || fail "conn-refused: missing server-not-running hint"
-grep -q 'serve.sh' <<<"$ERRTXT" || fail "conn-refused: missing serve.sh guidance"
+grep -q 'serve.mjs' <<<"$ERRTXT" || fail "conn-refused: missing serve.mjs guidance"
 [[ -z "$OUT" ]] || fail "conn-refused: stdout should be empty"
-echo "ok: connection refused → exit 4, serve.sh guidance"
+echo "ok: connection refused → exit 4, serve.mjs guidance"
 
 # ── 4. Hosted URL without token → exit 3, no request fired ──────────────────
 # PATH-prepend a failing `gh` stub + empty GITHUB_TOKEN + a non-localhost URL.
@@ -119,18 +120,18 @@ echo "ok: HTML-where-JSON → exit 7, URL anatomy shown"
 # ── 6. Round-trip + non-2xx passthrough against the REAL local server ───────
 out_file="$tmp_dir/serve.out"
 err_file="$tmp_dir/serve.err"
-bash serve.sh "test/fixtures/clean/" >"$out_file" 2>"$err_file" &
+node dist/serve.mjs "test/fixtures/clean/" >"$out_file" 2>"$err_file" &
 server_pid=$!
 for _ in $(seq 1 50); do
   grep -q '^URL: ' "$out_file" && break
-  kill -0 "$server_pid" 2>/dev/null || { cat "$err_file" >&2; fail "serve.sh died before URL"; }
+  kill -0 "$server_pid" 2>/dev/null || { cat "$err_file" >&2; fail "serve.mjs died before URL"; }
   sleep 0.1
 done
 base_url="$(grep -m1 '^URL: ' "$out_file" | sed 's/^URL: //')"
 doc_url="${base_url}index.html"
 for _ in $(seq 1 50); do
   curl -fs -o /dev/null "$base_url" 2>/dev/null && break
-  kill -0 "$server_pid" 2>/dev/null || fail "serve.sh died before accepting requests"
+  kill -0 "$server_pid" 2>/dev/null || fail "serve.mjs died before accepting requests"
   sleep 0.1
 done
 

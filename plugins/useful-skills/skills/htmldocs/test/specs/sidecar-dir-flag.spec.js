@@ -46,8 +46,9 @@ test('sidecarDir option is honored verbatim and used for writes', async ({ brows
     await ctx.close();
 
     const onDisk = JSON.parse(await fs.readFile(path.join(stable, 'index.comments.json'), 'utf-8'));
-    expect(onDisk.comments).toHaveLength(1);
-    expect(onDisk.comments[0].body).toBe('persisted across runs');
+    expect(onDisk.schema).toBe(2);
+    expect(onDisk.threads).toHaveLength(1);
+    expect(onDisk.threads[0].root.body).toBe('persisted across runs');
   } finally {
     await handle.close();
     await fs.rm(stable, { recursive: true, force: true });
@@ -58,13 +59,18 @@ test('a fresh server pointed at the same sidecarDir resumes prior comments', asy
   const resumeDir = await fs.mkdtemp(path.join(os.tmpdir(), 'htmldocs-flag-resume-'));
   const seed = {
     doc: 'index.html',
-    schema: 1,
-    comments: [{
+    schema: 2,
+    threads: [{
       id: 'c-resume',
       anchor: { sections: ['alpha'], prefix: 'The ', exact: 'quick brown fox', suffix: ' jumps' },
-      body: 'persisted across runs',
-      author: 'user',
-      created_at: '2026-05-26T00:00:00Z',
+      root: {
+        id: 'c-resume',
+        author: { login: 'user', name: null },
+        body: 'persisted across runs',
+        createdAt: 1779098400000,
+      },
+      replies: [],
+      resolvedAt: null,
     }],
   };
   await fs.writeFile(path.join(resumeDir, 'index.comments.json'), JSON.stringify(seed, null, 2));
@@ -77,8 +83,8 @@ test('a fresh server pointed at the same sidecarDir resumes prior comments', asy
     const page = await ctx.newPage();
     await page.goto(`${handle.url}/index.html?test=1`);
     await page.evaluate(() => window.__htmldocsComments.whenReady());
-    // The on-disk sidecar stays in the LEGACY shape (written above, zero
-    // migration); the server converts it to the internal { threads } seed.
+    // The on-disk sidecar carries the internal Thread[] verbatim (written
+    // above); the server injects it as the { threads } seed with no conversion.
     const model = await page.evaluate(() => window.__htmldocsComments.getModel());
     expect(model.threads).toHaveLength(1);
     expect(model.threads[0].root.body).toBe('persisted across runs');

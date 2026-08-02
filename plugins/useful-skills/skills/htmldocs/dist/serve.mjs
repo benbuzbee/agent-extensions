@@ -60,6 +60,7 @@ var require_get_caller_file = __commonJS({
 
 // src/comments/serve.ts
 import * as http from "node:http";
+import * as net from "node:net";
 import * as fs from "node:fs/promises";
 import * as fsSync from "node:fs";
 import * as os from "node:os";
@@ -5413,6 +5414,23 @@ function isYargsInstance(y) {
 var Yargs = YargsFactory(esm_default);
 var yargs_default = Yargs;
 
+// src/comments/review-ux/types.ts
+var asThreadId = (raw) => raw;
+var asCommentId = (raw) => raw;
+var asTimestamp = (ms) => ms;
+function parseAuthor(raw) {
+  if (raw === null || typeof raw !== "object") return null;
+  const a = raw;
+  if (typeof a.login !== "string" || a.login.length === 0) return null;
+  if (a.name !== void 0 && a.name !== null && typeof a.name !== "string") return null;
+  if (a.id !== void 0 && typeof a.id !== "number") return null;
+  return {
+    login: a.login,
+    name: a.name ?? null,
+    ...a.id !== void 0 ? { id: a.id } : {}
+  };
+}
+
 // src/comments/review-ux/inject.ts
 var WIDGET_BASE = "/__htmldocs";
 var COMMENTS_WIDGET_SRC = `${WIDGET_BASE}/comments.mjs`;
@@ -6349,11 +6367,6 @@ function optional(innerType) {
   });
 }
 
-// src/comments/review-ux/types.ts
-var asThreadId = (raw) => raw;
-var asCommentId = (raw) => raw;
-var asTimestamp = (ms) => ms;
-
 // src/comments/api/schemas.ts
 var anchorSchema = object({
   // the exact quoted text the comment anchors to
@@ -6613,55 +6626,6 @@ async function handleCommentsRequest(req) {
 
 // src/comments/adapters/local/sidecar-store.ts
 import { randomUUID } from "node:crypto";
-
-// src/comments/adapters/local/legacy-format.ts
-function threadToLegacy(thread) {
-  const out = [];
-  const toLegacy = (c, anchor) => {
-    const legacy = {
-      id: c.id,
-      anchor: {
-        sections: anchor.sections ?? [],
-        prefix: anchor.prefix ?? "",
-        exact: anchor.exact,
-        suffix: anchor.suffix ?? ""
-      },
-      body: c.body,
-      author: c.author.login,
-      created_at: new Date(c.createdAt).toISOString()
-    };
-    if (thread.resolvedAt !== null) {
-      legacy.resolved_at = new Date(thread.resolvedAt).toISOString();
-    }
-    return legacy;
-  };
-  out.push(toLegacy(thread.root, thread.anchor));
-  for (const reply of thread.replies) {
-    out.push(toLegacy(reply, thread.anchor));
-  }
-  return out;
-}
-function legacyToThread(comment) {
-  return {
-    id: asThreadId(comment.id),
-    anchor: {
-      exact: comment.anchor.exact,
-      prefix: comment.anchor.prefix || void 0,
-      suffix: comment.anchor.suffix || void 0,
-      sections: comment.anchor.sections.length > 0 ? comment.anchor.sections : void 0
-    },
-    root: {
-      id: asCommentId(comment.id),
-      author: { login: comment.author, name: null },
-      body: comment.body,
-      createdAt: asTimestamp(new Date(comment.created_at).getTime())
-    },
-    replies: [],
-    resolvedAt: comment.resolved_at ? asTimestamp(new Date(comment.resolved_at).getTime()) : null
-  };
-}
-
-// src/comments/adapters/local/sidecar-store.ts
 function tagNotFound(err) {
   if (isNotFoundError(err)) {
     throw Object.assign(new Error(err.message), { opError: { code: "not_found", threadId: err.threadId, message: err.message } });
@@ -6675,16 +6639,10 @@ var SidecarStore = class {
     this.mint = mint;
   }
   async loadThreads() {
-    const model = await this.persistence.load();
-    return model.comments.map(legacyToThread);
+    return (await this.persistence.load()).threads;
   }
   async saveThreads(threads) {
-    const model = {
-      doc: this.docLabel,
-      schema: 1,
-      comments: threads.flatMap(threadToLegacy)
-    };
-    await this.persistence.save(model);
+    await this.persistence.save({ doc: this.docLabel, schema: 2, threads });
   }
   async list(_doc) {
     return this.loadThreads();
@@ -6799,24 +6757,37 @@ function sidecarPathFor(htmlPath, root, sidecarDir) {
   }
   return path.join(sidecarDir, rel.replace(/\.html?$/i, "") + ".comments.json");
 }
+function isOptionalString(v) {
+  return v === void 0 || typeof v === "string";
+}
 function isWellShapedComment(c) {
   if (!c || typeof c !== "object") return false;
   const x = c;
   if (typeof x.id !== "string" || typeof x.body !== "string") return false;
-  if (typeof x.author !== "string" || typeof x.created_at !== "string") return false;
+  if (typeof x.createdAt !== "number") return false;
+  return parseAuthor(x.author) !== null;
+}
+function isWellShapedThread(t) {
+  if (!t || typeof t !== "object") return false;
+  const x = t;
+  if (typeof x.id !== "string") return false;
   if (!x.anchor || typeof x.anchor !== "object") return false;
   const a = x.anchor;
-  if (!Array.isArray(a.sections) || !a.sections.every((s) => typeof s === "string")) return false;
-  return typeof a.prefix === "string" && typeof a.exact === "string" && typeof a.suffix === "string";
+  if (typeof a.exact !== "string") return false;
+  if (!isOptionalString(a.prefix) || !isOptionalString(a.suffix)) return false;
+  if (a.sections !== void 0 && (!Array.isArray(a.sections) || !a.sections.every((s) => typeof s === "string"))) return false;
+  if (!isWellShapedComment(x.root)) return false;
+  if (!Array.isArray(x.replies) || !x.replies.every(isWellShapedComment)) return false;
+  return x.resolvedAt === null || typeof x.resolvedAt === "number";
 }
 function isWellShapedModel(parsed) {
   if (!parsed || typeof parsed !== "object") return false;
   const m = parsed;
-  if (typeof m.doc !== "string" || m.schema !== 1 || !Array.isArray(m.comments)) return false;
-  return m.comments.every(isWellShapedComment);
+  if (typeof m.doc !== "string" || m.schema !== 2 || !Array.isArray(m.threads)) return false;
+  return m.threads.every(isWellShapedThread);
 }
 function emptyModel(docLabel) {
-  return { doc: docLabel, schema: 1, comments: [] };
+  return { doc: docLabel, schema: 2, threads: [] };
 }
 async function readSidecar(sidecarPath, docLabel) {
   let text;
@@ -6833,7 +6804,13 @@ async function readSidecar(sidecarPath, docLabel) {
   } catch {
     return emptyModel(docLabel);
   }
-  if (!isWellShapedModel(parsed)) return emptyModel(docLabel);
+  if (!isWellShapedModel(parsed)) {
+    if (parsed && typeof parsed === "object") {
+      const reason = parsed.schema === 2 ? "malformed v2 sidecar (a field or thread failed validation)" : "unsupported schema (expected 2)";
+      console.warn(`[serve] ignoring sidecar ${sidecarPath}: ${reason}; loading as empty`);
+    }
+    return emptyModel(docLabel);
+  }
   return parsed;
 }
 async function writeSidecarAtomic(sidecarPath, model) {
@@ -7012,7 +6989,7 @@ async function handleCommentsApi(req, res, root, sidecarDir, urlPath, params, me
 function sendJson(res, status, json, extraHeaders = {}) {
   send(res, status, JSON.stringify(json), { "Content-Type": MIME[".json"], ...extraHeaders });
 }
-function createServer2(cfg) {
+function createServer3(cfg) {
   return http.createServer((req, res) => {
     const url = req.url || "/";
     const method = req.method || "GET";
@@ -7068,7 +7045,7 @@ async function startReviewServer(opts) {
   const sidecarDirRequested = opts.sidecarDir ?? null;
   const sidecarDir = await resolveSidecarDir(sidecarDirRequested);
   const autoTmp = sidecarDirRequested === null;
-  const server = createServer2({ root, sidecarDir });
+  const server = createServer3({ root, sidecarDir });
   const port = opts.port ?? 0;
   try {
     await new Promise((resolve6, reject) => {
@@ -7098,20 +7075,41 @@ async function startReviewServer(opts) {
   });
   return { server, url: `http://${addr.address}:${addr.port}`, sidecarDir, close };
 }
+function isPortFree(port) {
+  return new Promise((resolve6) => {
+    const probe = net.createServer();
+    probe.once("error", () => resolve6(false));
+    probe.once("listening", () => probe.close(() => resolve6(true)));
+    probe.listen(port, "127.0.0.1");
+  });
+}
+async function probeFreePort() {
+  for (let port = 8e3; port <= 8099; port++) {
+    if (await isPortFree(port)) return port;
+  }
+  return null;
+}
 async function parseCliArgs() {
-  const argv = await yargs_default(hideBin(process.argv)).scriptName("serve.mjs").strict().option("port", {
+  const argv = await yargs_default(hideBin(process.argv)).scriptName("serve.mjs").strict().command(
+    "$0 [target]",
+    "Serve an htmldocs file or directory for review",
+    (y) => y.positional("target", {
+      type: "string",
+      default: ".",
+      describe: "File or directory to serve; a file serves its parent dir"
+    })
+  ).option("port", {
     type: "number",
-    demandOption: true,
-    describe: "TCP port to bind on 127.0.0.1 (1..65535)"
-  }).option("root", {
-    type: "string",
-    demandOption: true,
-    describe: "Directory to serve static files from"
+    // requiresArg so a bare `--port` (e.g. `--port $PORT` with $PORT unset)
+    // errors instead of yielding undefined and silently falling into the
+    // probe path as if no port were pinned at all.
+    requiresArg: true,
+    describe: "TCP port to bind on 127.0.0.1 (1..65535); probes 8000-8099 if omitted"
   }).option("sidecar-dir", {
     type: "string",
     describe: "Directory for sidecar JSON; auto-tmp if omitted"
   }).check((args) => {
-    if (!Number.isInteger(args.port) || args.port < 1 || args.port > 65535) {
+    if (args.port !== void 0 && (!Number.isInteger(args.port) || args.port < 1 || args.port > 65535)) {
       throw new Error("--port must be an integer in 1..65535");
     }
     if (args["sidecar-dir"] === "") {
@@ -7119,19 +7117,43 @@ async function parseCliArgs() {
     }
     return true;
   }).help(false).version(false).parseAsync();
+  const target = argv._.length > 0 ? String(argv._[0]) : String(argv.target ?? ".");
   return {
-    port: argv.port,
-    root: path.resolve(argv.root),
+    target,
+    port: argv.port ?? null,
     sidecarDir: argv["sidecar-dir"] ? path.resolve(argv["sidecar-dir"]) : null
   };
 }
 async function main() {
   const cli = await parseCliArgs();
-  const handle = await startReviewServer({
-    root: cli.root,
-    sidecarDir: cli.sidecarDir,
-    port: cli.port
-  });
+  const targetAbs = path.resolve(cli.target);
+  const targetStat = await fs.stat(targetAbs).catch(() => null);
+  if (!targetStat) {
+    console.error(`serve.mjs: not found: ${cli.target}`);
+    process.exit(1);
+  }
+  let root;
+  let suffix;
+  if (targetStat.isDirectory()) {
+    root = targetAbs;
+    suffix = "";
+  } else {
+    root = path.dirname(targetAbs);
+    suffix = path.basename(targetAbs);
+  }
+  let port;
+  if (cli.port !== null) {
+    port = cli.port;
+  } else {
+    const probed = await probeFreePort();
+    if (probed === null) {
+      console.error("serve.mjs: no free port in 8000-8099");
+      process.exit(1);
+    }
+    port = probed;
+  }
+  const handle = await startReviewServer({ root, sidecarDir: cli.sidecarDir, port });
+  console.log(`URL: ${handle.url}/${suffix}`);
   console.log(`SIDECAR_DIR: ${handle.sidecarDir}`);
   const shutdown = () => {
     const s = handle.server;
@@ -7160,9 +7182,11 @@ if (invokedAsScript()) {
   });
 }
 export {
-  createServer2 as createServer,
+  createServer3 as createServer,
+  readSidecar,
   resolveSidecarDir,
-  startReviewServer
+  startReviewServer,
+  writeSidecarAtomic
 };
 /*! Bundled license information:
 

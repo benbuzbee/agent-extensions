@@ -142,10 +142,9 @@ export type OpResult =
 // internal { threads: Thread[] } view plus a top-level `author`. Every runtime
 // stamps the author (the hosted Worker from the captured session identity, the
 // local server the fixed LOCAL_AUTHOR); it is optional in the type only so a
-// degraded seed still parses — the widget falls back to LOCAL_AUTHOR. There is
-// no legacy shape here — the legacy `*.comments.json` (de)serialization lives
-// entirely in the Node disk layer (adapters/local/legacy-format.ts), never in
-// this shared, browser-facing package.
+// degraded seed still parses — the widget falls back to LOCAL_AUTHOR. The Node
+// disk layer persists this same Thread[] shape in its sidecar model, so no
+// browser-facing code ever sees a different on-disk representation.
 export interface CommentsSeed {
   threads: Thread[];
   author?: Author;

@@ -93,8 +93,8 @@
 <article id="overview">
   <h2>Overview</h2>
   <p>
-    User asks the agent to open a doc in review mode. The agent runs
-    <code>serve.sh</code> in the background and hands User a localhost URL.
+    User asks the agent to open a doc in review mode. The agent runs the review
+    server (<code>node dist/serve.mjs</code>) in the background and hands User a localhost URL.
     User opens it, selects text in the doc body,
     clicks the Comment button that appears, and writes a note. The note is
     saved over the doc's <code>?comments</code> HTTP API and persisted to a JSON
@@ -133,18 +133,20 @@
   <h2>Components</h2>
 
   <section id="components-serve-sh">
-    <h3><code>serve.sh</code></h3>
+    <h3><code>dist/serve.mjs</code></h3>
     <p>
-      The agent's entry into review mode. A Bash shim beside <code>SKILL.md</code>
-      that preflights <code>node</code>, picks a free port in 8000–8099, prints the
-      <code>URL:</code> line, and execs the Node server (<code>dist/serve.mjs</code>)
-      bound to <code>127.0.0.1</code>. Accepts a file or a directory; either way every
-      <code>.html</code> under the served folder becomes reviewable.
-      <code>--sidecar-dir &lt;path&gt;</code> pins the sidecar location for resume; absent
-      it, the server picks an auto-tmp dir and announces it on a second stdout line
-      (<code>SIDECAR_DIR:</code>). Invocation contract — argument shapes, the two-line
+      The agent's entry into review mode — the review-server CLI, invoked as
+      <code>node dist/serve.mjs [target]</code>. It resolves the served root from a
+      positional file-or-directory target (a file serves its parent folder and points
+      the URL at the file; a directory serves its whole tree), auto-probes a free port
+      in 8000–8099, binds <code>127.0.0.1</code>, and prints the two-line
+      <code>URL:</code> / <code>SIDECAR_DIR:</code> stdout contract after a successful
+      bind. Either target makes every <code>.html</code> under the served folder
+      reviewable. <code>--sidecar-dir &lt;path&gt;</code> pins the sidecar location for
+      resume; absent it, the server picks an auto-tmp dir and announces it on the
+      <code>SIDECAR_DIR:</code> line. Invocation contract — argument shapes, the two-line
       stdout, what to hand User — in <a href="../SKILL.md"><code>SKILL.md</code></a> § Review mode
-      (entry point) and the header comment in <code>serve.sh</code> (flags, stdout contract).
+      (entry point) and the header comment in <code>serve.ts</code> (flags, port probe, stdout contract).
     </p>
   </section>
 
@@ -195,7 +197,7 @@
       <code>207</code> with per-op results). The local route is the doc path plus
       <code>?comments</code> with no <code>&lt;repo&gt;</code> segment; the hosted Worker
       URL adds the repo. The path is validated like a static <code>GET</code>: it must
-      resolve under <code>--root</code> to an <code>.html</code>/<code>.htm</code> file.
+      resolve under the served root to an <code>.html</code>/<code>.htm</code> file.
       Behind the local route, <code>SidecarStore</code> does an atomic read-modify-write
       per op — see <a href="#known-friction">§ Known friction</a>.
     </p>
@@ -209,10 +211,12 @@
       mirroring the doc's root-relative path (<code>sub/bar.html</code> →
       <code>&lt;SIDECAR_DIR&gt;/sub/bar.comments.json</code>). Multi-doc sessions produce
       one sidecar per doc that received a save; they never aggregate. The on-disk
-      <code>*.comments.json</code> shape is read and written unchanged by
-      <code>src/comments/adapters/local/legacy-format.ts</code>, invoked from
-      <code>SidecarStore</code>; every other layer speaks the internal
-      <code>{threads}</code> shape.
+      model is <code>{doc, schema: 2, threads}</code>, where <code>threads</code> is
+      exactly the internal <code>Thread[]</code> — the same shape a
+      <code>GET&nbsp;?comments</code> returns — so <code>SidecarStore</code> reads and
+      writes it with no format conversion; every layer speaks the one
+      <code>{threads}</code> shape. A file that fails v2 validation loads as empty
+      with a one-line warning.
     </p>
   </section>
 
@@ -220,10 +224,10 @@
     <h3>Agent recipe</h3>
     <p>
       Entry point in <a href="../SKILL.md"><code>SKILL.md</code></a> § Review mode: run
-      <code>serve.sh</code> in the background, capture the <code>URL:</code> line, hand it
+      <code>node dist/serve.mjs</code> in the background, capture the <code>URL:</code> line, hand it
       to User. To read and act on comments, drive them through
       <a href="../scripts/comments-api.sh"><code>scripts/comments-api.sh</code></a>
-      (the read/write twin of <code>serve.sh</code>) — <code>list</code> to read,
+      (the read/write twin of the review server) — <code>list</code> to read,
       <code>resolve</code>/<code>delete</code> by thread id to act — rather than raw
       <code>GET</code>/<code>POST</code>. Full recipe — the one shape, the agent's verbs — in
       <a href="../references/comments.md"><code>references/comments.md</code></a>.
@@ -283,9 +287,9 @@
       friction: its D1 store applies each op as its own checked, doc-scoped SQL statement.
     </li>
     <li>
-      <strong>Port collisions outside 8000–8099.</strong> <code>serve.sh</code>
+      <strong>Port collisions outside 8000–8099.</strong> <code>dist/serve.mjs</code>
       probes that range and exits if every port is taken. User running 100+ dev
-      servers (or a stale <code>serve.sh</code> per port) needs to free one before
+      servers (or a stale review server per port) needs to free one before
       review mode will start.
     </li>
   </ul>
