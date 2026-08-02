@@ -2074,6 +2074,65 @@ EXIT=0
           Zod rejection cases; anchor-shape validation only.</li>
       </ul>
     </details>
+    <details class="validation-evidence" open>
+      <summary>Validation evidence — d2/pr2-comment-api-logic (gate green, 0 fix round(s))</summary>
+      <p>Commands run:</p>
+      <ul>
+        <li><code>npm install</code> + playwright install (deps)</li>
+        <li><code>npm run check</code> (all tests + smoke), <code>npm run typecheck</code> (tsc), <code>npm run test:unit</code> (vitest)</li>
+        <li><code>npm run build</code> + <code>git diff --stat</code> (dist changed as expected)</li>
+        <li>Code review: 0 candidate issues, 0 confirmed</li>
+        <li>Fable review (plan-fidelity lens): 1 blocker/major → fixed</li>
+      </ul>
+      <p><strong>Behavioral contracts verified:</strong> one unit suite per verb (create/delete/resolve/reopen/batch/schemas/handler); batch partial-failure (one not_found op returns ok:false while siblings persist, status 207 ordered); Zod rejection (unknown op, missing fields, bad anchor shape → 400 + zero store calls); resolve/reopen idempotency (no double timestamp overwrite); HTTP end-to-end integration tests (local server, all verbs, malformed → 400, missing doc → neutral 404, ?ref= honored).</p>
+      <p><strong>Guardrails:</strong> offline only (no wrangler deploy, no git push, no gt submit); no secrets logged; deliverable-1 neutral-404 non-leak preserved.</p>
+      <pre>$ npm install (cmd 1)
+up to date, audited 173 packages in 569ms
+1 moderate severity vulnerability
+EXIT=0
+
+$ npx playwright install chromium (cmd 2)
+EXIT=0
+
+$ npm run check (cmd 3)
+  83 passed (3.5s)
+&gt; test:smoke &gt; bash test/smoke/serve.sh
+ok[put]: served tree unchanged by PUT
+PASS: serve.sh smoke
+EXIT=0
+
+$ npm install (cmd 4)
+EXIT4=0
+
+$ npm run typecheck (cmd 5)
+&gt; tsc --noEmit
+EXIT5=0
+
+$ npm run test:unit (cmd 6)
+&gt; vitest run --config test/vitest.config.ts
+ Test Files  9 passed (9)
+      Tests  40 passed (40)
+   Duration  232ms
+EXIT6=0
+
+$ npm run build (cmd 7)
+  dist/comments.mjs  135.1kb  ⚡ Done in 2ms
+  dist/serve.mjs  272.1kb  ⚡ Done in 11ms
+EXIT7=0
+
+$ git diff --stat -- dist/comments.mjs dist/serve.mjs (cmd 8)
+ .../skills/htmldocs/dist/comments.mjs   |  Bin 130071 -&gt; 138363 bytes
+ .../useful-skills/skills/htmldocs/dist/serve.mjs   | 1558 ++++++++++++++++++--
+ 2 files changed, 1450 insertions(+), 108 deletions(-)
+EXIT8=0
+
+$ npm run check (cmd 9, final)
+ Test Files  9 passed (9)
+      Tests  40 passed (40)
+  83 passed (3.3s)
+PASS: serve.sh smoke
+EXIT9=0</pre>
+    </details>
   </section>
 
   <section data-kind="pr-card" id="pr3">

@@ -81,9 +81,9 @@ var bottom = 2;
 var left = 3;
 var UI = class {
   constructor(opts) {
-    var _a2;
+    var _a3;
     this.width = opts.width;
-    this.wrap = (_a2 = opts.wrap) !== null && _a2 !== void 0 ? _a2 : true;
+    this.wrap = (_a3 = opts.wrap) !== null && _a3 !== void 0 ? _a3 : true;
     this.rows = [];
   }
   span(...args) {
@@ -337,14 +337,14 @@ function ansiRegex({ onlyFirst = false } = {}) {
 
 // node_modules/strip-ansi/index.js
 var regex = ansiRegex();
-function stripAnsi(string) {
-  if (typeof string !== "string") {
-    throw new TypeError(`Expected a \`string\`, got \`${typeof string}\``);
+function stripAnsi(string3) {
+  if (typeof string3 !== "string") {
+    throw new TypeError(`Expected a \`string\`, got \`${typeof string3}\``);
   }
-  if (!string.includes("\x1B") && !string.includes("\x9B")) {
-    return string;
+  if (!string3.includes("\x1B") && !string3.includes("\x9B")) {
+    return string3;
   }
-  return string.replace(regex, "");
+  return string3.replace(regex, "");
 }
 
 // node_modules/get-east-asian-width/lookup-data.js
@@ -435,8 +435,8 @@ function eastAsianWidth(codePoint, { ambiguousAsWide = false } = {}) {
 var import_emoji_regex = __toESM(require_emoji_regex(), 1);
 var segmenter = new Intl.Segmenter();
 var defaultIgnorableCodePointRegex = new RegExp("^\\p{Default_Ignorable_Code_Point}$", "u");
-function stringWidth(string, options = {}) {
-  if (typeof string !== "string" || string.length === 0) {
+function stringWidth(string3, options = {}) {
+  if (typeof string3 !== "string" || string3.length === 0) {
     return 0;
   }
   const {
@@ -444,14 +444,14 @@ function stringWidth(string, options = {}) {
     countAnsiEscapeCodes = false
   } = options;
   if (!countAnsiEscapeCodes) {
-    string = stripAnsi(string);
+    string3 = stripAnsi(string3);
   }
-  if (string.length === 0) {
+  if (string3.length === 0) {
     return 0;
   }
   let width = 0;
   const eastAsianWidthOptions = { ambiguousAsWide: !ambiguousIsNarrow };
-  for (const { segment: character } of segmenter.segment(string)) {
+  for (const { segment: character } of segmenter.segment(string3)) {
     const codePoint = character.codePointAt(0);
     if (codePoint <= 31 || codePoint >= 127 && codePoint <= 159) {
       continue;
@@ -679,7 +679,7 @@ var ANSI_SGR_TERMINATOR = "m";
 var ANSI_ESCAPE_LINK = `${ANSI_OSC}8;;`;
 var wrapAnsiCode = (code) => `${ESCAPES.values().next().value}${ANSI_CSI}${code}${ANSI_SGR_TERMINATOR}`;
 var wrapAnsiHyperlink = (url) => `${ESCAPES.values().next().value}${ANSI_ESCAPE_LINK}${url}${ANSI_ESCAPE_BELL}`;
-var wordLengths = (string) => string.split(" ").map((character) => stringWidth(character));
+var wordLengths = (string3) => string3.split(" ").map((character) => stringWidth(character));
 var wrapWord = (rows, word, columns) => {
   const characters = [...word];
   let isInsideEscape = false;
@@ -719,8 +719,8 @@ var wrapWord = (rows, word, columns) => {
     rows[rows.length - 2] += rows.pop();
   }
 };
-var stringVisibleTrimSpacesRight = (string) => {
-  const words = string.split(" ");
+var stringVisibleTrimSpacesRight = (string3) => {
+  const words = string3.split(" ");
   let last = words.length;
   while (last > 0) {
     if (stringWidth(words[last - 1]) > 0) {
@@ -729,20 +729,20 @@ var stringVisibleTrimSpacesRight = (string) => {
     last--;
   }
   if (last === words.length) {
-    return string;
+    return string3;
   }
   return words.slice(0, last).join(" ") + words.slice(last).join("");
 };
-var exec = (string, columns, options = {}) => {
-  if (options.trim !== false && string.trim() === "") {
+var exec = (string3, columns, options = {}) => {
+  if (options.trim !== false && string3.trim() === "") {
     return "";
   }
   let returnValue = "";
   let escapeCode;
   let escapeUrl;
-  const lengths = wordLengths(string);
+  const lengths = wordLengths(string3);
   let rows = [""];
-  for (const [index, word] of string.split(" ").entries()) {
+  for (const [index, word] of string3.split(" ").entries()) {
     if (options.trim !== false) {
       rows[rows.length - 1] = rows.at(-1).trimStart();
     }
@@ -817,8 +817,8 @@ var exec = (string, columns, options = {}) => {
   }
   return returnValue;
 };
-function wrapAnsi(string, columns, options) {
-  return String(string).normalize().replaceAll("\r\n", "\n").split("\n").map((line) => exec(line, columns, options)).join("\n");
+function wrapAnsi(string3, columns, options) {
+  return String(string3).normalize().replaceAll("\r\n", "\n").split("\n").map((line) => exec(line, columns, options)).join("\n");
 }
 
 // node_modules/cliui/index.mjs
@@ -1433,23 +1433,23 @@ var YargsParser = class {
         const configPath = argv2[configKey] || configLookup[configKey];
         if (configPath) {
           try {
-            let config = null;
+            let config2 = null;
             const resolvedConfigPath = mixin2.resolve(mixin2.cwd(), configPath);
             const resolveConfig = flags.configs[configKey];
             if (typeof resolveConfig === "function") {
               try {
-                config = resolveConfig(resolvedConfigPath);
+                config2 = resolveConfig(resolvedConfigPath);
               } catch (e) {
-                config = e;
+                config2 = e;
               }
-              if (config instanceof Error) {
-                error = config;
+              if (config2 instanceof Error) {
+                error = config2;
                 return;
               }
             } else {
-              config = mixin2.require(resolvedConfigPath);
+              config2 = mixin2.require(resolvedConfigPath);
             }
-            setConfigObject(config);
+            setConfigObject(config2);
           } catch (ex) {
             if (ex.name === "PermissionDenied")
               error = ex;
@@ -1459,9 +1459,9 @@ var YargsParser = class {
         }
       });
     }
-    function setConfigObject(config, prev) {
-      Object.keys(config).forEach(function(key) {
-        const value = config[key];
+    function setConfigObject(config2, prev) {
+      Object.keys(config2).forEach(function(key) {
+        const value = config2[key];
         const fullKey = prev ? prev + "." + key : key;
         if (typeof value === "object" && value !== null && !Array.isArray(value) && configuration["dot-notation"]) {
           setConfigObject(value, fullKey);
@@ -2106,8 +2106,8 @@ function assertNotStrictEqual(actual, expected, shim3, message) {
 function assertSingleKey(actual, shim3) {
   shim3.assert.strictEqual(typeof actual, "string");
 }
-function objectKeys(object) {
-  return Object.keys(object);
+function objectKeys(object2) {
+  return Object.keys(object2);
 }
 
 // node_modules/yargs/build/lib/utils/is-promise.js
@@ -2191,14 +2191,14 @@ function argsert(arg1, arg2, arg3) {
         argumentTypeError(observedType, demanded.cmd, position);
       position += 1;
     });
-    parsed.optional.forEach((optional) => {
+    parsed.optional.forEach((optional2) => {
       if (args.length === 0)
         return;
       const arg = args.shift();
       const observedType = guessType(arg);
-      const matchingTypes = optional.cmd.filter((type) => type === observedType || type === "*");
+      const matchingTypes = optional2.cmd.filter((type) => type === observedType || type === "*");
       if (matchingTypes.length === 0)
-        argumentTypeError(observedType, optional.cmd, position);
+        argumentTypeError(observedType, optional2.cmd, position);
       position += 1;
     });
   } catch (err) {
@@ -2563,15 +2563,15 @@ var CommandInstance = class {
   populatePositionals(commandHandler, argv, context, yargs) {
     argv._ = argv._.slice(context.commands.length);
     const demanded = commandHandler.demanded.slice(0);
-    const optional = commandHandler.optional.slice(0);
+    const optional2 = commandHandler.optional.slice(0);
     const positionalMap = {};
     this.validation.positionalCount(demanded.length, argv._.length);
     while (demanded.length) {
       const demand = demanded.shift();
       this.populatePositional(demand, argv, positionalMap);
     }
-    while (optional.length) {
-      const maybe = optional.shift();
+    while (optional2.length) {
+      const maybe = optional2.shift();
       this.populatePositional(maybe, argv, positionalMap);
     }
     argv._ = context.commands.concat(argv._.map((a) => "" + a));
@@ -2633,11 +2633,11 @@ var CommandInstance = class {
     });
     if (!unparsed.length)
       return;
-    const config = Object.assign({}, options.configuration, {
+    const config2 = Object.assign({}, options.configuration, {
       "populate--": false
     });
     const parsed = this.shim.Parser.detailed(unparsed, Object.assign({}, options, {
-      configuration: config
+      configuration: config2
     }));
     if (parsed.error) {
       yargs.getInternalMethods().getUsageInstance().fail(parsed.error.message, parsed.error);
@@ -2684,8 +2684,8 @@ var CommandInstance = class {
     }
     return void 0;
   }
-  extractDesc({ describe, description, desc }) {
-    for (const test of [describe, description, desc]) {
+  extractDesc({ describe: describe2, description, desc }) {
+    for (const test of [describe2, description, desc]) {
       if (typeof test === "string" || test === false)
         return test;
       assertNotStrictEqual(test, true, this.shim);
@@ -2861,7 +2861,7 @@ function usage(yargs, shim3) {
   };
   self.getCommands = () => commands;
   let descriptions = {};
-  self.describe = function describe(keyOrKeys, desc) {
+  self.describe = function describe2(keyOrKeys, desc) {
     if (Array.isArray(keyOrKeys)) {
       keyOrKeys.forEach((k) => {
         self.describe(k, desc);
@@ -3171,37 +3171,37 @@ function usage(yargs, shim3) {
     return ["(", description, ")"].join("");
   };
   self.stringifiedValues = function stringifiedValues(values, separator) {
-    let string = "";
+    let string3 = "";
     const sep = separator || ", ";
-    const array = [].concat(values);
-    if (!values || !array.length)
-      return string;
-    array.forEach((value) => {
-      if (string.length)
-        string += sep;
-      string += JSON.stringify(value);
+    const array2 = [].concat(values);
+    if (!values || !array2.length)
+      return string3;
+    array2.forEach((value) => {
+      if (string3.length)
+        string3 += sep;
+      string3 += JSON.stringify(value);
     });
-    return string;
+    return string3;
   };
   function defaultString(value, defaultDescription) {
-    let string = `[${__("default:")} `;
+    let string3 = `[${__("default:")} `;
     if (value === void 0 && !defaultDescription)
       return null;
     if (defaultDescription) {
-      string += defaultDescription;
+      string3 += defaultDescription;
     } else {
       switch (typeof value) {
         case "string":
-          string += `"${value}"`;
+          string3 += `"${value}"`;
           break;
         case "object":
-          string += JSON.stringify(value);
+          string3 += JSON.stringify(value);
           break;
         default:
-          string += value;
+          string3 += value;
       }
     }
-    return `${string}]`;
+    return `${string3}]`;
   }
   function windowWidth() {
     const maxWidth2 = 80;
@@ -3211,16 +3211,16 @@ function usage(yargs, shim3) {
       return maxWidth2;
     }
   }
-  let version = null;
+  let version2 = null;
   self.version = (ver) => {
-    version = ver;
+    version2 = ver;
   };
   self.showVersion = (level) => {
     const logger = yargs.getInternalMethods().getLoggerInstance();
     if (!level)
       level = "error";
     const emit = typeof level === "function" ? level : logger[level];
-    emit(version);
+    emit(version2);
   };
   self.reset = function reset(localLookup) {
     failMessage = null;
@@ -3347,7 +3347,7 @@ fi
 // node_modules/yargs/build/lib/completion.js
 var Completion = class {
   constructor(yargs, usage2, command2, shim3) {
-    var _a2, _b2, _c2;
+    var _a3, _b2, _c2;
     this.yargs = yargs;
     this.usage = usage2;
     this.command = command2;
@@ -3356,7 +3356,7 @@ var Completion = class {
     this.aliases = null;
     this.customCompletionFunction = null;
     this.indexAfterLastReset = 0;
-    this.zshShell = (_c2 = ((_a2 = this.shim.getEnv("SHELL")) === null || _a2 === void 0 ? void 0 : _a2.includes("zsh")) || ((_b2 = this.shim.getEnv("ZSH_NAME")) === null || _b2 === void 0 ? void 0 : _b2.includes("zsh"))) !== null && _c2 !== void 0 ? _c2 : false;
+    this.zshShell = (_c2 = ((_a3 = this.shim.getEnv("SHELL")) === null || _a3 === void 0 ? void 0 : _a3.includes("zsh")) || ((_b2 = this.shim.getEnv("ZSH_NAME")) === null || _b2 === void 0 ? void 0 : _b2.includes("zsh"))) !== null && _c2 !== void 0 ? _c2 : false;
   }
   defaultCompletion(args, argv, current, done) {
     const handlers = this.command.getCommandHandlers();
@@ -3479,11 +3479,11 @@ var Completion = class {
     return false;
   }
   completeOptionKey(key, completions, current, negable) {
-    var _a2, _b2, _c2, _d;
+    var _a3, _b2, _c2, _d;
     let keyWithDesc = key;
     if (this.zshShell) {
       const descs = this.usage.getDescriptions();
-      const aliasKey = (_b2 = (_a2 = this === null || this === void 0 ? void 0 : this.aliases) === null || _a2 === void 0 ? void 0 : _a2[key]) === null || _b2 === void 0 ? void 0 : _b2.find((alias) => {
+      const aliasKey = (_b2 = (_a3 = this === null || this === void 0 ? void 0 : this.aliases) === null || _a3 === void 0 ? void 0 : _a3[key]) === null || _b2 === void 0 ? void 0 : _b2.find((alias) => {
         const desc2 = descs[alias];
         return typeof desc2 === "string" && desc2.length > 0;
       });
@@ -3614,9 +3614,9 @@ function validation(yargs, usage2, shim3) {
       }
     }
   };
-  self.positionalCount = function positionalCount(required, observed) {
-    if (observed < required) {
-      usage2.fail(__n("Not enough non-option arguments: got %s, need at least %s", "Not enough non-option arguments: got %s, need at least %s", observed, observed + "", required + ""));
+  self.positionalCount = function positionalCount(required2, observed) {
+    if (observed < required2) {
+      usage2.fail(__n("Not enough non-option arguments: got %s, need at least %s", "Not enough non-option arguments: got %s, need at least %s", observed, observed + "", required2 + ""));
     }
   };
   self.requiredArguments = function requiredArguments(argv, demandedOptions) {
@@ -3641,7 +3641,7 @@ ${customMsgs.join("\n")}` : "";
     }
   };
   self.unknownArguments = function unknownArguments(argv, aliases, positionalMap, isDefaultCommand, checkPositionals = true) {
-    var _a2;
+    var _a3;
     const commandKeys = yargs.getInternalMethods().getCommandInstance().getCommands();
     const unknown = [];
     const currentContext = yargs.getInternalMethods().getContext();
@@ -3659,7 +3659,7 @@ ${customMsgs.join("\n")}` : "";
     }
     if (checkPositionals) {
       const demandedCommands = yargs.getDemandedCommands();
-      const maxNonOptDemanded = ((_a2 = demandedCommands._) === null || _a2 === void 0 ? void 0 : _a2.max) || 0;
+      const maxNonOptDemanded = ((_a3 = demandedCommands._) === null || _a3 === void 0 ? void 0 : _a3.max) || 0;
       const expected = currentContext.commands.length + maxNonOptDemanded;
       if (expected < argv._.length) {
         argv._.slice(expected).forEach((key) => {
@@ -3860,31 +3860,31 @@ ${customMsgs.join("\n")}` : "";
 // node_modules/yargs/build/lib/utils/apply-extends.js
 var previouslyVisitedConfigs = [];
 var shim2;
-function applyExtends(config, cwd, mergeExtends, _shim) {
+function applyExtends(config2, cwd, mergeExtends, _shim) {
   shim2 = _shim;
   let defaultConfig = {};
-  if (Object.prototype.hasOwnProperty.call(config, "extends")) {
-    if (typeof config.extends !== "string")
+  if (Object.prototype.hasOwnProperty.call(config2, "extends")) {
+    if (typeof config2.extends !== "string")
       return defaultConfig;
-    const isPath = /\.json|\..*rc$/.test(config.extends);
+    const isPath = /\.json|\..*rc$/.test(config2.extends);
     let pathToDefault = null;
     if (!isPath) {
       try {
-        pathToDefault = import.meta.resolve(config.extends);
+        pathToDefault = import.meta.resolve(config2.extends);
       } catch (_err) {
-        return config;
+        return config2;
       }
     } else {
-      pathToDefault = getPathToDefaultConfig(cwd, config.extends);
+      pathToDefault = getPathToDefaultConfig(cwd, config2.extends);
     }
     checkForCircularExtends(pathToDefault);
     previouslyVisitedConfigs.push(pathToDefault);
-    defaultConfig = isPath ? JSON.parse(shim2.readFileSync(pathToDefault, "utf8")) : _shim.require(config.extends);
-    delete config.extends;
+    defaultConfig = isPath ? JSON.parse(shim2.readFileSync(pathToDefault, "utf8")) : _shim.require(config2.extends);
+    delete config2.extends;
     defaultConfig = applyExtends(defaultConfig, shim2.path.dirname(pathToDefault), mergeExtends, shim2);
   }
   previouslyVisitedConfigs = [];
-  return mergeExtends ? mergeDeep(defaultConfig, config) : Object.assign({}, defaultConfig, config);
+  return mergeExtends ? mergeDeep(defaultConfig, config2) : Object.assign({}, defaultConfig, config2);
 }
 function checkForCircularExtends(cfgPath) {
   if (previouslyVisitedConfigs.indexOf(cfgPath) > -1) {
@@ -3896,12 +3896,12 @@ function getPathToDefaultConfig(cwd, pathToExtend) {
 }
 function mergeDeep(config1, config2) {
   const target = {};
-  function isObject(obj) {
+  function isObject2(obj) {
     return obj && typeof obj === "object" && !Array.isArray(obj);
   }
   Object.assign(target, config1);
   for (const key of Object.keys(config2)) {
-    if (isObject(config2[key]) && isObject(target[key])) {
+    if (isObject2(config2[key]) && isObject2(target[key])) {
       target[key] = mergeDeep(config1[key], config2[key]);
     } else {
       target[key] = config2[key];
@@ -4155,8 +4155,8 @@ var YargsInstance = class {
     const coerceKey = keys;
     __classPrivateFieldGet(this, _YargsInstance_options, "f").key[coerceKey] = true;
     __classPrivateFieldGet(this, _YargsInstance_globalMiddleware, "f").addCoerceMiddleware((argv, yargs) => {
-      var _a2;
-      const coerceKeyAliases = (_a2 = yargs.getAliases()[coerceKey]) !== null && _a2 !== void 0 ? _a2 : [];
+      var _a3;
+      const coerceKeyAliases = (_a3 = yargs.getAliases()[coerceKey]) !== null && _a3 !== void 0 ? _a3 : [];
       const argvKeys = [coerceKey, ...coerceKeyAliases].filter((key) => Object.prototype.hasOwnProperty.call(argv, key));
       if (argvKeys.length === 0) {
         return argv;
@@ -4400,9 +4400,9 @@ var YargsInstance = class {
     __classPrivateFieldSet(this, _YargsInstance_hasOutput, true, "f");
     if (!__classPrivateFieldGet(this, _YargsInstance_usage, "f").hasCachedHelpMessage()) {
       if (!this.parsed) {
-        const parse = this[kRunYargsParserAndExecuteCommands](__classPrivateFieldGet(this, _YargsInstance_processArgs, "f"), void 0, void 0, 0, true);
-        if (isPromise(parse)) {
-          return parse.then(() => {
+        const parse2 = this[kRunYargsParserAndExecuteCommands](__classPrivateFieldGet(this, _YargsInstance_processArgs, "f"), void 0, void 0, 0, true);
+        if (isPromise(parse2)) {
+          return parse2.then(() => {
             return __classPrivateFieldGet(this, _YargsInstance_usage, "f").help();
           });
         }
@@ -4659,9 +4659,9 @@ var YargsInstance = class {
     }
     return maybePromise;
   }
-  parserConfiguration(config) {
-    argsert("<object>", [config], arguments.length);
-    __classPrivateFieldSet(this, _YargsInstance_parserConfig, config, "f");
+  parserConfiguration(config2) {
+    argsert("<object>", [config2], arguments.length);
+    __classPrivateFieldSet(this, _YargsInstance_parserConfig, config2, "f");
     return this;
   }
   pkgConf(key, rootPath) {
@@ -4746,9 +4746,9 @@ var YargsInstance = class {
     __classPrivateFieldSet(this, _YargsInstance_hasOutput, true, "f");
     if (!__classPrivateFieldGet(this, _YargsInstance_usage, "f").hasCachedHelpMessage()) {
       if (!this.parsed) {
-        const parse = this[kRunYargsParserAndExecuteCommands](__classPrivateFieldGet(this, _YargsInstance_processArgs, "f"), void 0, void 0, 0, true);
-        if (isPromise(parse)) {
-          parse.then(() => {
+        const parse2 = this[kRunYargsParserAndExecuteCommands](__classPrivateFieldGet(this, _YargsInstance_processArgs, "f"), void 0, void 0, 0, true);
+        if (isPromise(parse2)) {
+          parse2.then(() => {
             __classPrivateFieldGet(this, _YargsInstance_usage, "f").showHelp(level);
           });
           return this;
@@ -4833,9 +4833,9 @@ var YargsInstance = class {
       return this;
     }
   }
-  usageConfiguration(config) {
-    argsert("<object>", [config], arguments.length);
-    __classPrivateFieldSet(this, _YargsInstance_usageConfig, config, "f");
+  usageConfiguration(config2) {
+    argsert("<object>", [config2], arguments.length);
+    __classPrivateFieldSet(this, _YargsInstance_usageConfig, config2, "f");
     return this;
   }
   version(opt, msg, ver) {
@@ -5049,13 +5049,13 @@ var YargsInstance = class {
     return this;
   }
   [kUnfreeze]() {
-    var _a2, _b2, _c2, _d, _e, _f, _g, _h, _j, _k, _l, _m;
+    var _a3, _b2, _c2, _d, _e, _f, _g, _h, _j, _k, _l, _m;
     const frozen = __classPrivateFieldGet(this, _YargsInstance_frozens, "f").pop();
     assertNotStrictEqual(frozen, void 0, __classPrivateFieldGet(this, _YargsInstance_shim, "f"));
     let configObjects;
-    _a2 = this, _b2 = this, _c2 = this, _d = this, _e = this, _f = this, _g = this, _h = this, _j = this, _k = this, _l = this, _m = this, {
+    _a3 = this, _b2 = this, _c2 = this, _d = this, _e = this, _f = this, _g = this, _h = this, _j = this, _k = this, _l = this, _m = this, {
       options: { set value(_o) {
-        __classPrivateFieldSet(_a2, _YargsInstance_options, _o, "f");
+        __classPrivateFieldSet(_a3, _YargsInstance_options, _o, "f");
       } }.value,
       configObjects,
       exitProcess: { set value(_o) {
@@ -5236,17 +5236,17 @@ var YargsInstance = class {
     return __classPrivateFieldGet(this, _YargsInstance_shim, "f").path.relative(base, dir);
   }
   [kRunYargsParserAndExecuteCommands](args, shortCircuit, calledFromCommand, commandIndex = 0, helpOnly = false) {
-    var _a2, _b2, _c2, _d;
+    var _a3, _b2, _c2, _d;
     let skipValidation = !!calledFromCommand || helpOnly;
     args = args || __classPrivateFieldGet(this, _YargsInstance_processArgs, "f");
     __classPrivateFieldGet(this, _YargsInstance_options, "f").__ = __classPrivateFieldGet(this, _YargsInstance_shim, "f").y18n.__;
     __classPrivateFieldGet(this, _YargsInstance_options, "f").configuration = this[kGetParserConfiguration]();
     const populateDoubleDash = !!__classPrivateFieldGet(this, _YargsInstance_options, "f").configuration["populate--"];
-    const config = Object.assign({}, __classPrivateFieldGet(this, _YargsInstance_options, "f").configuration, {
+    const config2 = Object.assign({}, __classPrivateFieldGet(this, _YargsInstance_options, "f").configuration, {
       "populate--": true
     });
     const parsed = __classPrivateFieldGet(this, _YargsInstance_shim, "f").Parser.detailed(args, Object.assign({}, __classPrivateFieldGet(this, _YargsInstance_options, "f"), {
-      configuration: { "parse-positional-numbers": false, ...config }
+      configuration: { "parse-positional-numbers": false, ...config2 }
     }));
     const argv = Object.assign(parsed.argv, __classPrivateFieldGet(this, _YargsInstance_parseContext, "f"));
     let argvPromise = void 0;
@@ -5279,7 +5279,7 @@ var YargsInstance = class {
       }
       __classPrivateFieldSet(this, _YargsInstance_isGlobalContext, false, "f");
       const handlerKeys = __classPrivateFieldGet(this, _YargsInstance_command, "f").getCommands();
-      const requestCompletions = ((_a2 = __classPrivateFieldGet(this, _YargsInstance_completion, "f")) === null || _a2 === void 0 ? void 0 : _a2.completionKey) ? [
+      const requestCompletions = ((_a3 = __classPrivateFieldGet(this, _YargsInstance_completion, "f")) === null || _a3 === void 0 ? void 0 : _a3.completionKey) ? [
         (_b2 = __classPrivateFieldGet(this, _YargsInstance_completion, "f")) === null || _b2 === void 0 ? void 0 : _b2.completionKey,
         ...(_d = this.getAliases()[(_c2 = __classPrivateFieldGet(this, _YargsInstance_completion, "f")) === null || _c2 === void 0 ? void 0 : _c2.completionKey]) !== null && _d !== void 0 ? _d : []
       ].some((key) => Object.prototype.hasOwnProperty.call(argv, key)) : false;
@@ -5429,6 +5429,1293 @@ function injectIntoHtml(html, model) {
   if (idx === -1) return html + "\n" + blocks;
   return html.slice(0, idx) + blocks + html.slice(idx);
 }
+
+// node_modules/zod/v4/core/core.js
+var _a2;
+// @__NO_SIDE_EFFECTS__
+function $constructor(name, initializer2, params) {
+  function init(inst, def) {
+    if (!inst._zod) {
+      Object.defineProperty(inst, "_zod", {
+        value: {
+          def,
+          constr: _,
+          traits: /* @__PURE__ */ new Set()
+        },
+        enumerable: false
+      });
+    }
+    if (inst._zod.traits.has(name)) {
+      return;
+    }
+    inst._zod.traits.add(name);
+    initializer2(inst, def);
+    const proto = _.prototype;
+    const keys = Object.keys(proto);
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i];
+      if (!(k in inst)) {
+        inst[k] = proto[k].bind(inst);
+      }
+    }
+  }
+  const Parent = params?.Parent ?? Object;
+  class Definition extends Parent {
+  }
+  Object.defineProperty(Definition, "name", { value: name });
+  function _(def) {
+    var _a3;
+    const inst = params?.Parent ? new Definition() : this;
+    init(inst, def);
+    (_a3 = inst._zod).deferred ?? (_a3.deferred = []);
+    for (const fn of inst._zod.deferred) {
+      fn();
+    }
+    return inst;
+  }
+  Object.defineProperty(_, "init", { value: init });
+  Object.defineProperty(_, Symbol.hasInstance, {
+    value: (inst) => {
+      if (params?.Parent && inst instanceof params.Parent)
+        return true;
+      return inst?._zod?.traits?.has(name);
+    }
+  });
+  Object.defineProperty(_, "name", { value: name });
+  return _;
+}
+var $brand = Symbol("zod_brand");
+var $ZodAsyncError = class extends Error {
+  constructor() {
+    super(`Encountered Promise during synchronous parse. Use .parseAsync() instead.`);
+  }
+};
+(_a2 = globalThis).__zod_globalConfig ?? (_a2.__zod_globalConfig = {});
+var globalConfig = globalThis.__zod_globalConfig;
+function config(newConfig) {
+  if (newConfig)
+    Object.assign(globalConfig, newConfig);
+  return globalConfig;
+}
+
+// node_modules/zod/v4/core/util.js
+function jsonStringifyReplacer(_, value) {
+  if (typeof value === "bigint")
+    return value.toString();
+  return value;
+}
+function cached(getter) {
+  const set = false;
+  return {
+    get value() {
+      if (!set) {
+        const value = getter();
+        Object.defineProperty(this, "value", { value });
+        return value;
+      }
+      throw new Error("cached value already set");
+    }
+  };
+}
+function cleanRegex(source) {
+  const start = source.startsWith("^") ? 1 : 0;
+  const end = source.endsWith("$") ? source.length - 1 : source.length;
+  return source.slice(start, end);
+}
+var EVALUATING = /* @__PURE__ */ Symbol("evaluating");
+function defineLazy(object2, key, getter) {
+  let value = void 0;
+  Object.defineProperty(object2, key, {
+    get() {
+      if (value === EVALUATING) {
+        return void 0;
+      }
+      if (value === void 0) {
+        value = EVALUATING;
+        value = getter();
+      }
+      return value;
+    },
+    set(v) {
+      Object.defineProperty(object2, key, {
+        value: v
+        // configurable: true,
+      });
+    },
+    configurable: true
+  });
+}
+var captureStackTrace = "captureStackTrace" in Error ? Error.captureStackTrace : (..._args) => {
+};
+function isObject(data) {
+  return typeof data === "object" && data !== null && !Array.isArray(data);
+}
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function clone(inst, def, params) {
+  const cl = new inst._zod.constr(def ?? inst._zod.def);
+  if (!def || params?.parent)
+    cl._zod.parent = inst;
+  return cl;
+}
+function normalizeParams(_params) {
+  const params = _params;
+  if (!params)
+    return {};
+  if (typeof params === "string")
+    return { error: () => params };
+  if (params?.message !== void 0) {
+    if (params?.error !== void 0)
+      throw new Error("Cannot specify both `message` and `error` params");
+    params.error = params.message;
+  }
+  delete params.message;
+  if (typeof params.error === "string")
+    return { ...params, error: () => params.error };
+  return params;
+}
+function optionalKeys(shape) {
+  return Object.keys(shape).filter((k) => {
+    return shape[k]._zod.optin === "optional" && shape[k]._zod.optout === "optional";
+  });
+}
+var NUMBER_FORMAT_RANGES = {
+  safeint: [Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+  int32: [-2147483648, 2147483647],
+  uint32: [0, 4294967295],
+  float32: [-34028234663852886e22, 34028234663852886e22],
+  float64: [-Number.MAX_VALUE, Number.MAX_VALUE]
+};
+function aborted(x, startIndex = 0) {
+  if (x.aborted === true)
+    return true;
+  for (let i = startIndex; i < x.issues.length; i++) {
+    if (x.issues[i]?.continue !== true) {
+      return true;
+    }
+  }
+  return false;
+}
+function explicitlyAborted(x, startIndex = 0) {
+  if (x.aborted === true)
+    return true;
+  for (let i = startIndex; i < x.issues.length; i++) {
+    if (x.issues[i]?.continue === false) {
+      return true;
+    }
+  }
+  return false;
+}
+function prefixIssues(path2, issues) {
+  return issues.map((iss) => {
+    var _a3;
+    (_a3 = iss).path ?? (_a3.path = []);
+    iss.path.unshift(path2);
+    return iss;
+  });
+}
+function unwrapMessage(message) {
+  return typeof message === "string" ? message : message?.message;
+}
+function finalizeIssue(iss, ctx, config2) {
+  const message = iss.message ? iss.message : unwrapMessage(iss.inst?._zod.def?.error?.(iss)) ?? unwrapMessage(ctx?.error?.(iss)) ?? unwrapMessage(config2.customError?.(iss)) ?? unwrapMessage(config2.localeError?.(iss)) ?? "Invalid input";
+  const { inst: _inst, continue: _continue, input: _input, ...rest } = iss;
+  rest.path ?? (rest.path = []);
+  rest.message = message;
+  if (ctx?.reportInput) {
+    rest.input = _input;
+  }
+  return rest;
+}
+
+// node_modules/zod/v4/core/errors.js
+var initializer = (inst, def) => {
+  inst.name = "$ZodError";
+  Object.defineProperty(inst, "_zod", {
+    value: inst._zod,
+    enumerable: false
+  });
+  Object.defineProperty(inst, "issues", {
+    value: def,
+    enumerable: false
+  });
+  inst.message = JSON.stringify(def, jsonStringifyReplacer, 2);
+  Object.defineProperty(inst, "toString", {
+    value: () => inst.message,
+    enumerable: false
+  });
+};
+var $ZodError = $constructor("$ZodError", initializer);
+var $ZodRealError = $constructor("$ZodError", initializer, { Parent: Error });
+
+// node_modules/zod/v4/core/parse.js
+var _parse = (_Err) => (schema, value, _ctx, _params) => {
+  const ctx = _ctx ? { ..._ctx, async: false } : { async: false };
+  const result = schema._zod.run({ value, issues: [] }, ctx);
+  if (result instanceof Promise) {
+    throw new $ZodAsyncError();
+  }
+  if (result.issues.length) {
+    const e = new (_params?.Err ?? _Err)(result.issues.map((iss) => finalizeIssue(iss, ctx, config())));
+    captureStackTrace(e, _params?.callee);
+    throw e;
+  }
+  return result.value;
+};
+var parse = /* @__PURE__ */ _parse($ZodRealError);
+var _parseAsync = (_Err) => async (schema, value, _ctx, params) => {
+  const ctx = _ctx ? { ..._ctx, async: true } : { async: true };
+  let result = schema._zod.run({ value, issues: [] }, ctx);
+  if (result instanceof Promise)
+    result = await result;
+  if (result.issues.length) {
+    const e = new (params?.Err ?? _Err)(result.issues.map((iss) => finalizeIssue(iss, ctx, config())));
+    captureStackTrace(e, params?.callee);
+    throw e;
+  }
+  return result.value;
+};
+var parseAsync = /* @__PURE__ */ _parseAsync($ZodRealError);
+var _safeParse = (_Err) => (schema, value, _ctx) => {
+  const ctx = _ctx ? { ..._ctx, async: false } : { async: false };
+  const result = schema._zod.run({ value, issues: [] }, ctx);
+  if (result instanceof Promise) {
+    throw new $ZodAsyncError();
+  }
+  return result.issues.length ? {
+    success: false,
+    error: new (_Err ?? $ZodError)(result.issues.map((iss) => finalizeIssue(iss, ctx, config())))
+  } : { success: true, data: result.value };
+};
+var safeParse = /* @__PURE__ */ _safeParse($ZodRealError);
+var _safeParseAsync = (_Err) => async (schema, value, _ctx) => {
+  const ctx = _ctx ? { ..._ctx, async: true } : { async: true };
+  let result = schema._zod.run({ value, issues: [] }, ctx);
+  if (result instanceof Promise)
+    result = await result;
+  return result.issues.length ? {
+    success: false,
+    error: new _Err(result.issues.map((iss) => finalizeIssue(iss, ctx, config())))
+  } : { success: true, data: result.value };
+};
+var safeParseAsync = /* @__PURE__ */ _safeParseAsync($ZodRealError);
+
+// node_modules/zod/v4/core/regexes.js
+var dateSource = `(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))`;
+var date = /* @__PURE__ */ new RegExp(`^${dateSource}$`);
+var string = (params) => {
+  const regex2 = params ? `[\\s\\S]{${params?.minimum ?? 0},${params?.maximum ?? ""}}` : `[\\s\\S]*`;
+  return new RegExp(`^${regex2}$`);
+};
+
+// node_modules/zod/v4/core/versions.js
+var version = {
+  major: 4,
+  minor: 4,
+  patch: 3
+};
+
+// node_modules/zod/v4/core/schemas.js
+var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
+  var _a3;
+  inst ?? (inst = {});
+  inst._zod.def = def;
+  inst._zod.bag = inst._zod.bag || {};
+  inst._zod.version = version;
+  const checks = [...inst._zod.def.checks ?? []];
+  if (inst._zod.traits.has("$ZodCheck")) {
+    checks.unshift(inst);
+  }
+  for (const ch of checks) {
+    for (const fn of ch._zod.onattach) {
+      fn(inst);
+    }
+  }
+  if (checks.length === 0) {
+    (_a3 = inst._zod).deferred ?? (_a3.deferred = []);
+    inst._zod.deferred?.push(() => {
+      inst._zod.run = inst._zod.parse;
+    });
+  } else {
+    const runChecks = (payload, checks2, ctx) => {
+      let isAborted = aborted(payload);
+      let asyncResult;
+      for (const ch of checks2) {
+        if (ch._zod.def.when) {
+          if (explicitlyAborted(payload))
+            continue;
+          const shouldRun = ch._zod.def.when(payload);
+          if (!shouldRun)
+            continue;
+        } else if (isAborted) {
+          continue;
+        }
+        const currLen = payload.issues.length;
+        const _ = ch._zod.check(payload);
+        if (_ instanceof Promise && ctx?.async === false) {
+          throw new $ZodAsyncError();
+        }
+        if (asyncResult || _ instanceof Promise) {
+          asyncResult = (asyncResult ?? Promise.resolve()).then(async () => {
+            await _;
+            const nextLen = payload.issues.length;
+            if (nextLen === currLen)
+              return;
+            if (!isAborted)
+              isAborted = aborted(payload, currLen);
+          });
+        } else {
+          const nextLen = payload.issues.length;
+          if (nextLen === currLen)
+            continue;
+          if (!isAborted)
+            isAborted = aborted(payload, currLen);
+        }
+      }
+      if (asyncResult) {
+        return asyncResult.then(() => {
+          return payload;
+        });
+      }
+      return payload;
+    };
+    const handleCanaryResult = (canary, payload, ctx) => {
+      if (aborted(canary)) {
+        canary.aborted = true;
+        return canary;
+      }
+      const checkResult = runChecks(payload, checks, ctx);
+      if (checkResult instanceof Promise) {
+        if (ctx.async === false)
+          throw new $ZodAsyncError();
+        return checkResult.then((checkResult2) => inst._zod.parse(checkResult2, ctx));
+      }
+      return inst._zod.parse(checkResult, ctx);
+    };
+    inst._zod.run = (payload, ctx) => {
+      if (ctx.skipChecks) {
+        return inst._zod.parse(payload, ctx);
+      }
+      if (ctx.direction === "backward") {
+        const canary = inst._zod.parse({ value: payload.value, issues: [] }, { ...ctx, skipChecks: true });
+        if (canary instanceof Promise) {
+          return canary.then((canary2) => {
+            return handleCanaryResult(canary2, payload, ctx);
+          });
+        }
+        return handleCanaryResult(canary, payload, ctx);
+      }
+      const result = inst._zod.parse(payload, ctx);
+      if (result instanceof Promise) {
+        if (ctx.async === false)
+          throw new $ZodAsyncError();
+        return result.then((result2) => runChecks(result2, checks, ctx));
+      }
+      return runChecks(result, checks, ctx);
+    };
+  }
+  defineLazy(inst, "~standard", () => ({
+    validate: (value) => {
+      try {
+        const r = safeParse(inst, value);
+        return r.success ? { value: r.data } : { issues: r.error?.issues };
+      } catch (_) {
+        return safeParseAsync(inst, value).then((r) => r.success ? { value: r.data } : { issues: r.error?.issues });
+      }
+    },
+    vendor: "zod",
+    version: 1
+  }));
+});
+var $ZodString = /* @__PURE__ */ $constructor("$ZodString", (inst, def) => {
+  $ZodType.init(inst, def);
+  inst._zod.pattern = [...inst?._zod.bag?.patterns ?? []].pop() ?? string(inst._zod.bag);
+  inst._zod.parse = (payload, _) => {
+    if (def.coerce)
+      try {
+        payload.value = String(payload.value);
+      } catch (_2) {
+      }
+    if (typeof payload.value === "string")
+      return payload;
+    payload.issues.push({
+      expected: "string",
+      code: "invalid_type",
+      input: payload.value,
+      inst
+    });
+    return payload;
+  };
+});
+function handleArrayResult(result, final, index) {
+  if (result.issues.length) {
+    final.issues.push(...prefixIssues(index, result.issues));
+  }
+  final.value[index] = result.value;
+}
+var $ZodArray = /* @__PURE__ */ $constructor("$ZodArray", (inst, def) => {
+  $ZodType.init(inst, def);
+  inst._zod.parse = (payload, ctx) => {
+    const input = payload.value;
+    if (!Array.isArray(input)) {
+      payload.issues.push({
+        expected: "array",
+        code: "invalid_type",
+        input,
+        inst
+      });
+      return payload;
+    }
+    payload.value = Array(input.length);
+    const proms = [];
+    for (let i = 0; i < input.length; i++) {
+      const item = input[i];
+      const result = def.element._zod.run({
+        value: item,
+        issues: []
+      }, ctx);
+      if (result instanceof Promise) {
+        proms.push(result.then((result2) => handleArrayResult(result2, payload, i)));
+      } else {
+        handleArrayResult(result, payload, i);
+      }
+    }
+    if (proms.length) {
+      return Promise.all(proms).then(() => payload);
+    }
+    return payload;
+  };
+});
+function handlePropertyResult(result, final, key, input, isOptionalIn, isOptionalOut) {
+  const isPresent = key in input;
+  if (result.issues.length) {
+    if (isOptionalIn && isOptionalOut && !isPresent) {
+      return;
+    }
+    final.issues.push(...prefixIssues(key, result.issues));
+  }
+  if (!isPresent && !isOptionalIn) {
+    if (!result.issues.length) {
+      final.issues.push({
+        code: "invalid_type",
+        expected: "nonoptional",
+        input: void 0,
+        path: [key]
+      });
+    }
+    return;
+  }
+  if (result.value === void 0) {
+    if (isPresent) {
+      final.value[key] = void 0;
+    }
+  } else {
+    final.value[key] = result.value;
+  }
+}
+function normalizeDef(def) {
+  const keys = Object.keys(def.shape);
+  for (const k of keys) {
+    if (!def.shape?.[k]?._zod?.traits?.has("$ZodType")) {
+      throw new Error(`Invalid element at key "${k}": expected a Zod schema`);
+    }
+  }
+  const okeys = optionalKeys(def.shape);
+  return {
+    ...def,
+    keys,
+    keySet: new Set(keys),
+    numKeys: keys.length,
+    optionalKeys: new Set(okeys)
+  };
+}
+function handleCatchall(proms, input, payload, ctx, def, inst) {
+  const unrecognized = [];
+  const keySet = def.keySet;
+  const _catchall = def.catchall._zod;
+  const t = _catchall.def.type;
+  const isOptionalIn = _catchall.optin === "optional";
+  const isOptionalOut = _catchall.optout === "optional";
+  for (const key in input) {
+    if (key === "__proto__")
+      continue;
+    if (keySet.has(key))
+      continue;
+    if (t === "never") {
+      unrecognized.push(key);
+      continue;
+    }
+    const r = _catchall.run({ value: input[key], issues: [] }, ctx);
+    if (r instanceof Promise) {
+      proms.push(r.then((r2) => handlePropertyResult(r2, payload, key, input, isOptionalIn, isOptionalOut)));
+    } else {
+      handlePropertyResult(r, payload, key, input, isOptionalIn, isOptionalOut);
+    }
+  }
+  if (unrecognized.length) {
+    payload.issues.push({
+      code: "unrecognized_keys",
+      keys: unrecognized,
+      input,
+      inst
+    });
+  }
+  if (!proms.length)
+    return payload;
+  return Promise.all(proms).then(() => {
+    return payload;
+  });
+}
+var $ZodObject = /* @__PURE__ */ $constructor("$ZodObject", (inst, def) => {
+  $ZodType.init(inst, def);
+  const desc = Object.getOwnPropertyDescriptor(def, "shape");
+  if (!desc?.get) {
+    const sh = def.shape;
+    Object.defineProperty(def, "shape", {
+      get: () => {
+        const newSh = { ...sh };
+        Object.defineProperty(def, "shape", {
+          value: newSh
+        });
+        return newSh;
+      }
+    });
+  }
+  const _normalized = cached(() => normalizeDef(def));
+  defineLazy(inst._zod, "propValues", () => {
+    const shape = def.shape;
+    const propValues = {};
+    for (const key in shape) {
+      const field = shape[key]._zod;
+      if (field.values) {
+        propValues[key] ?? (propValues[key] = /* @__PURE__ */ new Set());
+        for (const v of field.values)
+          propValues[key].add(v);
+      }
+    }
+    return propValues;
+  });
+  const isObject2 = isObject;
+  const catchall = def.catchall;
+  let value;
+  inst._zod.parse = (payload, ctx) => {
+    value ?? (value = _normalized.value);
+    const input = payload.value;
+    if (!isObject2(input)) {
+      payload.issues.push({
+        expected: "object",
+        code: "invalid_type",
+        input,
+        inst
+      });
+      return payload;
+    }
+    payload.value = {};
+    const proms = [];
+    const shape = value.shape;
+    for (const key of value.keys) {
+      const el = shape[key];
+      const isOptionalIn = el._zod.optin === "optional";
+      const isOptionalOut = el._zod.optout === "optional";
+      const r = el._zod.run({ value: input[key], issues: [] }, ctx);
+      if (r instanceof Promise) {
+        proms.push(r.then((r2) => handlePropertyResult(r2, payload, key, input, isOptionalIn, isOptionalOut)));
+      } else {
+        handlePropertyResult(r, payload, key, input, isOptionalIn, isOptionalOut);
+      }
+    }
+    if (!catchall) {
+      return proms.length ? Promise.all(proms).then(() => payload) : payload;
+    }
+    return handleCatchall(proms, input, payload, ctx, _normalized.value, inst);
+  };
+});
+function handleUnionResults(results, final, inst, ctx) {
+  for (const result of results) {
+    if (result.issues.length === 0) {
+      final.value = result.value;
+      return final;
+    }
+  }
+  const nonaborted = results.filter((r) => !aborted(r));
+  if (nonaborted.length === 1) {
+    final.value = nonaborted[0].value;
+    return nonaborted[0];
+  }
+  final.issues.push({
+    code: "invalid_union",
+    input: final.value,
+    inst,
+    errors: results.map((result) => result.issues.map((iss) => finalizeIssue(iss, ctx, config())))
+  });
+  return final;
+}
+var $ZodUnion = /* @__PURE__ */ $constructor("$ZodUnion", (inst, def) => {
+  $ZodType.init(inst, def);
+  defineLazy(inst._zod, "optin", () => def.options.some((o) => o._zod.optin === "optional") ? "optional" : void 0);
+  defineLazy(inst._zod, "optout", () => def.options.some((o) => o._zod.optout === "optional") ? "optional" : void 0);
+  defineLazy(inst._zod, "values", () => {
+    if (def.options.every((o) => o._zod.values)) {
+      return new Set(def.options.flatMap((option) => Array.from(option._zod.values)));
+    }
+    return void 0;
+  });
+  defineLazy(inst._zod, "pattern", () => {
+    if (def.options.every((o) => o._zod.pattern)) {
+      const patterns = def.options.map((o) => o._zod.pattern);
+      return new RegExp(`^(${patterns.map((p) => cleanRegex(p.source)).join("|")})$`);
+    }
+    return void 0;
+  });
+  const first = def.options.length === 1 ? def.options[0]._zod.run : null;
+  inst._zod.parse = (payload, ctx) => {
+    if (first) {
+      return first(payload, ctx);
+    }
+    let async = false;
+    const results = [];
+    for (const option of def.options) {
+      const result = option._zod.run({
+        value: payload.value,
+        issues: []
+      }, ctx);
+      if (result instanceof Promise) {
+        results.push(result);
+        async = true;
+      } else {
+        if (result.issues.length === 0)
+          return result;
+        results.push(result);
+      }
+    }
+    if (!async)
+      return handleUnionResults(results, payload, inst, ctx);
+    return Promise.all(results).then((results2) => {
+      return handleUnionResults(results2, payload, inst, ctx);
+    });
+  };
+});
+var $ZodDiscriminatedUnion = /* @__PURE__ */ $constructor("$ZodDiscriminatedUnion", (inst, def) => {
+  def.inclusive = false;
+  $ZodUnion.init(inst, def);
+  const _super = inst._zod.parse;
+  defineLazy(inst._zod, "propValues", () => {
+    const propValues = {};
+    for (const option of def.options) {
+      const pv = option._zod.propValues;
+      if (!pv || Object.keys(pv).length === 0)
+        throw new Error(`Invalid discriminated union option at index "${def.options.indexOf(option)}"`);
+      for (const [k, v] of Object.entries(pv)) {
+        if (!propValues[k])
+          propValues[k] = /* @__PURE__ */ new Set();
+        for (const val of v) {
+          propValues[k].add(val);
+        }
+      }
+    }
+    return propValues;
+  });
+  const disc = cached(() => {
+    const opts = def.options;
+    const map = /* @__PURE__ */ new Map();
+    for (const o of opts) {
+      const values = o._zod.propValues?.[def.discriminator];
+      if (!values || values.size === 0)
+        throw new Error(`Invalid discriminated union option at index "${def.options.indexOf(o)}"`);
+      for (const v of values) {
+        if (map.has(v)) {
+          throw new Error(`Duplicate discriminator value "${String(v)}"`);
+        }
+        map.set(v, o);
+      }
+    }
+    return map;
+  });
+  inst._zod.parse = (payload, ctx) => {
+    const input = payload.value;
+    if (!isObject(input)) {
+      payload.issues.push({
+        code: "invalid_type",
+        expected: "object",
+        input,
+        inst
+      });
+      return payload;
+    }
+    const opt = disc.value.get(input?.[def.discriminator]);
+    if (opt) {
+      return opt._zod.run(payload, ctx);
+    }
+    if (def.unionFallback || ctx.direction === "backward") {
+      return _super(payload, ctx);
+    }
+    payload.issues.push({
+      code: "invalid_union",
+      errors: [],
+      note: "No matching discriminator",
+      discriminator: def.discriminator,
+      options: Array.from(disc.value.keys()),
+      input,
+      path: [def.discriminator],
+      inst
+    });
+    return payload;
+  };
+});
+var $ZodLiteral = /* @__PURE__ */ $constructor("$ZodLiteral", (inst, def) => {
+  $ZodType.init(inst, def);
+  if (def.values.length === 0) {
+    throw new Error("Cannot create literal schema with no valid values");
+  }
+  const values = new Set(def.values);
+  inst._zod.values = values;
+  inst._zod.pattern = new RegExp(`^(${def.values.map((o) => typeof o === "string" ? escapeRegex(o) : o ? escapeRegex(o.toString()) : String(o)).join("|")})$`);
+  inst._zod.parse = (payload, _ctx) => {
+    const input = payload.value;
+    if (values.has(input)) {
+      return payload;
+    }
+    payload.issues.push({
+      code: "invalid_value",
+      values: def.values,
+      input,
+      inst
+    });
+    return payload;
+  };
+});
+function handleOptionalResult(result, input) {
+  if (input === void 0 && (result.issues.length || result.fallback)) {
+    return { issues: [], value: void 0 };
+  }
+  return result;
+}
+var $ZodOptional = /* @__PURE__ */ $constructor("$ZodOptional", (inst, def) => {
+  $ZodType.init(inst, def);
+  inst._zod.optin = "optional";
+  inst._zod.optout = "optional";
+  defineLazy(inst._zod, "values", () => {
+    return def.innerType._zod.values ? /* @__PURE__ */ new Set([...def.innerType._zod.values, void 0]) : void 0;
+  });
+  defineLazy(inst._zod, "pattern", () => {
+    const pattern = def.innerType._zod.pattern;
+    return pattern ? new RegExp(`^(${cleanRegex(pattern.source)})?$`) : void 0;
+  });
+  inst._zod.parse = (payload, ctx) => {
+    if (def.innerType._zod.optin === "optional") {
+      const input = payload.value;
+      const result = def.innerType._zod.run(payload, ctx);
+      if (result instanceof Promise)
+        return result.then((r) => handleOptionalResult(r, input));
+      return handleOptionalResult(result, input);
+    }
+    if (payload.value === void 0) {
+      return payload;
+    }
+    return def.innerType._zod.run(payload, ctx);
+  };
+});
+
+// node_modules/zod/v4/core/api.js
+// @__NO_SIDE_EFFECTS__
+function _string(Class, params) {
+  return new Class({
+    type: "string",
+    ...normalizeParams(params)
+  });
+}
+
+// node_modules/zod/v4/mini/schemas.js
+var ZodMiniType = /* @__PURE__ */ $constructor("ZodMiniType", (inst, def) => {
+  if (!inst._zod)
+    throw new Error("Uninitialized schema in ZodMiniType.");
+  $ZodType.init(inst, def);
+  inst.def = def;
+  inst.type = def.type;
+  inst.parse = (data, params) => parse(inst, data, params, { callee: inst.parse });
+  inst.safeParse = (data, params) => safeParse(inst, data, params);
+  inst.parseAsync = async (data, params) => parseAsync(inst, data, params, { callee: inst.parseAsync });
+  inst.safeParseAsync = async (data, params) => safeParseAsync(inst, data, params);
+  inst.check = (...checks) => {
+    return inst.clone({
+      ...def,
+      checks: [
+        ...def.checks ?? [],
+        ...checks.map((ch) => typeof ch === "function" ? {
+          _zod: { check: ch, def: { check: "custom" }, onattach: [] }
+        } : ch)
+      ]
+    }, { parent: true });
+  };
+  inst.with = inst.check;
+  inst.clone = (_def, params) => clone(inst, _def, params);
+  inst.brand = () => inst;
+  inst.register = (reg, meta2) => {
+    reg.add(inst, meta2);
+    return inst;
+  };
+  inst.apply = (fn) => fn(inst);
+});
+var ZodMiniString = /* @__PURE__ */ $constructor("ZodMiniString", (inst, def) => {
+  $ZodString.init(inst, def);
+  ZodMiniType.init(inst, def);
+});
+// @__NO_SIDE_EFFECTS__
+function string2(params) {
+  return _string(ZodMiniString, params);
+}
+var ZodMiniArray = /* @__PURE__ */ $constructor("ZodMiniArray", (inst, def) => {
+  $ZodArray.init(inst, def);
+  ZodMiniType.init(inst, def);
+});
+// @__NO_SIDE_EFFECTS__
+function array(element, params) {
+  return new ZodMiniArray({
+    type: "array",
+    element,
+    ...normalizeParams(params)
+  });
+}
+var ZodMiniObject = /* @__PURE__ */ $constructor("ZodMiniObject", (inst, def) => {
+  $ZodObject.init(inst, def);
+  ZodMiniType.init(inst, def);
+  defineLazy(inst, "shape", () => def.shape);
+});
+// @__NO_SIDE_EFFECTS__
+function object(shape, params) {
+  const def = {
+    type: "object",
+    shape: shape ?? {},
+    ...normalizeParams(params)
+  };
+  return new ZodMiniObject(def);
+}
+var ZodMiniUnion = /* @__PURE__ */ $constructor("ZodMiniUnion", (inst, def) => {
+  $ZodUnion.init(inst, def);
+  ZodMiniType.init(inst, def);
+});
+// @__NO_SIDE_EFFECTS__
+function union(options, params) {
+  return new ZodMiniUnion({
+    type: "union",
+    options,
+    ...normalizeParams(params)
+  });
+}
+var ZodMiniDiscriminatedUnion = /* @__PURE__ */ $constructor("ZodMiniDiscriminatedUnion", (inst, def) => {
+  $ZodDiscriminatedUnion.init(inst, def);
+  ZodMiniType.init(inst, def);
+});
+// @__NO_SIDE_EFFECTS__
+function discriminatedUnion(discriminator, options, params) {
+  return new ZodMiniDiscriminatedUnion({
+    type: "union",
+    options,
+    discriminator,
+    ...normalizeParams(params)
+  });
+}
+var ZodMiniLiteral = /* @__PURE__ */ $constructor("ZodMiniLiteral", (inst, def) => {
+  $ZodLiteral.init(inst, def);
+  ZodMiniType.init(inst, def);
+});
+// @__NO_SIDE_EFFECTS__
+function literal(value, params) {
+  return new ZodMiniLiteral({
+    type: "literal",
+    values: Array.isArray(value) ? value : [value],
+    ...normalizeParams(params)
+  });
+}
+var ZodMiniOptional = /* @__PURE__ */ $constructor("ZodMiniOptional", (inst, def) => {
+  $ZodOptional.init(inst, def);
+  ZodMiniType.init(inst, def);
+});
+// @__NO_SIDE_EFFECTS__
+function optional(innerType) {
+  return new ZodMiniOptional({
+    type: "optional",
+    innerType
+  });
+}
+
+// src/comments/review-ux/types.ts
+var asThreadId = (raw) => raw;
+var asCommentId = (raw) => raw;
+var asTimestamp = (ms) => ms;
+function threadToLegacy(thread) {
+  const out = [];
+  const toLegacy = (c, anchor) => {
+    const legacy = {
+      id: c.id,
+      anchor: {
+        sections: anchor.sections ?? [],
+        prefix: anchor.prefix ?? "",
+        exact: anchor.exact,
+        suffix: anchor.suffix ?? ""
+      },
+      body: c.body,
+      author: c.author.login,
+      created_at: new Date(c.createdAt).toISOString()
+    };
+    if (thread.resolvedAt !== null) {
+      legacy.resolved_at = new Date(thread.resolvedAt).toISOString();
+    }
+    return legacy;
+  };
+  out.push(toLegacy(thread.root, thread.anchor));
+  for (const reply of thread.replies) {
+    out.push(toLegacy(reply, thread.anchor));
+  }
+  return out;
+}
+function legacyToThread(comment) {
+  return {
+    id: asThreadId(comment.id),
+    anchor: {
+      exact: comment.anchor.exact,
+      prefix: comment.anchor.prefix || void 0,
+      suffix: comment.anchor.suffix || void 0,
+      sections: comment.anchor.sections.length > 0 ? comment.anchor.sections : void 0
+    },
+    root: {
+      id: asCommentId(comment.id),
+      author: { login: comment.author, name: null },
+      body: comment.body,
+      createdAt: asTimestamp(new Date(comment.created_at).getTime())
+    },
+    replies: [],
+    resolvedAt: comment.resolved_at ? asTimestamp(new Date(comment.resolved_at).getTime()) : null
+  };
+}
+
+// src/comments/api/schemas.ts
+var anchorSchema = object({
+  // the exact quoted text the comment anchors to
+  exact: string2(),
+  // text just before the quote, to disambiguate the anchor
+  prefix: optional(string2()),
+  // text just after the quote, to disambiguate the anchor
+  suffix: optional(string2()),
+  // article section labels the anchor falls under (metadata)
+  sections: optional(array(string2()))
+});
+var createSchema = object({
+  op: literal("create"),
+  // prose span the new thread pins to
+  anchor: anchorSchema,
+  // body of the root comment
+  text: string2(),
+  // caller-supplied idempotency key
+  clientOpId: optional(string2())
+});
+var resolveSchema = object({
+  op: literal("resolve"),
+  // id of the thread to soft-close
+  threadId: string2()
+});
+var reopenSchema = object({
+  op: literal("reopen"),
+  // id of the thread to reopen
+  threadId: string2()
+});
+var deleteSchema = object({
+  op: literal("delete"),
+  // id of the thread to purge
+  threadId: string2()
+});
+var replySchema = object({
+  op: literal("reply"),
+  // id of the thread being replied to
+  threadId: string2(),
+  // body of the reply comment
+  text: string2(),
+  // caller-supplied idempotency key
+  clientOpId: optional(string2())
+});
+var editSchema = object({
+  op: literal("edit"),
+  // id of the comment to edit
+  commentId: string2(),
+  // fields to change on the comment
+  patch: object({
+    // replacement comment body
+    body: string2()
+  })
+});
+var opSchema = discriminatedUnion("op", [
+  createSchema,
+  resolveSchema,
+  reopenSchema,
+  deleteSchema,
+  replySchema,
+  editSchema
+]);
+var envelopeSchema = union([opSchema, array(opSchema)]);
+function brandOp(raw) {
+  switch (raw.op) {
+    case "create":
+      return {
+        op: "create",
+        anchor: raw.anchor,
+        text: raw.text,
+        clientOpId: raw.clientOpId
+      };
+    case "resolve":
+      return { op: "resolve", threadId: asThreadId(raw.threadId) };
+    case "reopen":
+      return { op: "reopen", threadId: asThreadId(raw.threadId) };
+    case "delete":
+      return { op: "delete", threadId: asThreadId(raw.threadId) };
+    case "reply":
+      return {
+        op: "reply",
+        threadId: asThreadId(raw.threadId),
+        text: raw.text,
+        clientOpId: raw.clientOpId
+      };
+    case "edit":
+      return {
+        op: "edit",
+        commentId: asCommentId(raw.commentId),
+        patch: { body: raw.patch.body }
+      };
+  }
+}
+function parseEnvelope(raw) {
+  const parsed = envelopeSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, message: "invalid comment op envelope" };
+  }
+  const value = parsed.data;
+  if (Array.isArray(value)) {
+    return { ok: true, ops: value.map(brandOp), isBatch: true };
+  }
+  return { ok: true, ops: [brandOp(value)], isBatch: false };
+}
+
+// src/comments/api/thread-ops.ts
+var NotFoundError = class extends Error {
+  constructor(threadId) {
+    super("thread not found");
+    this.threadId = threadId;
+    this.name = "NotFoundError";
+  }
+  notFound = true;
+};
+function isNotFoundError(err) {
+  return !!err && typeof err === "object" && err.notFound === true;
+}
+function createThread(threads, op, author, newId, now) {
+  const id = asThreadId(newId());
+  const thread = {
+    id,
+    anchor: op.anchor,
+    root: {
+      id: asCommentId(id),
+      author,
+      body: op.text,
+      createdAt: now
+    },
+    replies: [],
+    resolvedAt: null
+  };
+  return { threads: [...threads, thread], thread };
+}
+function resolveThread(threads, op, now) {
+  const idx = threads.findIndex((t) => t.id === op.threadId);
+  if (idx === -1) throw new NotFoundError(op.threadId);
+  const current = threads[idx];
+  const next = current.resolvedAt === null ? { ...current, resolvedAt: now } : current;
+  if (next === current) return { threads, thread: current };
+  const out = threads.slice();
+  out[idx] = next;
+  return { threads: out, thread: next };
+}
+function reopenThread(threads, op) {
+  const idx = threads.findIndex((t) => t.id === op.threadId);
+  if (idx === -1) throw new NotFoundError(op.threadId);
+  const current = threads[idx];
+  if (current.resolvedAt === null) return { threads, thread: current };
+  const next = { ...current, resolvedAt: null };
+  const out = threads.slice();
+  out[idx] = next;
+  return { threads: out, thread: next };
+}
+function deleteThread(threads, op) {
+  const idx = threads.findIndex((t) => t.id === op.threadId);
+  if (idx === -1) throw new NotFoundError(op.threadId);
+  const out = threads.slice();
+  out.splice(idx, 1);
+  return { threads: out, threadId: op.threadId };
+}
+
+// src/comments/api/handlers.ts
+var RESERVED_MESSAGE = "op not yet supported";
+function errorToOpError(err) {
+  const tagged = err.opError;
+  if (tagged && typeof tagged.code === "string") return tagged;
+  if (isNotFoundError(err)) return { code: "not_found", threadId: err.threadId };
+  const message = err instanceof Error ? err.message : String(err);
+  return { code: "transient", message };
+}
+async function applyOp(store, doc, op, author) {
+  try {
+    switch (op.op) {
+      case "create": {
+        const thread = await store.create(doc, op, author);
+        return { ok: true, op: "create", thread };
+      }
+      case "resolve": {
+        const thread = await store.resolve(doc, op, author);
+        return { ok: true, op: "resolve", thread };
+      }
+      case "reopen": {
+        const thread = await store.reopen(doc, op, author);
+        return { ok: true, op: "reopen", thread };
+      }
+      case "delete": {
+        const threadId = await store.delete(doc, op, author);
+        return { ok: true, op: "delete", threadId };
+      }
+      case "reply":
+      case "edit":
+        return { ok: false, op: op.op, error: { code: "transient", message: RESERVED_MESSAGE } };
+    }
+  } catch (err) {
+    return { ok: false, op: op.op, error: errorToOpError(err) };
+  }
+}
+function statusForError(error) {
+  switch (error.code) {
+    case "not_found":
+    case "no_access":
+      return 404;
+    case "transient":
+    default:
+      return 500;
+  }
+}
+async function handleCommentsRequest(req) {
+  const method = req.method.toUpperCase();
+  if (method === "GET") {
+    const threads = await req.store.list(req.doc);
+    return { status: 200, json: { threads } };
+  }
+  if (method !== "POST") {
+    return { status: 405, json: { error: "method not allowed" } };
+  }
+  const parsed = parseEnvelope(req.body);
+  if (!parsed.ok) {
+    return { status: 400, json: { error: parsed.message } };
+  }
+  if (parsed.isBatch) {
+    const results = [];
+    for (const op2 of parsed.ops) {
+      results.push(await applyOp(req.store, req.doc, op2, req.author));
+    }
+    return { status: 207, json: { results } };
+  }
+  const op = parsed.ops[0];
+  if (op.op === "reply" || op.op === "edit") {
+    return { status: 400, json: { error: RESERVED_MESSAGE } };
+  }
+  const result = await applyOp(req.store, req.doc, op, req.author);
+  if (result.ok) {
+    return { status: 200, json: result };
+  }
+  return { status: statusForError(result.error), json: result };
+}
+
+// src/comments/adapters/local/sidecar-store.ts
+import { randomUUID } from "node:crypto";
+function tagNotFound(err) {
+  if (isNotFoundError(err)) {
+    throw Object.assign(new Error("thread not found"), { opError: { code: "not_found", threadId: err.threadId } });
+  }
+  throw err;
+}
+var SidecarStore = class {
+  constructor(persistence, docLabel, mint = randomUUID) {
+    this.persistence = persistence;
+    this.docLabel = docLabel;
+    this.mint = mint;
+  }
+  async loadThreads() {
+    const model = await this.persistence.load();
+    return model.comments.map(legacyToThread);
+  }
+  async saveThreads(threads) {
+    const model = {
+      doc: this.docLabel,
+      schema: 1,
+      comments: threads.flatMap(threadToLegacy)
+    };
+    await this.persistence.save(model);
+  }
+  async list(_doc) {
+    return this.loadThreads();
+  }
+  async create(_doc, op, author) {
+    const threads = await this.loadThreads();
+    const { threads: next, thread } = createThread(
+      threads,
+      op,
+      author,
+      this.mint,
+      asTimestamp(Date.now())
+    );
+    await this.saveThreads(next);
+    return thread;
+  }
+  async reply(_doc, _op, _author) {
+    throw new Error("op not yet supported");
+  }
+  async resolve(_doc, op, _author) {
+    const threads = await this.loadThreads();
+    let result;
+    try {
+      result = resolveThread(threads, op, asTimestamp(Date.now()));
+    } catch (err) {
+      tagNotFound(err);
+    }
+    await this.saveThreads(result.threads);
+    return result.thread;
+  }
+  async reopen(_doc, op, _author) {
+    const threads = await this.loadThreads();
+    let result;
+    try {
+      result = reopenThread(threads, op);
+    } catch (err) {
+      tagNotFound(err);
+    }
+    await this.saveThreads(result.threads);
+    return result.thread;
+  }
+  async delete(_doc, op, _author) {
+    const threads = await this.loadThreads();
+    let result;
+    try {
+      result = deleteThread(threads, op);
+    } catch (err) {
+      tagNotFound(err);
+    }
+    await this.saveThreads(result.threads);
+    return result.threadId;
+  }
+  async edit(_doc, _op, _author) {
+    throw new Error("op not yet supported");
+  }
+  async batch(doc, ops, author) {
+    const results = [];
+    for (const op of ops) {
+      results.push(await applyOp(this, doc, op, author));
+    }
+    return results;
+  }
+};
 
 // src/comments/serve.ts
 var HERE = path.dirname(fileURLToPath2(import.meta.url));
@@ -5665,6 +6952,71 @@ async function handleGet(res, root, sidecarDir, urlPath) {
     await handleStatic(res, finalPath);
   }
 }
+var LOCAL_AUTHOR = { login: "user", name: null };
+async function handleCommentsApi(req, res, root, sidecarDir, urlPath, params, method) {
+  const htmlPath = resolveUnderRoot(root, urlPath);
+  if (!htmlPath) {
+    sendJson(res, 404, { error: "not found" });
+    return;
+  }
+  if (!/\.html?$/i.test(htmlPath)) {
+    sendJson(res, 404, { error: "not found" });
+    return;
+  }
+  const htmlStat = await fs.stat(htmlPath).catch(() => null);
+  if (!htmlStat || !htmlStat.isFile()) {
+    sendJson(res, 404, { error: "not found" });
+    return;
+  }
+  const docLabel = path.basename(htmlPath);
+  const sidecarPath = sidecarPathFor(htmlPath, root, sidecarDir);
+  const store = new SidecarStore(
+    {
+      load: () => readSidecar(sidecarPath, docLabel),
+      save: (model) => writeSidecarAtomic(sidecarPath, model)
+    },
+    docLabel
+  );
+  const doc = {
+    repo: "",
+    ref: params.get("ref") || "default",
+    path: stripQueryHash(urlPath)
+  };
+  let body;
+  if (method === "POST") {
+    let raw;
+    try {
+      raw = await readBody(req, 5 * 1024 * 1024);
+    } catch (err) {
+      const code = err.code;
+      if (code === "ETOOBIG") {
+        sendJson(res, 413, { error: "payload too large" });
+        return;
+      }
+      sendJson(res, 400, { error: "bad request" });
+      return;
+    }
+    if (raw.trim()) {
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        sendJson(res, 400, { error: "invalid JSON" });
+        return;
+      }
+    }
+  }
+  const { status, json } = await handleCommentsRequest({
+    method,
+    body,
+    store,
+    doc,
+    author: LOCAL_AUTHOR
+  });
+  sendJson(res, status, json);
+}
+function sendJson(res, status, json, extraHeaders = {}) {
+  send(res, status, JSON.stringify(json), { "Content-Type": MIME[".json"], ...extraHeaders });
+}
 function createServer2(cfg) {
   return http.createServer((req, res) => {
     const url = req.url || "/";
@@ -5674,6 +7026,19 @@ function createServer2(cfg) {
       handlePutSidecar(req, res, cfg.root, cfg.sidecarDir, urlPath).catch((err) => {
         console.error("[serve] PUT failed:", err);
         if (!res.headersSent) send(res, 500, "write failed");
+      });
+      return;
+    }
+    const query = url.indexOf("?");
+    const params = new URLSearchParams(query === -1 ? "" : url.slice(query + 1));
+    if (params.has("comments")) {
+      if (method !== "GET" && method !== "POST") {
+        sendJson(res, 405, { error: "method not allowed" }, { Allow: "GET, POST" });
+        return;
+      }
+      handleCommentsApi(req, res, cfg.root, cfg.sidecarDir, urlPath, params, method).catch((err) => {
+        console.error("[serve] comments API failed:", err);
+        if (!res.headersSent) sendJson(res, 500, { error: "internal error" });
       });
       return;
     }

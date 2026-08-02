@@ -14,9 +14,11 @@ import type {
   CommentsModel, OpError,
 } from '../../review-ux/types';
 import {
-  asThreadId, asCommentId, asTimestamp,
-  threadToLegacy, legacyToThread,
+  asTimestamp, threadToLegacy, legacyToThread,
 } from '../../review-ux/types';
+import {
+  createThread, resolveThread, reopenThread, deleteThread, isNotFoundError,
+} from '../../api/thread-ops';
 
 const SCHEMA_VERSION = 1 as const;
 const SIDECAR_URL_PREFIX = '/__htmldocs/sidecar';
@@ -80,32 +82,46 @@ export class LocalFileStore implements ICommentsStore {
     return this.threads.slice();
   }
 
-  async create(_doc: DocKey, op: CreateOp, author: Author): Promise<Thread> {
-    const id = asThreadId(crypto.randomUUID());
-    const now = asTimestamp(Date.now());
-    const thread: Thread = {
-      id,
-      anchor: op.anchor,
-      root: {
-        id: asCommentId(id as string),
-        author,
-        body: op.text,
-        createdAt: now,
-      },
-      replies: [],
-      resolvedAt: null,
-    };
-    this.threads.push(thread);
+  // Each mutation delegates op semantics to the shared api/thread-ops.* (the
+  // single source of truth for create/resolve/reopen/delete + idempotency),
+  // then persists the NEW array. Rollback is free: this.threads is only
+  // reassigned AFTER a successful PUT, so a failed persist leaves state
+  // untouched.
+  private async applyAndPersist<T>(
+    apply: (threads: Thread[]) => { threads: Thread[]; value: T },
+  ): Promise<T> {
+    let next: Thread[];
+    let value: T;
+    try {
+      const out = apply(this.threads);
+      next = out.threads;
+      value = out.value;
+    } catch (err) {
+      // Map a thread-ops NotFoundError to the tagged not_found OpError the
+      // batch loop / caller expects.
+      if (isNotFoundError(err)) {
+        throw Object.assign(new Error('thread not found'), { opError: { code: 'not_found' as const, threadId: err.threadId } });
+      }
+      throw err;
+    }
+    const prev = this.threads;
+    this.threads = next;
     try {
       await this.persist();
     } catch (err) {
-      // Roll back so a failed PUT doesn't leave a ghost thread that a retry
-      // (or the next successful save) would silently persist as a duplicate.
-      const idx = this.threads.indexOf(thread);
-      if (idx !== -1) this.threads.splice(idx, 1);
+      this.threads = prev;
       throw err;
     }
-    return thread;
+    return value;
+  }
+
+  async create(_doc: DocKey, op: CreateOp, author: Author): Promise<Thread> {
+    return this.applyAndPersist((threads) => {
+      const { threads: next, thread } = createThread(
+        threads, op, author, () => crypto.randomUUID(), asTimestamp(Date.now()),
+      );
+      return { threads: next, value: thread };
+    });
   }
 
   async reply(_doc: DocKey, _op: ReplyOp, _author: Author): Promise<Comment> {
@@ -113,55 +129,24 @@ export class LocalFileStore implements ICommentsStore {
   }
 
   async resolve(_doc: DocKey, op: ResolveOp, _author: Author): Promise<Thread> {
-    const thread = this.threads.find(t => t.id === op.threadId);
-    if (!thread) {
-      throw Object.assign(new Error('thread not found'), { opError: { code: 'not_found' as const } });
-    }
-    // Idempotent: if already resolved, don't re-stamp
-    const prev = thread.resolvedAt;
-    if (thread.resolvedAt === null) {
-      thread.resolvedAt = asTimestamp(Date.now());
-    }
-    try {
-      await this.persist();
-    } catch (err) {
-      thread.resolvedAt = prev;
-      throw err;
-    }
-    return thread;
+    return this.applyAndPersist((threads) => {
+      const { threads: next, thread } = resolveThread(threads, op, asTimestamp(Date.now()));
+      return { threads: next, value: thread };
+    });
   }
 
   async reopen(_doc: DocKey, op: ReopenOp, _author: Author): Promise<Thread> {
-    const thread = this.threads.find(t => t.id === op.threadId);
-    if (!thread) {
-      throw Object.assign(new Error('thread not found'), { opError: { code: 'not_found' as const } });
-    }
-    const prev = thread.resolvedAt;
-    thread.resolvedAt = null;
-    try {
-      await this.persist();
-    } catch (err) {
-      thread.resolvedAt = prev;
-      throw err;
-    }
-    return thread;
+    return this.applyAndPersist((threads) => {
+      const { threads: next, thread } = reopenThread(threads, op);
+      return { threads: next, value: thread };
+    });
   }
 
   async delete(_doc: DocKey, op: DeleteOp, _author: Author): Promise<ThreadId> {
-    const idx = this.threads.findIndex(t => t.id === op.threadId);
-    if (idx === -1) {
-      throw Object.assign(new Error('thread not found'), { opError: { code: 'not_found' as const } });
-    }
-    const [removed] = this.threads.splice(idx, 1);
-    try {
-      await this.persist();
-    } catch (err) {
-      // Re-insert at the original position so store state matches the last
-      // successful persist.
-      if (removed) this.threads.splice(idx, 0, removed);
-      throw err;
-    }
-    return op.threadId;
+    return this.applyAndPersist((threads) => {
+      const { threads: next, threadId } = deleteThread(threads, op);
+      return { threads: next, value: threadId };
+    });
   }
 
   async edit(_doc: DocKey, _op: EditOp, _author: Author): Promise<Comment> {
