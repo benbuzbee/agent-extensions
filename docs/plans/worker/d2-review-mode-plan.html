@@ -1,0 +1,2220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plan: Deliverable 2 — hosted review mode (comments)</title>
+<style>
+  :root {
+    --bg: #fdfdfc;
+    --fg: #1a1a1a;
+    --muted: #6a6a6a;
+    --accent: #2a5d9f;
+    --border: #d8d8d4;
+    --code-bg: #f3f3ef;
+    --aside-bg: #f7f3e9;
+    --aside-border: #d9c98a;
+    --risk-bg: #fbeee6;
+    --risk-border: #d99a6b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --fg: #e6e6e6;
+      --muted: #9aa0a6;
+      --accent: #7fb1ff;
+      --border: #2a2e36;
+      --code-bg: #161a21;
+      --aside-bg: #1d1a10;
+      --aside-border: #5a4a16;
+      --risk-bg: #2a1a12;
+      --risk-border: #8a4a20;
+    }
+  }
+  html { color-scheme: light dark; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 860px;
+    margin: 2rem auto;
+    padding: 0 1.25rem;
+  }
+  h1, h2, h3 { line-height: 1.25; }
+  h1 { font-size: 1.65rem; margin: 0 0 .25rem; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--border); padding-bottom: .25rem; }
+  h3 { font-size: 1.02rem; margin: 1.25rem 0 .35rem; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  p.meta { color: var(--muted); font-size: .88rem; margin: .25rem 0 1rem; }
+  nav.toc { border: 1px solid var(--border); border-radius: 6px; padding: .5rem .9rem; margin: 1rem 0 1.5rem; background: var(--code-bg); }
+  nav.toc ol { margin: .25rem 0; padding-left: 1.25rem; }
+  nav.toc li { margin: .1rem 0; }
+  article { margin: 1.5rem 0; }
+  section { margin: .9rem 0; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: .65rem .8rem;
+    overflow-x: auto;
+    font-size: .87rem;
+  }
+  code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .9em; }
+  :not(pre) > code { background: var(--code-bg); padding: .05rem .3rem; border-radius: 3px; }
+  table { border-collapse: collapse; margin: .5rem 0; font-size: .92rem; width: 100%; }
+  th, td { border: 1px solid var(--border); padding: .35rem .55rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+  td.k { white-space: nowrap; font-weight: 600; }
+  aside {
+    background: var(--aside-bg);
+    border-left: 3px solid var(--aside-border);
+    padding: .55rem .85rem;
+    margin: 1.5rem 0;
+    border-radius: 0 4px 4px 0;
+  }
+  aside.risk {
+    background: var(--risk-bg);
+    border-left-color: var(--risk-border);
+  }
+  details { margin: .75rem 0; border: 1px solid var(--border); border-radius: 5px; padding: .35rem .8rem; background: var(--code-bg); }
+  details summary { cursor: pointer; color: var(--accent); font-weight: 500; }
+  details[open] { padding-bottom: .75rem; }
+  figure { margin: 1rem 0; }
+  figcaption { color: var(--muted); font-size: .86rem; margin-top: .35rem; }
+  ul.criteria > li { margin: .35rem 0; }
+  .rec { color: #1f7a3a; font-weight: 600; }
+  .badge { display: inline-block; font-size: .7rem; font-weight: 700; padding: .05rem .35rem; border-radius: 3px; margin-right: .35rem; vertical-align: middle; }
+  .badge.ok { background: rgba(31,122,58,.15); color: #1f7a3a; }
+  .badge.warn { background: rgba(217,154,107,.22); color: #b3631f; }
+  .badge.open { background: rgba(42,93,159,.15); color: #2a5d9f; }
+  article[data-decision] { border: 1px solid var(--border); border-radius: 6px; padding: .2rem 1rem 1rem; margin: 1rem 0; }
+  @media (prefers-color-scheme: dark) {
+    .rec { color: #6ed18a; }
+    .badge.ok { color: #6ed18a; background: rgba(110,209,138,.18); }
+    .badge.warn { color: #e0a36b; background: rgba(224,163,107,.18); }
+    .badge.open { color: #7fb1ff; background: rgba(127,177,255,.16); }
+  }
+  p.lineage { margin: .75rem 0; }
+  p.lineage code { display: inline-block; background: var(--code-bg); border: 1px solid var(--border); border-radius: 5px; padding: .3rem .6rem; font-size: .92em; letter-spacing: .02em; }
+  section[data-kind="pr-card"] { border: 1px solid var(--border); border-radius: 6px; padding: .2rem 1rem .9rem; margin: 1.1rem 0; }
+  section[data-kind="pr-card"] > h3 { margin-top: .7rem; }
+  p.stack-pos { margin: .1rem 0 .6rem; font-size: .84rem; color: var(--muted); }
+  p.stack-pos code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; padding: .05rem .35rem; font-size: .95em; }
+  aside[data-kind="validation"] { background: rgba(31,122,58,.06); border-left-color: #1f7a3a; margin: .6rem 0 .2rem; }
+  aside[data-kind="validation-backbone"] { background: rgba(31,122,58,.06); border-left-color: #1f7a3a; }
+  @media (prefers-color-scheme: dark) {
+    aside[data-kind="validation"], aside[data-kind="validation-backbone"] { background: rgba(110,209,138,.08); border-left-color: #6ed18a; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Plan: Deliverable 2 — hosted review mode (comments)</h1>
+<p class="meta" data-updated="2026-07-01" data-status="proposed">Last updated 2026-07-01 · proposed · builds on shipped Deliverable 1 · covers the shared widget + <code>ICommentsStore</code>, DB design, resolve semantics, and the <code>?comments</code> route</p>
+
+<aside data-kind="naming">
+  <strong>Naming, to avoid a collision up front:</strong> "<strong>Deliverable 1 / D1</strong>" is the shipped proxy+auth
+  Worker. "<strong>Cloudflare D1</strong>" is Cloudflare's SQLite database product, which this deliverable proposes to
+  adopt. This doc always writes "Cloudflare D1" for the product and "Deliverable 1" (spelled out) for the milestone.
+</aside>
+
+<nav class="toc" aria-label="Table of contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#overview">Overview &amp; goal</a></li>
+    <li><a href="#starting-point">Starting point — what shipped, what we reuse</a></li>
+    <li><a href="#decisions">Locked decisions</a></li>
+    <li><a href="#anchoring">Removing the article-only limit</a></li>
+    <li><a href="#store">The comment store — Cloudflare D1</a></li>
+    <li><a href="#db-design">DB design — queries, schema, migrations</a></li>
+    <li><a href="#identity">Capturing reviewer identity</a></li>
+    <li><a href="#api">The comment API (human + agent)</a></li>
+    <li><a href="#authz">Authorization — the access probe</a></li>
+    <li><a href="#widget">Unifying the worker and local path efficiently</a></li>
+    <li><a href="#prompting">Agent prompting — where it lives (pass 1)</a></li>
+    <li><a href="#phases">Implementation phases</a></li>
+    <li><a href="#questions">Open questions</a></li>
+  </ol>
+</nav>
+
+<article id="overview" data-kind="overview">
+  <h2>Overview &amp; goal</h2>
+  <p>
+    Deliverable 1 shipped: a per-org Cloudflare Worker logs a viewer in via a GitHub App and serves any repo's
+    <code>.html</code> doc <em>as that user</em>, with GitHub's <code>404</code> acting as the access gate — see the
+    <a href="../../proxy.html">proxy-layer doc</a> (how Deliverable 1 works), the
+    <a href="../../../apps/htmldoc-review/README.md">app README</a> (deploy), and the
+    <a href="d1-handoff.md">D1 handoff</a> (what shipped, live status); its plan is the
+    <a href="htmldoc_worker_review.html">architecture doc</a>. Deliverable 2 adds the <strong>review layer</strong>:
+    inject a comment UI into the served doc, persist comments in a store the Worker owns, and give
+    an <strong>agent</strong> a first-class way to read and resolve those comments over HTTP, so the hosted experience
+    reaches parity with (and in one way exceeds) the htmldocs skill's existing local <code>serve.sh</code> review mode.
+  </p>
+  <p>The three things this deliverable must produce:</p>
+  <ul class="criteria">
+    <li><strong>A reviewer</strong>, on a rendered doc, can select <em>anywhere in the document</em> (not just inside an
+      <code>&lt;article&gt;</code>), leave an anchored comment, and see it persist across reloads and across users.</li>
+    <li><strong>An agent</strong>, holding a GitHub token, can <code>GET</code> the comments on a doc and
+      <code>resolve</code> a comment by id — the hosted equivalent of the local sidecar workflow.</li>
+    <li><strong>Comments show real author names</strong>, captured from GitHub at login.</li>
+  </ul>
+  <p>
+    The original architecture plan (<a href="htmldoc_worker_review.html">htmldoc_worker_review.html</a> §
+    "Deliverable 2") sketched this with a Durable-Object-per-doc store and an injected widget. This plan chooses
+    Cloudflare D1 for the store (see <a href="#store">below</a>) and specifies the agent API and identity capture the
+    architecture sketch left open.
+  </p>
+</article>
+
+<article id="starting-point" data-kind="context">
+  <h2>Starting point — what shipped, what we reuse</h2>
+  <table>
+    <thead><tr><th>Asset</th><th>State after Deliverable 1</th><th>D2 relationship</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Worker (<code>apps/htmldoc-review/</code>)</td><td>Routes <code>/auth/*</code> + catch-all doc fetch; portable <code>core/</code> + Cloudflare <code>worker/</code>.</td><td>Add comment routes; add an injection step to the doc response.</td></tr>
+      <tr><td class="k">Session store</td><td>Workers <strong>KV</strong> only (<code>SESSIONS</code>), opaque session id in cookie, token server-side, native TTL.</td><td>Extend the session record with reviewer identity (<a href="#identity">name/login</a>). KV stays for sessions.</td></tr>
+      <tr><td class="k">Comment store</td><td><strong>None.</strong> D1 stored no comments (the <code>ICommentsStore</code> seam was deferred).</td><td><span class="rec">New: Cloudflare D1 (SQLite).</span> First new binding the app takes on.</td></tr>
+      <tr><td class="k">Local review widget</td><td><strong>Early but usable</strong> in the <a href="../../../plugins/useful-skills/skills/htmldocs/">htmldocs skill</a>: <code>src/comments/</code> → <code>dist/comments.mjs</code> anchors via W3C TextQuoteSelector, highlights via <code>CSS.highlights</code>, and persists to a JSON sidecar over <code>PUT /__htmldocs/sidecar/&lt;doc&gt;</code>. It works, but it's fairly nascent — a foundation to build on, not a finished component.</td><td><span class="rec">Reuse as the basis, then harden</span> — same anchor core, new transport, and expect to shore it up along the way. See <a href="#widget">Shared widget</a>.</td></tr>
+      <tr><td class="k">Anchoring</td><td>Already <strong>document-wide</strong> in the encoder/decoder; the only article restriction is a popover <em>gate</em> in <code>ui.ts</code>.</td><td><span class="rec">Remove the gate</span> — see <a href="#anchoring">below</a>.</td></tr>
+    </tbody>
+  </table>
+  <aside>
+    <strong>What's actually reusable.</strong> The part worth building on is the widget's <em>anchor model</em> — the
+    32-char prefix/exact/suffix TextQuoteSelector (Hypothesis convention), which is already source- and
+    transport-agnostic: it serializes a comment to JSON and PUTs it somewhere. That core is sound, so D2 keeps it and
+    changes only <em>where</em> the JSON goes (Cloudflare D1 via the Worker, not a file) and <em>who else</em> reads it
+    (an agent over HTTP, not off disk). The surrounding UI and build wiring are less settled — extracting and sharing
+    them is real work (see <a href="#widget">Shared widget</a>), and we should expect to refine the widget as we go
+    rather than treat it as frozen.
+  </aside>
+</article>
+
+<article id="decisions" data-decision data-kind="decision" data-date="2026-07-01">
+  <h2>Locked decisions</h2>
+  <p>These are settled. Each row points to the section where it's expanded.</p>
+  <table>
+    <thead><tr><th>#</th><th>Decision</th><th>Rationale</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><span class="rec">Agent auth = GitHub token, same model as Deliverable 1.</span> The agent sends its own GitHub token as a bearer; the Worker authorizes by <em>probing repo access</em> (fetch-as-user) before honoring any comment read/write.</td><td>Reuses the intersection-authz spine; every action is tied to a real GitHub identity; no second secret scheme. See <a href="#authz">Authorization</a>.</td></tr>
+      <tr><td>2</td><td><span class="rec">Capture reviewer identity at login</span> (name + login + id) and store it in the session KV record.</td><td>Comments need real author names, not opaque ids. Cheap addition to <code>completeLogin</code>. See <a href="#identity">Identity</a>.</td></tr>
+      <tr><td>3</td><td><span class="rec">Comment store = Cloudflare D1 (SQLite), one shared database.</span></td><td>Cheapest + simplest; free tier covers a small team indefinitely with no eviction; <code>(repo, ref, path)</code> maps to indexed columns. See <a href="#store">store tradeoffs</a>.</td></tr>
+      <tr><td>4</td><td><span class="rec">Remove the article-only comment restriction</span> so any DOM region is reviewable.</td><td>It's a one-line popover gate; anchoring already works document-wide. See <a href="#anchoring">anchoring</a>.</td></tr>
+      <tr><td>5</td><td><span class="rec">Share one widget</span> between local <code>serve.sh</code> and the Worker (transport-pluggable), rather than forking.</td><td>Gate-removal and future fixes benefit both; matches the "generic review client" follow-up. See <a href="#widget">widget</a>.</td></tr>
+      <tr><td>6</td><td><span class="rec">Pass 1: the new agent-prompting doc/skill lands in the htmldocs skill path</span>, referenced by the barest pointer from the htmldocs <code>SKILL.md</code>, massaged in code review. <em>The discovery/prompting integration is revisited near the end of the build.</em></td><td>Keeps one review home; the barest pointer is cheap and reversible. The real integration is deferred until the API and widget are concrete. See <a href="#prompting">prompting</a>.</td></tr>
+      <tr><td>7</td><td><span class="rec">Resolve <em>and</em> delete, both v1.</span> <code>resolve</code> is the default soft-close — it stamps <code>resolved_at</code>, keeps the row, and reopens; <code>delete</code> is a genuine hard purge by <code>threadId</code> that removes the row outright. Both are first-class v1 verbs with distinct intent.</td><td>Resolve keeps the audit trail of what was raised and addressed (cheap in a hosted store); delete covers the genuine "remove this entirely" case the soft-close deliberately doesn't. The <code>resolved_at</code> column backs resolve; a <code>DELETE</code> backs purge — see <a href="#api">comment API</a>.</td></tr>
+      <tr><td>8</td><td><span class="rec">Anyone who can see the doc may resolve.</span> Resolve authority equals read/write authority: pass the access probe and you may resolve any comment on that doc, regardless of author.</td><td>Matches the local model's looseness and the agent's cleanup role; the probe already gates visibility and resolve is non-destructive, so per-author ACLs would be friction with no payoff at team scale — see <a href="#authz">Authorization</a>.</td></tr>
+      <tr><td>9</td><td><span class="rec">Comments are scoped to the ref they were written against.</span> The store keys every comment by the literal <code>(repo, ref, path)</code> the reviewer viewed; a branch ref moves with the branch, a missing ref is stored as <code>'default'</code> and shown on the default-branch view; commit-pinning is not a v1 behavior.</td><td>Cheap, intuitive default — reviewers comment on "the doc on this branch" and it stays attached as the branch moves, no <code>resolveCommit</code> machinery — see <a href="#store-schema">schema</a>.</td></tr>
+      <tr><td>10</td><td><span class="rec">No agent-create in v1.</span> The agent gets list, resolve/reopen, and delete — it reads what a human left and closes or purges what it addressed, but it does not author new comments.</td><td>The concrete need hasn't landed and identity capture makes it a small later add; keeping create off the agent surface keeps the v1 write-of-new-comments path single-author (the human widget).</td></tr>
+      <tr><td>11</td><td><span class="rec">Two-tab concurrency is a non-problem, by construction.</span> The store is Cloudflare D1 (strongly consistent) and every mutation is a per-comment create or resolve, never a whole-file rewrite, so two tabs cannot clobber each other's comments the way the local sidecar's last-writer-wins whole-file PUT could.</td><td>Concurrency-safety for free from the store choice and API shape — no locking, no ETags, no merge logic — see <a href="#store">store tradeoffs</a> and <a href="#api">comment API</a>.</td></tr>
+    </tbody>
+  </table>
+</article>
+
+<article id="anchoring" data-kind="design">
+  <h2>Removing the article-only limit</h2>
+  <p>
+    Today a reviewer can only comment on a selection that <em>intersects an <code>&lt;article&gt;</code></em>. That sounds
+    like an anchoring constraint but isn't: the <a href="../../../plugins/useful-skills/skills/htmldocs/docs/review_system.html">local
+    review architecture</a> shows the encoder already records intersected article ids as <em>pure metadata</em>
+    (<code>anchor.sections</code>) and the decoder "always searches the full document and uses prefix/suffix as the
+    disambiguator." The restriction is solely a UI gate in <code>ui.ts</code>: the selection popover only appears when
+    the selection intersects at least one <code>&lt;article&gt;</code>.
+  </p>
+  <p><span class="rec">Plan: drop the gate</span> so the popover appears for any non-empty selection in the doc body. Concretely:</p>
+  <ul>
+    <li>Replace the "intersects an <code>&lt;article&gt;</code>" predicate with a minimal one (non-collapsed selection,
+      within the rendered doc, not inside the widget's own UI).</li>
+    <li><code>anchor.sections</code> stays — now legitimately empty for out-of-article selections (the schema already
+      allows an empty array; it's documented as "empty if no article was touched"). No schema change.</li>
+    <li>Because the widget is <a href="#widget">shared</a>, this immediately improves local review mode too — a wanted
+      side effect, called out so it's not a surprise in the htmldocs skill.</li>
+  </ul>
+  <aside class="risk">
+    <strong>Watch:</strong> dropping the gate means selections can land in chrome the doc author didn't expect (nav,
+    footers, code blocks). The anchor still resolves by text, so persistence is fine, but verify the highlight renders
+    sanely across block/inline boundaries and that selecting inside the injected widget UI itself is excluded. One
+    spike during the widget extraction.
+  </aside>
+</article>
+
+<article id="store" data-decision data-kind="decision">
+  <h2>The comment store — Cloudflare D1</h2>
+  <p>
+    Deliverable 1 deliberately used only Workers KV (no SQL, no Durable Objects) to stay minimal. Comments need a real
+    store, so this is a genuine step up. The priorities that drive the choice: keep it simple and cheap, one database,
+    and know the cost as data accumulates over time. Here's the grounded comparison (Cloudflare pricing, 2026;
+    figures drift — re-verify against <code>developers.cloudflare.com</code> before relying).
+  </p>
+  <table>
+    <thead><tr><th>Option</th><th>Consistency</th><th>Free tier</th><th>When you pay</th><th>Fit</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="k">Cloudflare D1 <span class="badge ok">chosen</span></td>
+        <td>Strong (single primary)</td>
+        <td>5M row-reads/day, 100K row-writes/day, 5&nbsp;GB, 10 DBs. No TTL/eviction — data persists indefinitely.</td>
+        <td>Only after moving to Workers Paid ($5/mo) <em>and</em> exceeding the included envelope (~25B reads + 50M writes/month). A small team never approaches this.</td>
+        <td><span class="rec">Best.</span> <code>(repo, ref, path)</code> → indexed columns; relational queries; GA.</td>
+      </tr>
+      <tr>
+        <td class="k">Durable Object + SQLite</td>
+        <td>Strong (single-threaded per doc)</td>
+        <td>SQLite-backed DOs now on Free; 1&nbsp;GB/DO. Adds request + duration billing dimensions.</td>
+        <td>Similar row pricing, plus per-request + GB-s duration once past the free allowance.</td>
+        <td>Race-free but over-engineered for low write volume; in-memory eviction + extra billing axes add operational surface.</td>
+      </tr>
+      <tr>
+        <td class="k">Workers KV</td>
+        <td><span class="badge warn">Eventual (~up to 60s)</span></td>
+        <td>100K reads/day, 1K writes/day, 1&nbsp;GB.</td>
+        <td>$5/M writes, $0.50/M reads past free.</td>
+        <td>Poor: can't query by partial key (list+filter, billed like writes), and "post a comment, immediately see it" fights the staleness window.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>
+    <span class="rec">Decision: one shared Cloudflare D1 database</span> for the whole Worker, comments in a single
+    table keyed by doc identity. Storage is tiny (comments are text); the free tier is effectively unlimited for this
+    workload, and the relational shape is exactly what "list comments for this doc" and "resolve by id" want.
+  </p>
+
+  <section id="store-schema">
+    <h3>Schema</h3>
+    <p>
+      Schema, expected queries, and migrations are designed in <a href="#db-design">DB design</a> (<code>#db-design</code>).
+      The full DDL, the <code>(repo, ref, path)</code> index, and the <code>ref</code>-storage rules live there; this
+      section only records the store <em>choice</em>. The one thing to carry over: a missing <code>?ref=</code> is stored
+      as the literal sentinel <code>'default'</code> (not <code>''</code>, not <code>NULL</code>), and the doc route must
+      normalize a missing ref to that same sentinel so route and store agree.
+    </p>
+  </section>
+
+  <aside class="risk">
+    <strong>Doc-identity subtlety (open):</strong> whether comments should follow a branch, pin to a commit, or both, is
+    an <a href="#questions">open question</a> — the <a href="#db-design">ref-storage design</a> stores whatever
+    <code>ref</code> the reviewer was viewing; the <em>display policy</em> for what to show is decided in the API layer.
+  </aside>
+</article>
+
+<article id="db-design" data-decision data-kind="design">
+  <h2>DB design — queries, schema, migrations</h2>
+  <p>
+    The store choice — <a href="#store">one shared Cloudflare D1 database</a> — is already decided above. This section
+    is the <em>design of that database</em>: what it's queried for, its shape, and how we change it later. The schema
+    here is the concern of exactly one thing: the <strong><code>D1Store</code> adapter behind
+    <code>ICommentsStore</code></strong>. The widget and the agent both talk to the granular
+    <a href="#widget-share"><code>ICommentsStore</code></a> (<code>list</code> / <code>create</code> /
+    <code>resolve</code> / <code>reopen</code> / <code>edit</code> / <code>batch</code>); the hosted deployment wires in
+    <code>D1Store</code> while the local server wires in <code>LocalFileStore</code> (a server-only JSON file — the agent
+    never reads it off disk). Nothing outside the <code>D1Store</code> adapter knows these columns exist.
+  </p>
+
+  <aside>
+    <strong>Naming:</strong> the store seam is <code>ICommentsStore</code>, with <code>D1Store</code> (hosted) and
+    <code>LocalFileStore</code> (local, server-only JSON) adapters — keep these names consistent in code.
+  </aside>
+
+  <section id="db-queries">
+    <h3>Expected queries</h3>
+    <p>
+      The store only ever answers a handful of shapes. Designing the columns and indexes around exactly these keeps it
+      honest and cheap.
+    </p>
+    <table>
+      <thead><tr><th>#</th><th>When</th><th>Query</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">Q1</td>
+          <td>Doc paints; agent reads feedback</td>
+          <td><code>SELECT … FROM comments WHERE repo = ? AND ref = ? AND path = ? ORDER BY created_at</code></td>
+          <td>The hot path. Backs <code>GET …?comments</code> and the inline seed. Must hit an index — this is the one query that runs on every doc load.</td>
+        </tr>
+        <tr>
+          <td class="k">Q2</td>
+          <td>Author or agent resolves</td>
+          <td><code>UPDATE comments SET resolved_at = ? WHERE id = ?</code></td>
+          <td>Primary-key lookup. Backs the resolve op (see <a href="#api">comment API</a>).</td>
+        </tr>
+        <tr>
+          <td class="k">Q3</td>
+          <td>Reviewer posts</td>
+          <td><code>INSERT INTO comments (…) VALUES (…)</code></td>
+          <td>Server mints <code>id</code>, stamps <code>author_*</code> from the session, stamps <code>created_at</code>.</td>
+        </tr>
+        <tr>
+          <td class="k">Q4</td>
+          <td>Agent or author purges a thread</td>
+          <td><code>DELETE FROM comments WHERE id = ?</code></td>
+          <td>Primary-key delete. Backs the v1 <code>delete</code> op — a genuine hard purge, distinct from resolve's soft-close. See <a href="#api">comment API</a>.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p><span class="rec">The <code>ref</code> rule (decided).</span> A comment is scoped to <code>(repo, ref, path)</code>. <code>ref</code> stores the literal value the reviewer was viewing:</p>
+    <ul>
+      <li>If a <strong>branch</strong> was requested (<code>?ref=main</code>), the comment stores <code>"main"</code> and thereby <em>moves with the branch</em> — it shows on whatever <code>main</code> points at now. This is intended.</li>
+      <li>If a <strong>commit SHA</strong> was requested, the comment stores that SHA and pins to it.</li>
+      <li>If <strong>no <code>ref</code> was given</strong>, we store the literal string <code>'default'</code> — never an empty string, never <code>NULL</code>. Q1 then queries <code>ref = 'default'</code> for a no-ref view. Using a real sentinel (rather than <code>''</code>) keeps the column unambiguous in the index and in logs, and makes "the default view" a value you can grep for.</li>
+    </ul>
+    <aside>
+      <strong>Store returns literal, API decides display.</strong> Whether a SHA view should <em>also</em> surface
+      <code>ref = 'default'</code> (or branch) comments is a <strong>display-policy</strong> question decided in the API
+      layer, not here — the store faithfully returns rows for the exact <code>ref</code> asked. Tracked in
+      <a href="#questions">Open questions</a> → "Comment identity vs ref."
+    </aside>
+  </section>
+
+  <section id="db-schema">
+    <h3>Proposed schema (<code>schema_version = 1</code>)</h3>
+<pre><code>CREATE TABLE comments (
+  id           TEXT PRIMARY KEY,               -- server-minted uuid
+  repo         TEXT NOT NULL,                  -- e.g. "internal-automation"
+  ref          TEXT NOT NULL DEFAULT 'default',-- branch/tag/sha; 'default' == no ref requested
+  path         TEXT NOT NULL,                  -- doc path within the repo
+  anchor       TEXT NOT NULL,                  -- JSON: {sections, prefix, exact, suffix}
+  body         TEXT NOT NULL,
+  author_login TEXT NOT NULL,                  -- GitHub login, from the session (snapshot)
+  author_name  TEXT,                           -- display name, from the session (nullable, snapshot)
+  author_id    INTEGER NOT NULL,               -- stable GitHub numeric id, captured now; NOT resolved at render
+  created_at   INTEGER NOT NULL,               -- epoch-ms; the same number crosses JSON unchanged (no ISO)
+  resolved_at  INTEGER                         -- nullable epoch-ms; NULL == open
+);
+
+-- Covers Q1 exactly (repo, ref, path) and keeps the per-load list an index scan.
+CREATE INDEX idx_comments_doc ON comments (repo, ref, path);</code></pre>
+    <p>Notes on the shape:</p>
+    <ul>
+      <li><strong><code>anchor</code></strong> is the same W3C TextQuoteSelector triple the local widget already serializes (<code>{sections, prefix, exact, suffix}</code>), stored as an opaque JSON blob — the widget's payload crosses the wire unchanged. The DB never parses it; anchoring stays entirely client-side.</li>
+      <li><strong><code>author_login</code> / <code>author_name</code> / <code>author_id</code></strong> are stamped server-side from the session (see <a href="#identity">Capturing reviewer identity</a>). <code>author_name</code> is nullable because older sessions may lack a display name; <code>author_login</code> and the stable numeric <code>author_id</code> are always present. <code>author_id</code> is captured now (cheap, future-proofs reconciling a renamed user) but is <em>not</em> resolved at render — display uses the snapshotted name/login.</li>
+      <li><strong><code>resolved_at</code></strong> is the epoch-ms timestamp backing the v1 <code>resolve</code>/<code>reopen</code> ops — <code>NULL</code> = open, a timestamp = resolved. (Hard <code>delete</code> removes the row entirely rather than stamping this column.)</li>
+      <li><strong>No <code>schema_version</code> column on rows.</strong> The version lives with the migration set (see below), not per-row; a single tiny table doesn't need per-row versioning.</li>
+    </ul>
+    <aside class="risk" data-kind="note">
+      <strong>Confirm — route and store share the <code>'default'</code> ref sentinel:</strong> a missing
+      <code>?ref=</code> is stored as the literal <code>'default'</code>. The doc route normalizes a missing ref to the
+      repo default branch, so the doc route and the store must agree on the same sentinel (or normalize in one place) so
+      they never disagree.
+    </aside>
+  </section>
+
+  <section id="db-migrations">
+    <h3>Migrations</h3>
+    <p>
+      We adopt <strong>Wrangler's built-in D1 migration system</strong> from day one, so every schema change is a
+      version-controlled, replayable SQL file rather than an ad-hoc <code>wrangler d1 execute</code>. This is the piece
+      Deliverable 1 never needed (KV has no schema); it's new operational surface, so we set it up deliberately.
+    </p>
+    <p>
+      <strong>Mechanism.</strong> A <code>migrations/</code> directory of sequentially numbered <code>.sql</code> files
+      (<code>0001_create_comments.sql</code>, …). Wrangler tracks which have run in a <code>d1_migrations</code> table
+      inside the database, so each file applies exactly once, in order.
+    </p>
+    <p>
+      The v1 table above lands as <code>0001_create_comments.sql</code>. Authoring a migration is the usual
+      scaffold-and-edit loop — <code>wrangler d1 migrations create &lt;db-name&gt; "create comments table"</code>,
+      then fill in the generated <code>.sql</code>. Applying them is not a decision an operator makes by hand: it
+      happens on every deploy, automatically. The expandable below is the full deploy-and-vendor story.
+    </p>
+
+    <details>
+      <summary>When migrations run — deploy &amp; vendor model</summary>
+      <p>
+        <strong>When they run.</strong> On every <code>deploy.sh</code> run. The deploy script owns applying
+        migrations to production; a schema change reaches the live database as a side effect of shipping, not as a
+        separate gated step an operator has to remember. Concretely, deploy.sh grows two additions, each mirroring an
+        existing idempotent step:
+      </p>
+      <ol>
+        <li>
+          A <strong>create-once</strong> step cloning the KV-namespace step: guard on the
+          <code>REPLACE_WITH_D1_DATABASE_ID</code> placeholder in <code>wrangler.toml</code>, run
+          <code>wrangler d1 create &lt;db-name&gt;</code> exactly once, parse the returned database id (a UUID —
+          36 chars with hyphens, unlike the 32-hex KV id format) and <code>sed</code> it into <code>wrangler.toml</code>.
+        </li>
+        <li>
+          An <strong>apply-every-deploy</strong> step after the final <code>wrangler deploy</code>:
+          <code>wrangler d1 migrations apply &lt;db-name&gt; --remote</code>. No guard — it is a no-op when nothing is
+          pending.
+        </li>
+      </ol>
+<pre><code># step 2-style: create the D1 database ONCE, wire its id into wrangler.toml
+if grep -q "REPLACE_WITH_D1_DATABASE_ID" wrangler.toml; then
+  CREATE_OUT="$(npx wrangler d1 create "$DB_NAME")"
+  D1_ID="$(printf '%s\n' "$CREATE_OUT" \
+    | grep -oE '[0-9a-f-]{36}' | head -n1)"   # UUID, not the 32-hex KV format
+  sed -i.bak "s/REPLACE_WITH_D1_DATABASE_ID/$D1_ID/" wrangler.toml && rm -f wrangler.toml.bak
+fi
+
+# step 7-style: after the final deploy, apply any pending migrations to prod.
+# Unconditional — wrangler computes the delta and no-ops if nothing is pending.
+npx wrangler d1 migrations apply "$DB_NAME" --remote</code></pre>
+      <p>
+        This also lands a <code>[[d1_databases]]</code> block in <code>wrangler.toml</code> (<code>binding</code>,
+        <code>database_name</code>, <code>database_id = "REPLACE_WITH_D1_DATABASE_ID"</code>), replacing the config's
+        current line that forbids adding one.
+      </p>
+      <p>
+        <strong>Why always-apply is safe.</strong> <code>migrations apply --remote</code> is idempotent. Wrangler keeps
+        a <code>d1_migrations</code> tracking table inside the database, diffs it against the local
+        <code>migrations/</code> folder, and runs only the unapplied files, in order. In a non-interactive shell (our
+        script) it skips the confirmation prompt but still captures a backup first; a failed migration rolls back,
+        leaving the last successful state applied. So deploy.sh never has to detect whether a migration is pending — it
+        always calls apply and lets wrangler compute the delta, exactly matching the script's existing
+        guarded/idempotent philosophy.
+      </p>
+      <p>
+        <strong>Local vs. remote.</strong> Tests and local dev apply with <code>--local</code> against miniflare's local
+        SQLite; production uses <code>--remote</code>, and deploy.sh only ever runs <code>--remote</code>. A local apply
+        never touches production.
+      </p>
+      <p>
+        <strong>How it fits the vendor/deploy upgrade loop.</strong> <code>vendor.sh</code> copies the whole app root
+        except an explicit excludes list (deps, build output, local secrets, wrangler state,
+        <code>wrangler.toml</code>); <code>migrations/</code> is not excluded, so migration files are vendored like any
+        other source. <code>wrangler.toml</code> is operator-owned — a re-vendor never overwrites it, dropping the fresh
+        template beside it as <code>wrangler.toml.upstream</code> for a manual diff/merge — so the operator's
+        <code>database_id</code> survives. The whole operator upgrade story is therefore the copy-and-deploy loop
+        already documented in <code>PROVENANCE.md</code>: <strong>re-run <code>vendor.sh</code> from newer upstream →
+        new <code>migrations/NNNN_*.sql</code> files land → re-run <code>deploy.sh</code> →
+        <code>migrations apply --remote</code> sees them as unapplied and runs only those.</strong> The operator never
+        decides "do I need to migrate."
+      </p>
+    </details>
+
+    <p><strong>Adding a column safely</strong> — the common future case (e.g. an <code>agent_authored</code> flag, a <code>severity</code>):</p>
+    <ol>
+      <li>New migration: <code>ALTER TABLE comments ADD COLUMN &lt;name&gt; &lt;type&gt;</code> <strong>as nullable</strong> (or with a default) so existing rows stay valid. This is the whole change for a plain additive column.</li>
+      <li>Apply <code>--local</code>, confirm, then <code>--remote</code>.</li>
+    </ol>
+    <p>
+      <strong>Anything harder than an additive column</strong> — changing a type, adding <code>NOT NULL</code> to an
+      existing column — is constrained by SQLite's limited <code>ALTER TABLE</code>. Use the
+      <strong>expand → backfill → contract</strong> pattern: add the new nullable column; dual-write and backfill
+      existing rows in batches (one-off script or Worker); switch reads to the new column; optionally drop the old
+      column in a later migration. We don't need this for v1; it's documented so the first person who does isn't
+      surprised.
+    </p>
+  </section>
+
+  <aside class="risk">
+    <strong>Aging out — Cloudflare D1 has no TTL.</strong> There is no built-in row TTL or auto-expiry — no analog to
+    Workers KV's per-key <code>expirationTtl</code>. Any expiry is manual: a Worker on a <strong>Cron Trigger</strong>
+    running a scheduled <code>DELETE FROM comments WHERE created_at &lt; ?</code> (with <code>created_at</code> indexed to
+    keep the scan cheap; each deleted row bills as one row-written). <span class="rec">Decision: skip it for now.</span>
+    Comments are tiny text rows and the free tier's storage / row-read / row-write allowances are effectively unlimited
+    for a small team, so aging-out is a data-hygiene choice, not a cost necessity — we defer building cron cleanup until
+    volume warrants it. One caveat on file: a D1 database <em>at</em> its storage cap can reject writes — including the
+    <code>DELETE</code>s you'd use to clean up — so at real scale we'd want a cleanup strategy in place <em>before</em>
+    getting large, not after.
+  </aside>
+  <aside data-kind="reminder">
+    <strong>Reminder (for us):</strong> when Deliverable 2 is done, capture the "Cloudflare D1 has no TTL / aging-out is
+    manual" fact at the high-level <code>reviewing.html</code> doc level, alongside the proxy-layer capture — so the
+    operational caveat lives in the overview doc, not only buried in this plan. A tracked reminder here, not the doc
+    itself.
+  </aside>
+
+  <section id="db-decisions">
+    <h3>Decisions needed</h3>
+    <p>Surfacing what a reviewer of this section actually has to sign off on:</p>
+    <table>
+      <thead><tr><th>Decision</th><th>Proposed call</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k"><code>ref</code> sentinel — storing "no ref requested"</td>
+          <td>Literal <code>'default'</code> (not <code>''</code>, not <code>NULL</code>); Deliverable 1's doc route must normalize a missing <code>?ref=</code> to the same sentinel so store and route agree.</td>
+          <td><span class="badge ok">decided</span> confirm route/store share the sentinel</td>
+        </tr>
+        <tr>
+          <td class="k">Adopt the <code>migrations/</code> directory now</td>
+          <td>Yes — set up Wrangler migrations with <code>0001_create_comments.sql</code> in the D1-binding phase, rather than a one-shot <code>execute</code>.</td>
+          <td><span class="badge ok">decided</span></td>
+        </tr>
+        <tr>
+          <td class="k">Aging-out / TTL</td>
+          <td>Don't build it. D1 has no TTL; free tier covers the volume; add cron cleanup later only if data grows.</td>
+          <td><span class="badge ok">decided</span> defer</td>
+        </tr>
+        <tr>
+          <td class="k"><code>resolve</code> (soft-close) and <code>delete</code> (hard purge)</td>
+          <td>Ship both in v1: <code>resolved_at</code> (epoch-ms) backs <code>resolve</code>/<code>reopen</code>; a primary-key <code>DELETE</code> backs the hard <code>delete</code> op. Distinct verbs, distinct intent.</td>
+          <td><span class="badge ok">decided</span> both v1</td>
+        </tr>
+        <tr>
+          <td class="k">Pricing / syntax to re-verify before locking</td>
+          <td>Current D1 free-tier numbers, exact <code>wrangler d1 migrations</code> syntax, <code>wrangler.toml</code> vs <code>.jsonc</code> for our Wrangler version, and current <code>DROP COLUMN</code> support.</td>
+          <td><span class="badge warn">verify</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</article>
+
+<article id="identity" data-kind="design">
+  <h2>Capturing reviewer identity</h2>
+  <p>
+    Comments need author names. Today the session record holds only tokens; Deliverable 1's <code>completeLogin</code>
+    never asks GitHub who the user is. <span class="rec">Plan: after the token exchange, call <code>GET /user</code> once
+    with the fresh token and store <code>{ login, name, id }</code> on the session KV record</span> alongside the tokens.
+    When a comment is created, the API stamps <code>author_login</code>/<code>author_name</code> from the session — the
+    browser never supplies its own identity, so it can't spoof another reviewer.
+  </p>
+  <ul>
+    <li>One extra GitHub call per login only (never per request); identity is cached on the session for its lifetime.</li>
+    <li>Keep it minimal — login, display name, numeric <code>id</code>. No email, no avatar in v1. The numeric
+      <code>id</code> is the stable key: logins can be renamed on GitHub, so <code>id</code> is what we'd match on if we
+      ever reconcile.</li>
+    <li>The record carries a <code>version</code> field (see below) so this and any later identity fields can evolve
+      without a flag day.</li>
+  </ul>
+  <p>
+    For the <strong>agent</strong>, identity comes from <em>its</em> GitHub token the same way — the access probe in
+    <a href="#authz">Authorization</a> already calls GitHub as the agent — so agent-authored actions are attributable
+    too. Relevant if an agent ever creates comments; v1 grants it read + resolve/reopen + delete, not create.
+  </p>
+
+  <section id="identity-snapshot">
+    <h3>Names are a snapshot, not a live join</h3>
+    <p>
+      <code>author_login</code>/<code>author_name</code>/<code>author_id</code> are <strong>copied onto the comment row
+      at create time</strong>, and rendering uses the snapshotted <code>author_name</code>/<code>author_login</code> —
+      never a live lookup. That's deliberate — it keeps read/list a single indexed query with no fan-out to GitHub. The
+      stable <code>author_id</code> is captured for future reconciliation but is not resolved at render. One known
+      consequence, called out so it isn't a surprise:
+    </p>
+    <aside class="risk">
+      <strong>Known limitation, with the data captured early.</strong> If a reviewer later changes their GitHub display
+      name (or login), <strong>already-stored comments keep the old name</strong> — because rendering reads the
+      snapshotted <code>author_name</code>/<code>author_login</code>, never a live lookup, so read/list stays a single
+      indexed query with no fan-out to GitHub. <span class="rec">Decision: capture <code>author_id</code> on the comment
+      row now, but do not resolve it at render.</span> Storing the stable numeric <code>author_id</code> at create time
+      costs nothing and preserves the ability to reconcile a renamed user's old comments <em>later</em>; deliberately
+      <em>not</em> doing a render-time name resolution keeps v1's read path a single query. So v1 gets the data-capture
+      for free and defers only the extra lookup.
+    </aside>
+  </section>
+
+  <section id="identity-existing-sessions">
+    <h3>Existing sessions when identity becomes required</h3>
+    <p>
+      Deliverable 1 shipped live, so <strong>there are already valid session records in KV that predate this field.</strong>
+      They must not break, and we need a deliberate answer for them rather than discovering it in production.
+    </p>
+    <p>
+      KV values are opaque blobs with no enforced schema: adding <code>{ login, name, id }</code> to the record shape
+      leaves every existing record physically unchanged, so a naive read of an old session simply finds those fields
+      absent. Two ways to handle that:
+    </p>
+    <table>
+      <thead><tr><th>Approach</th><th>What happens to existing sessions</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">Lazy on-read upgrade <span class="badge ok">chosen</span></td>
+          <td>On the next authenticated request, if the record lacks identity, call <code>GET /user</code> with the
+            session's stored token, write <code>{ login, name, id }</code> + bump <code>version</code> back to the same
+            key. Old sessions silently self-heal; nobody is logged out.</td>
+          <td>One extra GitHub call the first time each stale session is used, then cached.</td>
+        </tr>
+        <tr>
+          <td class="k">Forced re-login</td>
+          <td>Invalidate all sessions so everyone re-authenticates through the normal <code>completeLogin</code> path.
+            The lever is an <code>iat</code> cutoff: set <code>SESSION_VALID_SINCE</code> (a ms timestamp in
+            <code>wrangler.toml [vars]</code>) to "now" and redeploy; <code>getValidAccessToken</code> deletes-on-read
+            any record whose login-time <code>iat</code> predates the cutoff. Bumping the KV namespace is a cruder
+            alternative. See <a href="#identity-writer">the session writer</a>.</td>
+          <td>Every current user is logged out once.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      <span class="rec">Decision: lazy on-read upgrade.</span> We already hold each session's token server-side, so
+      identity <em>is</em> derivable for a live session without bothering the user — the on-read <code>GET /user</code>
+      is the same call <code>completeLogin</code> will now make, just deferred. Forced re-login is the fallback
+      <strong>only</strong> if a future required field can't be derived from what the session already holds (e.g.
+      something the token can't fetch); for identity it can, so we take the graceful path.
+    </p>
+    <p>
+      To make this and future changes routine, the session record gains an explicit <strong><code>version</code> field
+      now</strong> (identity capture ships as <code>version: 2</code>; pre-identity records are treated as
+      <code>version: 1</code>). Read logic branches on <code>version</code>, upgrades in place, and writes the record
+      back — the standard KV schema-evolution pattern. That keeps every later session-shape change a lazy upgrade
+      instead of a migration event. (There's no bulk backfill job: sessions are short-lived under their native TTL, so
+      any record that's never read again simply ages out.)
+    </p>
+    <section id="identity-writer">
+      <h3>One writer for the session record</h3>
+      <p>
+        <span class="rec">Decision: every write path — new login, token refresh, and lazy identity backfill — goes
+        through a single <code>persist()</code> chokepoint in <code>session.ts</code>, the only constructor of a
+        <code>SessionData</code>.</span> Callers hand it a token <code>Grant</code> (plus, optionally, a fresher
+        <code>identity</code>); they never hand-build the record. That one writer enforces the schema and fixes each
+        field's provenance: <strong>stamped</strong> fields are re-set on every write (<code>version</code>);
+        <strong>pinned</strong> fields are set once at login and carried unchanged forever (<code>iat</code>, the
+        login instant in ms, and <code>identity</code>); <strong>supplied</strong> fields arrive fresh from GitHub on
+        each write (the <code>access_token</code> / <code>refresh_token</code> / <code>expires_at</code> triple). A
+        single writer keeps these from drifting apart across the three call sites.
+      </p>
+      <p>
+        Pinning <code>iat</code> is the crux: <code>persist()</code> mints it via <code>prior?.iat ?? Date.now()</code>,
+        so a refresh carries the login-time value forward untouched. A refresh must never bump it — otherwise an active
+        user would silently dodge any age-based cutoff by simply staying logged in. That enables a cheap
+        <strong>forced-re-login lever</strong>: a <code>SESSION_VALID_SINCE</code> config value (a ms timestamp in
+        <code>wrangler.toml [vars]</code>). <code>getValidAccessToken</code> deletes-on-read any record whose
+        <code>iat</code> predates it and returns <code>null</code> — already the universal "send them through login"
+        signal, so no new logout path is added. To log everyone out, bump the var to "now" and redeploy: idempotent, no
+        KV enumeration, no cron. The same pinned <code>iat</code> also leaves room for a future rolling max-session-age
+        if ever wanted.
+      </p>
+      <p>
+        <code>iat</code> and <code>version</code> stay orthogonal: <code>version</code> tracks <em>record shape</em>
+        (schema evolution → the lazy in-place upgrade above), <code>iat</code> tracks <em>grant validity and age</em>
+        (time-based invalidation). Neither overloads the other. The sketch below is the intended structure, to be
+        verified against the exact arctic field extraction, config plumbing, and TTL handling at implementation time.
+      </p>
+      <details>
+        <summary>Session-writer sketch — single chokepoint (verify at runtime)</summary>
+<pre><code>const CURRENT_VERSION = 2;
+
+interface Grant {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number;   // ms
+  refresh_ttl: number;  // seconds, for KV expirationTtl
+}
+
+interface SessionData {
+  version: number;              // stamped:  re-set every write
+  iat: number;                  // pinned:   login instant (ms), minted once then carried
+  identity: Identity | null;    // pinned:   carried unless a caller supplies a fresher one
+  access_token: string;         // supplied: fresh from GitHub each write
+  refresh_token: string;        // supplied
+  expires_at: number;           // supplied: ms
+}
+
+// The ONLY writer of a session record. `prior` is the record being replaced
+// (null = brand-new login). iat is pinned here — minted on a null prior, carried
+// otherwise — so a refresh cannot bump it past a cutoff. identity is likewise
+// carried unless a caller supplies a fresher one.
+async function persist(store, id, grant: Grant, prior: SessionData | null, identity?: Identity): Promise&lt;SessionData&gt; {
+  const data: SessionData = {
+    version: CURRENT_VERSION,                       // stamped every write
+    iat: prior?.iat ?? Date.now(),                  // pinned: minted once, then carried
+    identity: identity ?? prior?.identity ?? null,  // pinned/carried
+    access_token: grant.access_token,               // supplied fresh
+    refresh_token: grant.refresh_token,
+    expires_at: grant.expires_at,
+  };
+  await store.put(id, data, grant.refresh_ttl);
+  return data;
+}
+
+// login:   persist(store, id, grant, null, identity)
+// refresh: persist(store, id, grantFromArctic(tokens), s)
+// upgrade: persist(store, id, grantFrom(s), s, fetchedIdentity)
+
+async function getValidAccessToken(cfg, store, id, forceRefresh = false) {
+  const s = await store.get(id);
+  if (!s) return null;
+  if (s.iat &lt; cfg.session_valid_since) { await store.delete(id); return null; }  // forced re-login
+  if (!forceRefresh &amp;&amp; Date.now() &lt; s.expires_at - SKEW_MS) return s.access_token;
+  return doRefresh(cfg, store, id, s);   // whole record, so refresh carries pinned fields
+}</code></pre>
+      </details>
+    </section>
+    <aside data-kind="decision-lead">
+      <strong>Decision.</strong> <span class="rec">The session record carries an explicit <code>version</code> field</span>
+      (identity capture = <code>version: 2</code>, pre-identity = <code>version: 1</code>) rather than relying on a plain
+      presence check. The explicit version keeps later session-shape changes clean, and a missing/older version simply
+      triggers a backfill on next refresh.
+    </aside>
+    <aside data-kind="storage-note">
+      <strong>Note — this is KV, not Cloudflare D1.</strong> The versioning above is for the <em>session</em> records in
+      KV. The <em>comments</em> live in Cloudflare D1, whose schema changes go through Wrangler's migrations directory
+      (numbered <code>.sql</code> files, applied <code>--local</code> then <code>--remote</code>, tracked in
+      <code>d1_migrations</code>); additive columns are added nullable. The two stores evolve by different mechanisms —
+      don't conflate them.
+    </aside>
+  </section>
+
+  <section id="identity-logging">
+    <h3>We log reviewer identity, on purpose</h3>
+    <p>
+      <strong>Reviewer login and display name are logged with comment operations, for auditability.</strong>
+    </p>
+    <p>
+      The reasoning: this Worker is installed <strong>into a single org and is operated by someone who can already see
+      the org's members and everything they can read.</strong> A public GitHub login and display name are not sensitive
+      PII in that context — the operator can see them in GitHub directly. Suppressing them from logs buys no meaningful
+      privacy while actively costing us the ability to answer "who left / resolved this comment, and when" from
+      operational logs. Auditability wins.
+    </p>
+    <p>Concretely:</p>
+    <ul>
+      <li>Comment create/resolve log lines include the acting <code>author_login</code> (and
+        <code>name</code> where handy) alongside the existing <code>sessionId</code>, the doc
+        <code>(repo, ref, path)</code>, and the outcome. Resolve is the one worth auditing most — it's the agent's primary
+        mutation and closes out a raised issue.</li>
+      <li>Tokens, refresh tokens, and the raw session record are <strong>still never logged.</strong> "Log identity"
+        means the public GitHub login/name, not the credential — the token-secrecy posture from Deliverable 1 is
+        unchanged.</li>
+      <li>Identity still lives only in the server-side session record and in Cloudflare D1, never in the cookie (cookie
+        stays the opaque session id). Logging identity doesn't change <em>where</em> it's stored.</li>
+    </ul>
+  </section>
+</article>
+
+<article id="api" data-kind="design">
+  <h2>The comment API (human + agent)</h2>
+  <p>
+    What exists today is a local workflow that writes a JSON sidecar file to disk. The hosted surface generalizes that
+    into one HTTP API on the Worker, and — the key move — the <strong>agent always speaks HTTP too</strong>. The agent is
+    simply handed the right URL: a local URL when a local server is serving the doc, the Worker URL when it is hosted, the
+    same call shape either way. <span class="rec">Decision: the on-disk JSON sidecar is no longer an agent-facing
+    artifact.</span> Behind the local URL a local server still persists to a JSON file, but <em>only the server touches
+    that file</em> — it is an implementation detail of the <code>LocalFileStore</code>, not something the agent reads off
+    disk. Two consumers share this one surface: the injected <strong>widget</strong> (browser session cookie) and the
+    <strong>agent</strong> (GitHub bearer token). Every operation enforces the <a href="#authz">access probe</a>.
+  </p>
+  <aside class="risk" data-kind="tracked-for-deletion">
+    <strong>Tracked for deletion.</strong> The old &quot;agent reads the sidecar JSON off disk&quot; path is superseded
+    by HTTP-only access and is tracked for removal — the agent obtains comments only through the HTTP surface described
+    here, never by opening a file.
+  </aside>
+  <p>
+    The surface has one shape: the URL names the collection, the body names the operation. The sections below give the
+    route, the op envelope, batch, and the store interface behind them.
+  </p>
+
+  <section id="api-route">
+    <h3>The comments API, in one shape</h3>
+    <p>
+      The comment surface is <strong>body-ops over one collection URL</strong>. The URL names only the collection — the
+      doc whose comments these are — and carries no verb and no thread id:
+    </p>
+<pre><code># Hosted Worker — the URL carries &lt;repo&gt; (the org's repos)
+GET    /&lt;repo&gt;/&lt;doc&gt;?ref=&lt;ref&gt;&amp;comments      → list every thread on this doc
+POST   /&lt;repo&gt;/&lt;doc&gt;?ref=&lt;ref&gt;&amp;comments      → apply one op, or a batch of ops
+
+# Local server — NO &lt;repo&gt; segment (it serves a file tree, not an org's repos)
+GET    /&lt;doc&gt;?ref=&lt;ref&gt;&amp;comments             → same shape, doc path + optional ?ref
+POST   /&lt;doc&gt;?ref=&lt;ref&gt;&amp;comments             → same op/batch body</code></pre>
+    <p>
+      Only the hosted Worker URL names a <code>&lt;repo&gt;</code>; the local server serves a file tree, so its route is
+      the doc path plus <code>?ref</code> and <code>&amp;comments</code>, no repo segment. The op envelope, the batch
+      shape, and the <code>DocKey</code> the store sees are otherwise identical — the difference lives only in how each
+      runtime parses its URL into that opaque doc key.
+    </p>
+    <p>
+      <span class="rec">Decision: the query string names the collection; the body names the operation.</span>
+      <span class="badge ok">chosen</span> A single request body is one op object
+      <code>{op:"create"|"reply"|"resolve"|"reopen"|"delete"|"edit", &hellip;}</code>; a batch body is a JSON <em>array</em> of
+      those same objects, mixing verbs freely. The resource marker is a bare valueless <code>?comments</code>
+      (<code>?comments=1</code> accepted as an equivalent), and every verb and id travels in the body. Batch therefore
+      falls out for free: the array form is the singular form repeated, with per-op results returned in request order.
+      There is no <code>&amp;thread</code> and no <code>&amp;op</code> in the URL.
+    </p>
+    <p>
+      Two consumers share this one surface — the injected <strong>widget</strong> (browser session cookie) and the
+      <strong>agent</strong> (GitHub bearer token) — and every request, single or batch, first clears the
+      <a href="#authz">access probe</a> for <code>(repo, ref, path)</code> once, before any op runs.
+    </p>
+    <p>
+      This shape rests on <strong>standard URL semantics</strong>: the query string is orthogonal to the path, so
+      <code>?comments</code> can never collide with a repo file path. That orthogonality is a design property to confirm
+      in the router spike, not an asserted GitHub behavior. The catch-all router gains one branch: if the query string carries the bare key
+      <code>comments</code>, dispatch to the comment handler with the already-parsed <code>(repo, ref, path)</code>;
+      otherwise serve the doc. A missing <code>?ref=</code> normalizes to the <code>'default'</code> sentinel exactly as
+      the doc route and <a href="#store-schema">store</a> already agree.
+    </p>
+
+    <details>
+      <summary>Layer A — route + request/response bodies</summary>
+      <table>
+        <thead><tr><th>Method</th><th>URL</th><th>Body</th><th>Response</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="k">GET</td>
+            <td><code>/&lt;repo&gt;/&lt;doc&gt;?ref=&lt;ref&gt;&amp;comments</code></td>
+            <td>none</td>
+            <td><code>200</code> <code>{threads: Thread[]}</code>, ordered by <code>created_at</code>. Same payload the
+              inline seed carries.</td>
+          </tr>
+          <tr>
+            <td class="k">POST</td>
+            <td><code>/&lt;repo&gt;/&lt;doc&gt;?ref=&lt;ref&gt;&amp;comments</code></td>
+            <td>one op object <em>or</em> an array of op objects</td>
+            <td>single → <code>200</code> op result; array → <code>207</code> <code>{results: OpResult[]}</code> (see
+              Layer C)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Shared response shapes. IDs are <strong>branded</strong>, extending the <code>SessionId</code> pattern already
+        in <code>core/store.ts</code> (a <code>string</code> intersected with a private <code>__brand</code>, minted by
+        an <code>asX</code> constructor applied only where the id originates) — so a bare <code>string</code> can never
+        stand in for a <code>ThreadId</code> or <code>CommentId</code>, and the two stay distinct from each other.
+        Timestamps are <strong>numeric epoch-milliseconds end to end</strong>: the same number D1 stores as
+        <code>INTEGER</code> crosses the JSON boundary unchanged (no ISO conversion anywhere), typed as a branded
+        <code>Timestamp</code>. That is the internally-consistent choice and it matches the aging-out
+        <code>DELETE WHERE created_at &lt; ?</code> path, which compares numbers.
+      </p>
+<pre><code>// Branded ids — extend the SessionId brand in core/store.ts. Distinct, non-interchangeable.
+type ThreadId  = string &amp; { readonly __brand: "ThreadId" };
+type CommentId = string &amp; { readonly __brand: "CommentId" };
+const asThreadId  = (raw: string): ThreadId  =&gt; raw as ThreadId;
+const asCommentId = (raw: string): CommentId =&gt; raw as CommentId;
+
+// Numeric epoch-ms, end to end: D1 INTEGER === JSON number === this brand. No ISO strings.
+type Timestamp = number &amp; { readonly __brand: "Timestamp" };
+const asTimestamp = (ms: number): Timestamp =&gt; ms as Timestamp;
+
+// A well-formed W3C TextQuoteSelector. `exact` is required; prefix/suffix are optional
+// disambiguators; `sections` is pure metadata (empty when no article was touched). The
+// Worker validates this SHAPE only — it never confirms the quote matches text in the doc.
+type Anchor = {
+  exact:     string;
+  prefix?:   string;
+  suffix?:   string;
+  sections?: string[];
+};
+
+type Author  = { login: string; name: string | null };            // server-stamped, never from the body
+type Comment = { id: CommentId; author: Author; body: string; createdAt: Timestamp; editedAt?: Timestamp };
+type Thread  = {
+  id: ThreadId;                  // thread-root id
+  anchor: Anchor;                // immutable W3C TextQuoteSelector triple
+  root: Comment;                 // the anchored root comment
+  replies: Comment[];            // flat, one level
+  resolvedAt: Timestamp | null;  // null = open
+};
+
+// OpResult — a DISCRIMINATED UNION: discriminate first on `ok`, then on `op`, so a single
+// op returns its own verb-specific payload. One success arm PER VERB (reply/edit reserved),
+// which is exactly what lets a batch collect one array of mixed, type-safe results — every
+// per-op result object, including a reserved edit's {ok:true, op:"edit", comment}, is assignable.
+type OpResult =
+  | { ok: true;  op: "create";             thread:   Thread }
+  | { ok: true;  op: "reply";              comment:  Comment }    // reserved
+  | { ok: true;  op: "edit";               comment:  Comment }    // reserved
+  | { ok: true;  op: "resolve" | "reopen"; thread:   Thread }
+  | { ok: true;  op: "delete";             threadId: ThreadId }   // v1: hard purge
+  | { ok: false; op: Op["op"];             error:    OpError };</code></pre>
+      <p>
+        <strong>Validation happens before any store call.</strong> The Worker validates the request envelope with
+        <strong>Zod (importing from <code>zod/mini</code>)</strong> and a <code>safeParse</code>-style check; a malformed
+        envelope is rejected with a <code>400</code> <em>before</em> the store is touched. The <code>anchor</code> is
+        validated for <strong>shape only</strong> — a well-formed <code>TextQuoteSelector</code> — never for whether it
+        actually matches text in the doc; that DOM/semantic match is <a href="#anchor-validation">explicitly out of
+        scope</a> because the Worker streams HTML through <code>HTMLRewriter</code> and never builds a DOM.
+      </p>
+      <p>
+        <strong>Status codes.</strong> <code>404</code> (neutral, from the access probe) for any caller who cannot fetch
+        the doc — comments never leak a doc's existence. <code>400</code> for a malformed envelope (unknown
+        <code>op</code>, missing required field) <em>before</em> any store call. <code>200</code> for a single op that
+        succeeded; <code>207 Multi-Status</code> for a batch (which may contain per-op failures — Layer C).
+        <code>404</code> for a single op naming a <code>threadId</code>/<code>commentId</code> that does not exist on this
+        doc.
+      </p>
+      <p>
+        <strong>The URL names the collection only.</strong> Because the verb and every id live in the body, the URL is
+        identical for list, create, reply, resolve, reopen, edit, and batch. Nothing in the query string ever changes
+        shape as the verb set grows — a new verb is a new <code>op</code> value, not a new route or a new query key.
+      </p>
+    </details>
+
+    <details id="anchor-validation">
+      <summary>Envelope validation — Zod (<code>zod/mini</code>), anchor shape, and what is out of scope</summary>
+      <p>
+        <strong>Validator: Zod 4, imported from <code>zod/mini</code>.</strong> The <code>zod/mini</code> entry point is
+        the tree-shakable, functional API that keeps only the schemas actually referenced in the bundle — the right
+        choice on Workers, where bundle size is a real constraint. It is confirmed Workers-compatible. A
+        <code>safeParse</code>-style call validates the request envelope at the route chokepoint, and a malformed
+        envelope is rejected with <code>400</code> <strong>before any store call</strong>: an unknown <code>op</code>, a
+        missing required field for that verb, a wrong-typed field, or (for a batch) a body that is not an array of op
+        objects. Nothing reaches <code>ICommentsStore</code> until the envelope parses.
+      </p>
+      <p>
+        <strong>The anchor is validated for shape only.</strong> The schema for <code>create</code> requires a
+        well-formed <code>TextQuoteSelector</code>: <code>exact</code> is a required string; <code>prefix</code> and
+        <code>suffix</code> are optional strings; <code>sections</code> is an optional string array. That is the whole
+        anchor contract the Worker enforces.
+      </p>
+      <p>
+        <strong>What is explicitly out of scope: DOM/semantic anchor matching.</strong> The Worker
+        <em>cannot</em> confirm that an anchor actually matches text in the doc, because it streams the HTML through
+        <code>HTMLRewriter</code> and <strong>never builds a DOM</strong> — there is no document to search for the quote.
+        So the Worker validates that the anchor is well-<em>shaped</em>, and stops there; whether the quote still
+        resolves against the live document is a client-side concern. Orphaned anchors (the quoted text edited away under
+        a moved branch ref) therefore remain a handled <strong>client</strong> concern — the widget re-anchors by
+        prefix/exact/suffix at render time and degrades gracefully — not something the Worker can or does check.
+      </p>
+      <p>
+        <strong>Unit-tested.</strong> The envelope validator has direct unit tests: each verb's required/optional fields,
+        the unknown-<code>op</code> and non-array-batch rejections, and the anchor-shape schema (accepting a minimal
+        <code>{exact}</code>, accepting the full prefix/exact/suffix/sections form, rejecting a missing <code>exact</code>
+        or a non-string field) — all asserting a clean <code>400</code> with no store interaction.
+      </p>
+    </details>
+
+    <details>
+      <summary>Layer B — the op envelope, per verb (with JSON examples)</summary>
+      <p>The body of a single POST is exactly one of these objects. A batch is an array of them (Layer C).</p>
+      <table>
+        <thead><tr><th><code>op</code></th><th>Required fields</th><th>Optional</th><th>Result on success</th><th>v1?</th></tr></thead>
+        <tbody>
+          <tr><td class="k"><code>create</code></td><td><code>anchor</code>, <code>text</code></td><td><code>clientOpId</code></td><td>the new <code>Thread</code> (server mints <code>id</code>, stamps author + <code>createdAt</code>)</td><td><span class="badge ok">v1</span></td></tr>
+          <tr><td class="k"><code>reply</code></td><td><code>threadId</code>, <code>text</code></td><td><code>clientOpId</code></td><td>the new reply <code>Comment</code></td><td><span class="badge warn">deferred</span></td></tr>
+          <tr><td class="k"><code>resolve</code></td><td><code>threadId</code></td><td>&mdash;</td><td>the updated <code>Thread</code> (<code>resolvedAt</code> set)</td><td><span class="badge ok">v1</span></td></tr>
+          <tr><td class="k"><code>reopen</code></td><td><code>threadId</code></td><td>&mdash;</td><td>the updated <code>Thread</code> (<code>resolvedAt</code> cleared)</td><td><span class="badge ok">v1</span></td></tr>
+          <tr><td class="k"><code>delete</code></td><td><code>threadId</code></td><td>&mdash;</td><td><code>{threadId}</code> of the purged thread (a genuine hard delete — the row is gone)</td><td><span class="badge ok">v1</span></td></tr>
+          <tr><td class="k"><code>edit</code></td><td><code>commentId</code>, <code>patch</code></td><td>&mdash;</td><td>the updated <code>Comment</code> (<code>editedAt</code> set)</td><td><span class="badge warn">deferred</span></td></tr>
+        </tbody>
+      </table>
+      <p>
+        <code>anchor</code> is the W3C TextQuoteSelector triple the widget already serializes, passed through opaquely
+        (the server never parses it). <code>patch</code> for <code>edit</code> is <code>{body: string}</code> in v1 (a
+        whole-body replace; the object form leaves room for future partial edits). <code>clientOpId</code> is an optional
+        caller-minted string on the <em>minting</em> verbs (<code>create</code>/<code>reply</code>) that carries the
+        retry-idempotency of Layer C; it is absent on <code>resolve</code>/<code>reopen</code>/<code>edit</code>, which
+        are idempotent by shape. The <code>author</code> is <em>never</em> in the body — the server stamps it from the
+        session cookie or agent bearer token. Concrete examples:
+      </p>
+<pre><code>// create — anchor + text (+ optional clientOpId)
+{ "op": "create",
+  "anchor": { "sections": ["main"], "prefix": "as the ", "exact": "access probe", "suffix": " authorizes" },
+  "text": "Should this also cover the 304 re-probe path?",
+  "clientOpId": "w-7f3a9c" }
+
+// reply — threadId + text (+ optional clientOpId)
+{ "op": "reply", "threadId": "c-1a2b3c4d", "text": "Yes — 304 counts as authorized.", "clientOpId": "w-7f3a9d" }
+
+// resolve — threadId
+{ "op": "resolve", "threadId": "c-1a2b3c4d" }
+
+// reopen — threadId
+{ "op": "reopen", "threadId": "c-1a2b3c4d" }
+
+// delete — threadId (hard purge; the row is gone)
+{ "op": "delete", "threadId": "c-1a2b3c4d" }
+
+// edit — commentId + patch
+{ "op": "edit", "commentId": "c-1a2b3c4d", "patch": { "body": "Rephrasing: does the probe short-circuit on 304?" } }</code></pre>
+      <p>
+        <strong>v1 scope.</strong> The widget and agent both use <code>create</code> / <code>resolve</code> /
+        <code>reopen</code> / <code>delete</code> in v1; <code>reply</code> and <code>edit</code> are envelope-reserved (the
+        router parses and rejects them with a clear <code>400 "op not yet supported"</code>) so they slot in later with
+        zero route or URL change. The agent's v1 surface is <code>list</code> + <code>resolve</code>/<code>reopen</code> +
+        <code>delete</code>: <code>resolve</code> is the default soft-close (auditable, reversible via <code>reopen</code>)
+        and <code>delete</code> is a genuine hard purge for when a thread should be removed outright. <code>clientOpId</code>
+        is part of the envelope now (so the shape is stable) but is honored only when the dedupe path of Layer C ships;
+        v1 accepts and ignores it.
+      </p>
+    </details>
+
+    <details>
+      <summary>Layer C — batch: an array of ops, per-op results, partial-failure &amp; idempotency</summary>
+      <p>
+        A batch request is <strong>a JSON array of the exact op objects from Layer B</strong>, mixing verbs freely,
+        POSTed to the same collection URL. It exists to let the agent close many threads (or a mix of resolve + reply) in
+        one round trip.
+      </p>
+<pre><code>// batch body — an array, verbs mixed freely
+[ { "op": "resolve", "threadId": "c-1a2b" },
+  { "op": "resolve", "threadId": "c-3c4d" },
+  { "op": "reply",   "threadId": "c-5e6f", "text": "addressed in edit" } ]</code></pre>
+      <p><strong>Response shape.</strong> <code>207 Multi-Status</code> with one result per input op, <em>in request order</em>. Each result also echoes its own thread id (in <code>thread</code> on success, in <code>error.threadId</code> on failure), so the agent correlates results to the ops it sent by id rather than relying on array position:</p>
+<pre><code>{ "results": [
+    { "ok": true,  "op": "resolve", "thread": { /* updated Thread */ } },
+    { "ok": true,  "op": "resolve", "thread": { /* updated Thread */ } },
+    { "ok": false, "op": "reply",   "error": { "code": "not_found", "threadId": "c-5e6f" } }
+] }</code></pre>
+      <p>
+        <span class="rec">Decision: a batch is <em>best-effort per-op</em>, never all-or-nothing.</span> Each op in the
+        array is attempted independently, in order, and a failing op (a <code>threadId</code> that does not exist, a
+        constraint violation, a thread another request concurrently deleted) reports its own <code>error</code> and does
+        <em>not</em> roll back the ops that already succeeded. There is no wrapping transaction across ops in either store
+        (see Layer D) — this is the deliberate mechanism that keeps a single stale thread id from silently discarding an
+        agent's other 20 resolves. The whole request is rejected up front with <code>400</code> only for envelope-level
+        problems the router catches before touching the store (not an array, an element with an unknown <code>op</code>,
+        a missing required field), and with <code>404</code> if the access probe fails for the doc.
+      </p>
+      <p>
+        <strong>Idempotency.</strong> <code>resolve</code> and <code>reopen</code> are naturally idempotent — resolving
+        an already-resolved thread returns <code>ok:true</code> with the current (already-set) <code>resolvedAt</code>,
+        no error and <em>no second timestamp overwrite</em>. <code>edit</code> is idempotent on an identical
+        <code>patch</code> by the same rule: an identical body re-stamps nothing. <code>create</code> and
+        <code>reply</code> are <em>not</em> intrinsically idempotent (each mints a new id); a client that must retry a
+        batch safely sends the optional per-op <code>clientOpId</code> from Layer B, which the server dedupes within a
+        short window. <code>clientOpId</code> is optional and off the critical path — v1 ships without the dedupe store
+        and leans on resolve/reopen idempotency, which covers the agent's cleanup role.
+      </p>
+    </details>
+  </section>
+
+  <section id="api-verbs">
+    <h3>Verb set — mirror GitHub's names, own the store</h3>
+    <p>
+      We borrow GitHub's verb names but run our own store. GitHub's comment model is the reference for vocabulary and
+      structure; the store (Cloudflare D1) is ours, for the reasons below.
+    </p>
+    <p>
+      <strong>We borrow GitHub's verb <em>names</em> but run our own store (Cloudflare D1).</strong> This is not a
+      rejection of "don't reinvent the wheel" — it's the opposite. The research is decisive that native GitHub comment
+      storage does not fit rendered-HTML review:
+    </p>
+    <ul>
+      <li><strong>GitHub has no anchor primitive for a rendered-HTML text range.</strong> Native anchors are diff line,
+        commit position, or none — a W3C <code>TextQuoteSelector</code> (the widget's prefix/exact/suffix triple) maps to
+        none of them. Stored natively, the anchor is an opaque blob we would have to re-anchor ourselves anyway, so "no
+        store to run" is illusory the moment arbitrary-HTML anchoring is required.</li>
+      <li><strong>The only native surface with <em>both</em> resolve <em>and</em> threaded reply is PR review threads,
+        which require an open PR</strong> (<code>{pull_number}</code> in every write path). Manufacturing a throwaway PR
+        per doc/ref to host comments would be absurd. <code>resolveReviewThread</code>/<code>unresolveReviewThread</code>
+        are <strong>GraphQL-only</strong> and <strong>PR-bound</strong>; commit comments are flat (no reply, no resolve);
+        issue/PR-conversation comments are flat (hide/minimize, no resolve); discussions can thread but have no resolve.
+        No native surface offers the combination review mode needs <em>without</em> a PR.</li>
+      <li>Native storage would also mean <strong>posting as the user</strong>, dragging OAuth scopes and REST rate limits
+        through every comment read, with state scattered and no clean per-<code>(repo, ref, path)</code> query.</li>
+    </ul>
+    <p>
+      So we <strong>mirror GitHub's vocabulary and its data model</strong> onto our own Cloudflare D1 store. What we
+      borrow, per the research:
+    </p>
+    <table>
+      <thead><tr><th>GitHub verb name</th><th>v1?</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="k"><code>list</code></td><td><span class="badge ok">v1</span></td><td>List threads for a doc (the <code>GET &hellip;?comments</code> above).</td></tr>
+        <tr><td class="k"><code>create</code></td><td><span class="badge ok">v1</span></td><td>Create a new thread — a root comment plus its immutable anchor.</td></tr>
+        <tr><td class="k"><code>resolve</code> / <code>reopen</code></td><td><span class="badge ok">v1</span></td><td>Soft-close / re-open a thread — the default, audit-preserving close.</td></tr>
+        <tr><td class="k"><code>reply</code></td><td><span class="badge warn">deferred</span></td><td>One-level reply onto an existing thread. Shape reserved; see below.</td></tr>
+        <tr><td class="k"><code>edit</code></td><td><span class="badge warn">deferred</span></td><td>Edit a comment body.</td></tr>
+        <tr><td class="k"><code>delete</code></td><td><span class="badge ok">v1</span></td><td>Hard purge of a thread by <code>threadId</code> — the row is gone. Distinct from resolve (the soft-close); both ship in v1.</td></tr>
+        <tr><td class="k"><code>batch</code></td><td><span class="badge ok">v1</span></td><td>An array of op objects, executed best-effort per-op — a first-class part of the API (see <a href="#api-route">Layer C</a>), not a deferred add.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      <strong>Thread-owns-resolution, one-level replies.</strong> We copy GitHub's structural model, not just its verb
+      names. From the research: in GitHub a <strong>thread is the resolvable container</strong> and resolution lives on
+      the thread, not the comment (<code>PullRequestReviewThread.isResolved</code>); replies are <strong>one level
+      only</strong> ("replies to replies not supported"). We adopt both:
+    </p>
+    <ul>
+      <li>A <strong>thread</strong> is the unit an anchor attaches to and the unit that resolves. The immutable
+        <code>TextQuoteSelector</code> anchor lives on the <strong>thread root</strong>; <code>(repo, ref, path)</code>
+        indexes the thread. Resolution is a property of the thread (<code>resolved_at</code> on the root), never of an
+        individual reply.</li>
+      <li><strong>Replies are flat within a thread</strong> — one level, matching GitHub. This keeps rendering and
+        anchoring trivial (there is exactly one anchored root per thread) and avoids a nesting model GitHub itself
+        declined to build.</li>
+    </ul>
+    <p>
+      This means the schema evolves from "row = comment" toward "row = thread root, with replies referencing it." For v1,
+      where reply/edit/delete are deferred, a single-comment thread and a bare comment are indistinguishable, so the
+      <a href="#store">existing <code>comments</code> table</a> stands; the forward-compatible move is to treat each
+      existing row as a thread root and add a nullable <code>reply_to</code> (thread-root id) column when
+      <code>reply</code> lands. <code>resolved_at</code> is already reserved on the row and now formally means
+      <em>thread</em> resolution.
+    </p>
+    <p>
+      <strong>Resolve <em>and</em> delete, both in v1.</strong> <code>resolve</code> is the default soft-close — it keeps
+      the audit trail, matches GitHub's own bias (PR threads resolve; they are not deleted in the review flow), and is
+      reversible via <code>reopen</code>; it is the agent's cleanup role. <code>delete</code> is a genuine hard purge by
+      <code>threadId</code>: the row is gone, no audit trail, no reopen. The two are distinct tools with distinct intent
+      — soft-close for "addressed, keep the history," hard delete for "remove this entirely" — and both are part of the
+      v1 verb set.
+    </p>
+    <p>
+      <strong>Batch is first-class.</strong> Because the URL names the collection and the body names the operation, a
+      batch is just the singular form repeated: a JSON array of op objects POSTed to the same URL, executed best-effort
+      per-op with one <code>OpResult</code> per input op in request order (the full mechanics are in
+      <a href="#api-route">Layer C</a>). This is a designed part of the v1 API, not a maybe — it is exactly what lets an
+      agent close many threads (or mix resolve + reply) in one round trip without a single stale id rolling back the
+      rest. No native GitHub equivalent is mirrored here; batch is a property of our own body-op shape.
+    </p>
+  </section>
+
+  <section id="api-v1">
+    <h3>The v1 surface</h3>
+    <p>Concretely, v1 exposes one collection URL, two methods, with the verb and any id in the body:</p>
+    <table>
+      <thead><tr><th>Method + URL</th><th>Who</th><th>Body</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td class="k">GET&nbsp;/&lt;doc&gt;?ref=&amp;comments</td><td>widget + agent</td><td>none</td><td>List threads for one doc. Widget calls on load (or reads the inline seed); agent calls to read feedback.</td></tr>
+        <tr><td class="k">POST&nbsp;/&lt;doc&gt;?ref=&amp;comments</td><td>widget</td><td><code>{op:"create", anchor, text}</code></td><td>Create a thread. <code>(repo, ref, path)</code> comes from the URL, author is stamped from the session.</td></tr>
+        <tr><td class="k">POST&nbsp;/&lt;doc&gt;?ref=&amp;comments</td><td>agent + widget</td><td><code>{op:"resolve"|"reopen", threadId}</code></td><td>Soft-close (or re-open) a thread by id. The agent's primary mutation.</td></tr>
+        <tr><td class="k">POST&nbsp;/&lt;doc&gt;?ref=&amp;comments</td><td>agent + widget</td><td><code>{op:"delete", threadId}</code></td><td>Hard purge a thread by id — the row is gone, no reopen. A genuine delete alongside the soft-close.</td></tr>
+        <tr><td class="k">POST&nbsp;/&lt;doc&gt;?ref=&amp;comments</td><td>agent</td><td><code>[{op..},{op..}]</code></td><td>Batch: an array of the above ops, executed best-effort per-op. Lets one round trip close many threads.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Every mutation POSTs to the <em>same</em> URL; the <code>op</code> field in the body selects the verb, so deferred
+      <code>reply</code>/<code>edit</code> slot in as new <code>op</code> values with no new route — the
+      forward-compatible seam. There is no <code>&amp;thread</code> and no <code>&amp;op</code> in the URL.
+    </p>
+    <p>
+      <strong>Agent-facing surface: list + resolve/reopen + delete.</strong> The agent gets <strong>read, resolve/reopen,
+      and delete; no create in v1</strong>. Its flow mirrors local review: <em>list</em> the threads a human left, address
+      each via HTML edits, then <em>resolve</em> the ones it has handled — the soft-close default, auditable and
+      reversible via <em>reopen</em> — or <em>delete</em> to purge outright when a thread should be removed rather than
+      archived. The agent authenticates with its own GitHub token as a bearer; the
+      <a href="#authz">access probe</a> authorizes every call, so an agent that cannot fetch the doc gets the same neutral
+      <code>404</code> and never learns the doc or its comments exist. Comments are <strong>scoped to <code>ref</code></strong>
+      (locked), inherited from the <code>?ref=</code> on the doc URL the action is attached to. Whether the agent later
+      gains <code>create</code> (to leave its own findings) remains the <a href="#questions">open question</a> it already
+      was; identity capture makes agent authorship attributable if it does.
+    </p>
+    <aside>
+      <strong>Optional, much later — one-way export.</strong> The research suggests a future feature <em>atop</em> the
+      store, never in place of it: a one-way export from Cloudflare D1 into a real PR review or discussion <em>when one
+      already exists</em> for the ref. That is strictly additive and out of scope for D2 — flagged here only so the store
+      design stays compatible with it.
+    </aside>
+    <p>
+      <span class="rec">Decision: the v1 mutation set is <code>create</code> + <code>resolve</code>/<code>reopen</code> +
+      <code>delete</code>, and <code>batch</code> ships in v1</span> (an array of those ops, best-effort per-op).
+      the thread-scoped verbs <code>resolve</code>/<code>reopen</code>/<code>delete</code> all identify their target by
+      <code>threadId</code> — not <code>commentId</code>: resolution and deletion are thread-level, so <code>threadId</code>
+      is the id these verbs carry — while <code>create</code> mints a new thread.
+      <code>reply</code> and <code>edit</code> are named-but-reserved (envelope-parsed, rejected with a
+      clear <code>400</code>) so they slot in later with no route change. Batch is a first-class part of the API because
+      the body-op shape makes it free — an agent closing many threads after a pass does it in one round trip.
+    </p>
+  </section>
+</article>
+
+<article id="authz" data-decision data-kind="decision">
+  <h2>Authorization — the access probe</h2>
+  <p>
+    The linchpin: a caller must be able to see the doc before they can touch its comments. Comments must never become a
+    side channel that leaks a private doc's existence or content to someone who couldn't fetch the doc itself. So every
+    comment operation reuses Deliverable 1's authorization model:
+    <strong>can this caller fetch this doc as themselves?</strong>
+  </p>
+  <ol>
+    <li>Resolve the caller's GitHub token — from the <strong>session cookie</strong> (widget) or the <strong>bearer
+      header</strong> (agent).</li>
+    <li><strong>Probe:</strong> issue a GitHub Contents read for <code>(repo, ref, path)</code> with that token. We only
+      need the <em>status line</em>, never the body.</li>
+    <li>If the probe is not <code>200</code> (or <code>304</code> on a re-probe — see below) → return the
+      <strong>same neutral <code>404</code></strong> the doc route returns. Comment endpoints are thus indistinguishable
+      from "no such doc" for anyone lacking access — no existence leak, identical to Deliverable 1's contract.</li>
+    <li>If <code>200</code>/<code>304</code> → the caller can see the doc, so they may read/write its comments. Proceed.</li>
+  </ol>
+
+  <p>
+    Cloudflare Workers ship <strong>no Express-style middleware layer</strong>; the idiomatic "run on every route"
+    equivalent is either a single dispatch inside <code>fetch()</code> or a router library (Hono / itty-router) whose
+    <code>use('*', &hellip;)</code> registers a before-every-route handler. Deliverable&nbsp;1 already routes through one
+    catch-all dispatch — a <code>switch</code> over the three <code>/auth/*</code> routes, then <em>everything else</em>
+    is a doc request — and the <a href="#api-route"><code>?comments</code></a> action layers onto that same catch-all.
+    So both authenticated branches (serve-doc and comments) already funnel through a single point, right after the
+    session/bearer token is resolved.
+  </p>
+  <p>
+    <span class="rec">Decision: one <code>checkAccess</code> helper invoked at that single post-auth chokepoint</span>
+    <span class="badge ok">chosen</span> — not a router library. The probe is factored into one
+    <code>checkAccess(cfg, store, token, repo, ref, path)</code> call placed <em>before</em> the request forks into
+    <code>serveDoc</code> vs. the comment handler. Because there is exactly one place a caller becomes authenticated and
+    <code>checkAccess</code> owns it, the probe <strong>cannot be forgotten</strong> when a future comment verb is added:
+    it is structural, not a convention each handler must remember. A deny — both GitHub <code>403</code> <em>and</em>
+    <code>404</code> mean no-access — maps to the shared neutral <code>404</code> (<a href="#authz-deny">deny
+    semantics</a>), so comment endpoints stay indistinguishable from "no such doc."
+  </p>
+  <p>
+    Adopting Hono or itty-router is not warranted here: it adds a dependency and a second routing model to guarantee
+    something one call at one chokepoint already guarantees, and the route set is tiny (three auth routes plus the
+    catch-all). Revisit a router only if the route surface grows substantially.
+  </p>
+  <details>
+    <summary>Probe mechanics &amp; <code>checkAccess</code> shape</summary>
+    <p>
+      The "access probe" is Deliverable&nbsp;1's fetch-as-user check, narrowed to metadata. The doc route resolves the
+      caller's token (session cookie for the widget, bearer header for the agent), then issues a GitHub Contents read for
+      <code>(repo, ref, path)</code> with <em>that</em> token and inspects only the status line. See
+      <a href="#authz-probe">the probe request</a> and <a href="#authz-quota">bytes vs. quota</a> for the media-type and
+      <code>ETag</code> details. Helper shape — one call site downstream of token resolution, one deny mapping:
+    </p>
+<pre><code>type Access =
+  | { ok: true }
+  | { ok: false; denialResponse: Response };   // always neutral() — no existence leak
+
+async function checkAccess(
+  cfg: Config,
+  store: KvSessionStore,
+  token: string,
+  repo: string,
+  ref: string | undefined,
+  path: string,
+): Promise&lt;Access&gt; {
+  const status = await probeContents(cfg, token, repo, path, ref); // object+json, status only
+  // 200/304 =&gt; visible; 403 AND 404 (and anything else) =&gt; deny
+  return status === 200 || status === 304
+    ? { ok: true }
+    : { ok: false, denialResponse: neutral() };
+}
+
+// inside fetch(), after the /auth/* switch and token resolution — the single chokepoint:
+const access = await checkAccess(cfg, store, token, repo, ref, docPath);
+if (!access.ok) return access.denialResponse;   // guards BOTH branches below
+return url.searchParams.has("comments")
+  ? handleComments(cfg, store, req, repo, ref, docPath, token)
+  : serveDoc(cfg, store, url, sessionId, token, repo, docPath, ref);</code></pre>
+    <p>
+      The <code>401</code>-refresh-retry loop stays inside <code>serveDoc</code> as it is today; <code>checkAccess</code>
+      is purely the visibility gate, and the two concerns compose without either handler re-implementing the probe.
+    </p>
+  </details>
+
+  <section id="authz-probe">
+    <h3>The probe request: metadata, not the file body</h3>
+    <p>
+      Deliverable 1's <code>fetchDoc</code> streams the whole file (<code>Accept: application/vnd.github.raw+json</code>)
+      because it needs the bytes to serve the doc. A <em>probe</em> needs only the status line, so it should ask GitHub
+      for the cheapest representation:
+    </p>
+<pre><code>GET /repos/{owner}/{repo}/contents/{path}?ref={ref}
+Accept: application/vnd.github.object+json
+Authorization: Bearer {caller-token}</code></pre>
+    <p>
+      <code>object+json</code> returns a small metadata JSON (<code>name</code>/<code>path</code>/<code>sha</code>/<code>size</code>/<code>type</code>/<code>_links</code>)
+      rather than the file body. Compared to the alternatives on the same endpoint:
+    </p>
+    <ul>
+      <li><code>raw+json</code> (what <code>fetchDoc</code> uses today) streams the full body.</li>
+      <li>the default <code>vnd.github+json</code> returns the body base64-encoded in a <code>content</code> field
+        (~1.33&times; the raw size).</li>
+      <li><code>object+json</code> is the fewest-bytes representation.</li>
+    </ul>
+    <p>
+      The byte win is largest on big files. The probe <strong>never reads <code>content</code> regardless</strong> — it
+      inspects only the HTTP status. Same endpoint, same token, same status semantics as <code>fetchDoc</code>; only the
+      representation shrinks.
+    </p>
+    <aside class="risk" data-kind="open-decision">
+      <strong>Open decision:</strong> the research qualifies that for files <strong>&le;&nbsp;1&nbsp;MB the
+      <code>object</code> response may still inline <code>content</code></strong>, so the byte saving on small docs (most
+      planning HTMLs) is modest — the big win is on large files. The swap is still worth it (it's free to ask for
+      <code>object</code>, and the probe never reads the body), but confirm you're not expecting a large saving on typical
+      docs before treating this as the headline benefit.
+    </aside>
+    <aside data-kind="head-note">
+      <strong>On <code>HEAD</code>:</strong> there is <em>no documented <code>HEAD</code> on the Contents endpoint</em>,
+      so we do <strong>not</strong> rely on it as an authz signal. The "transfer fewer bytes" win here is a
+      <strong>media-type swap</strong> (<code>object+json</code>), not a method change.
+    </aside>
+  </section>
+
+  <section id="authz-quota">
+    <h3>Bytes vs. quota — state it plainly</h3>
+    <p>These are two different costs, and only one of them is helped by the media type:</p>
+    <table>
+      <thead><tr><th>Cost</th><th>Helped by <code>object+json</code>?</th><th>What actually moves it</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="k">Bytes / CPU</td>
+          <td><span class="badge ok">yes</span></td>
+          <td><code>object+json</code> reduces payload (and parse work) on every probe. Always a win.</td>
+        </tr>
+        <tr>
+          <td class="k">Rate-limit quota</td>
+          <td><span class="badge warn">no</span></td>
+          <td>Method and <code>Accept</code> header do <strong>not</strong> change primary-quota cost. Every
+            <code>GET</code>/metadata call is <strong>1 request against the 5,000/hr core pool</strong>. Swapping to
+            <code>object+json</code> saves bytes, not quota.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      The <strong>only documented way to make a repeat probe free against primary quota is a conditional request.</strong>
+      Persist the <code>ETag</code> returned by the first probe of a <code>path@ref</code> and send <code>If-None-Match</code>
+      on subsequent probes:
+    </p>
+<pre><code>GET /repos/{owner}/{repo}/contents/{path}?ref={ref}
+Accept: application/vnd.github.object+json
+Authorization: Bearer {caller-token}
+If-None-Match: "{stored-etag}"</code></pre>
+    <p>
+      A <code>304 Not Modified</code> (unchanged <strong>and</strong> still authorized) <strong>does not count against the
+      primary rate limit</strong>. So a <code>304</code> is treated exactly like <code>200</code> for the visibility
+      decision — access is confirmed, quota untouched. Note <code>GET /rate_limit</code> is also free against primary
+      quota but <strong>cannot substitute</strong> for this check: it carries no per-path access signal.
+    </p>
+    <aside class="risk" data-kind="open-decision">
+      <strong>Open decision:</strong> the <code>ETag</code> cache must be keyed by
+      <strong><code>(path@ref@token-identity)</code></strong>, not by <code>path@ref</code> alone — otherwise one user's
+      stored <code>ETag</code> could yield a <code>304</code> that authorizes a <em>different</em> caller who never had
+      access. Confirm token-identity is part of the cache key before this lands.
+    </aside>
+  </section>
+
+  <section id="authz-deny">
+    <h3>Deny semantics and non-leak</h3>
+    <p>
+      Both <code>403</code> <strong>and</strong> <code>404</code> occur for no-access, and <strong>both map to
+      deny</strong> → we return the neutral <code>404</code>. Only <code>200</code> (or <code>304</code> on a re-probe)
+      counts as access. Changing the <code>Accept</code> header or adding <code>If-None-Match</code> does
+      <strong>not</strong> change who can read what — it is the same endpoint, token, and status semantics as
+      <code>fetchDoc</code>. The non-leak contract is preserved unchanged.
+    </p>
+  </section>
+
+  <aside class="risk">
+    <strong>Cost &amp; race notes.</strong> A probe adds one GitHub Contents call <strong>per request or batch</strong>
+    (unless it resolves to a free <code>304</code>) — not per op. Every op in a batch shares the same
+    <code>(repo, ref, path)</code> doc key the URL names, so <code>checkAccess</code> runs once at the route chokepoint
+    before any op executes and the whole batch rides that single probe. Comment requests are rare — human pace, agent in
+    bursts — so the 5,000/hr core limit is not a concern in practice. Two levers keep it that way if it ever bites: <strong>(1) conditional re-probes</strong> (above)
+    give free <code>304</code>s on unchanged <code>path@ref</code>; <strong>(2)</strong> an optional
+    <strong>short-TTL probe cache</strong> keyed by <code>(session/token-identity, repo, ref, path)</code> skips the
+    network call entirely within the TTL. <span class="badge warn">verify</span> keep the TTL short so revoked access is
+    re-checked promptly — the cache trades a small staleness window for zero calls. The probe authorizes
+    <em>visibility</em>, not <em>authorship</em>: resolving <em>someone else's</em> comment is allowed — resolve
+    authority equals the visibility the probe already grants (any viewer of the doc may resolve; see the
+    <a href="#decisions">Locked decisions</a>).
+  </aside>
+</article>
+
+<article id="widget" data-kind="design">
+  <h2>Unifying the worker and local path efficiently</h2>
+  <p>
+    Two review paths now exist: the more mature <strong>local</strong> one (the htmldocs skill's <code>serve.ts</code>
+    Node server + <code>src/comments/</code> widget, writing JSON sidecars to disk) and the <strong>hosted</strong> one
+    this deliverable builds (the Worker + Cloudflare D1). The design intent is to <em>unify the
+    system</em> — one review experience, one body of code, gate-removals and bug fixes that land once and benefit both —
+    rather than let a hosted fork of the widget drift away from the local one.
+  </p>
+  <aside data-kind="decision-lead">
+    <strong>The decision, up front.</strong> <span class="rec">Share <em>all</em> the review UX — one body of code for
+    every pixel and every interaction — behind one store interface, and keep the two HTTP runtimes separate.</span>
+    Extract the browser widget (<code>src/comments/</code>) into a shared <code>review-ux/</code> package both runtimes
+    consume, with a granular <code>ICommentsStore</code> seam (<code>LocalFileStore</code> locally, <code>D1Store</code>
+    hosted) and identity supplied through a <code>MountDeps</code> seam. The Node server runs locally, the Cloudflare
+    Worker hosted. This is one shared client and one storage contract with two small adapters behind it — not a widget
+    fork and not two copies of the review logic.
+  </aside>
+
+  <details id="widget-one-runtime">
+    <summary>Alternatives considered: one runtime</summary>
+    <p>
+      There <em>is</em> a clean way to run Worker code locally: <strong>embed
+      <a href="https://developers.cloudflare.com/workers/testing/miniflare/">Miniflare</a> as a library</strong> inside
+      a Node script. Miniflare (v3+) is powered by <code>workerd</code> — the same runtime as production — runs entirely
+      in-process with <strong>no per-OS branching</strong> and <strong>no <code>wrangler</code> dependency</strong>, and
+      emulates <strong>Cloudflare D1 (local SQLite) and KV</strong> in-process (<code>d1Persist</code> /
+      <code>kvPersist</code> for state that survives across runs). A Worker + Cloudflare D1 can run locally, cleanly,
+      from a script via Miniflare embedded as a library — so one-runtime is technically viable. We still choose two
+      runtimes, because the local and hosted servers diverge exactly where it matters (below).
+    </p>
+    <p>
+      The local and hosted servers sit at <strong>different layers</strong>, and their differences are
+      their <em>reason to exist</em>, not incidental plumbing:
+    </p>
+    <table>
+      <thead><tr><th>Concern</th><th>Local server (<code>serve.ts</code>)</th><th>Hosted Worker</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Persistence</td><td>Writes JSON sidecars to a local FS path <strong>the agent reads off disk</strong> — the entire point of the local UX.</td><td>Writes to Cloudflare D1; cannot touch the user's disk.</td></tr>
+        <tr><td class="k">Auth</td><td>None — single-user localhost.</td><td>OAuth, sessions, fetch-as-user, access probe. Its whole reason to exist.</td></tr>
+        <tr><td class="k">Doc source</td><td>Arbitrary files off a <code>--root</code> tree.</td><td>GitHub Contents API by <code>(org, repo, path, ref)</code>.</td></tr>
+        <tr><td class="k">Injection</td><td>String-splice into files read off disk.</td><td><code>HTMLRewriter</code> streaming over a proxied GitHub response.</td></tr>
+        <tr><td class="k">Runtime API</td><td><code>node:http/fs/os</code>, yargs, <code>process</code> signals.</td><td><code>fetch()</code> handler, KV/D1 bindings, <code>HTMLRewriter</code>, <code>ExecutionContext</code>.</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Running the Worker locally would mean <strong>no on-disk sidecar</strong> (defeating the agent-reads-the-file
+      workflow) and would <strong>force a GitHub login onto a today-zero-auth flow</strong>. The Worker's portable
+      <code>core/</code> (config, cookies, oauth, session, docsource) <em>is</em> genuinely platform-independent — but it
+      is the auth/proxy machinery the local runtime doesn't want, not the comments machinery it shares. So &quot;one
+      runtime&quot; would unify the <em>wrong</em> half: the shared surface is the widget, not the server.
+    </p>
+    <aside data-kind="note">
+      The Miniflare-embedded path remains available as an optional spike if we ever want to prove it out, but it is not
+      on the critical path: the runtimes diverge at the persistence/auth layer, so two runtimes is the shape.
+    </aside>
+  </details>
+
+  <section id="widget-share">
+    <h3>What we share: all of the UX, one store interface</h3>
+    <p>
+      The review UX is <strong>one body of code — every pixel and every interaction — shared by both runtimes so the two
+      review experiences cannot drift</strong>. "Shared UX" means everything from <em>how it renders</em> (the
+      <code>::highlight(htmldocs-cmt)</code> registration and stylesheet, the margin-gutter thread bubbles) to <em>every
+      in-page interaction</em> (the selection popover, the <code>&lt;dialog&gt;</code> composer, and the
+      capture/save/reanchor wiring). What differs is exactly three things, and all three are <em>supplied to</em> the
+      shared code rather than branched inside it: the <code>ICommentsStore</code> implementation, the reviewer
+      <em>identity</em> stamped on a new comment, and the injection shim that lands the widget on the page.
+    </p>
+    <aside data-kind="decision-lead">
+      <strong>The boundary rule, one sentence.</strong> <span class="rec">If code paints a pixel or reacts to a click, it
+      is shared; if it moves bytes over a wire, mints reviewer identity, or grafts the widget onto a response, it is a
+      per-runtime adapter.</span> The shared layer never names a transport, a filesystem, a server, GitHub, Cloudflare,
+      or D1; the adapters never re-style or re-wire the UX.
+    </aside>
+    <p>
+      The boundary must be visible in <strong>directory structure and in a <code>claude.md</code> in each directory</strong>
+      stating that directory's purpose and its sharing contract, so a future editor cannot accidentally fork the UX or
+      leak transport into the shared layer.
+    </p>
+
+    <h4>The chosen store interface</h4>
+    <p>
+      <span class="rec">Decision: a granular <code>ICommentsStore</code>, not a coarse full-model <code>save</code>.</span>
+      <span class="badge ok">chosen</span> Granular write methods map <em>1:1</em> to the <a href="#api-route">op
+      envelope</a>, are the cleanest thing to unit-test (one method, one row change, one assertion), and make
+      <code>batch()</code> a natural first-class member rather than a diff engine bolted onto <code>save</code>. A coarse
+      <code>save(model)</code> would force <em>every</em> store to re-derive "what changed" and drag whole-file
+      last-writer-wins back into a design the per-op shape exists to avoid.
+    </p>
+<pre><code>interface ICommentsStore {
+  list   (doc: DocKey): Promise&lt;Thread[]&gt;;
+  create (doc: DocKey, op: CreateOp,  author: Author): Promise&lt;Thread&gt;;
+  reply  (doc: DocKey, op: ReplyOp,   author: Author): Promise&lt;Comment&gt;;   // reserved
+  resolve(doc: DocKey, op: ResolveOp, author: Author): Promise&lt;Thread&gt;;
+  reopen (doc: DocKey, op: ReopenOp,  author: Author): Promise&lt;Thread&gt;;
+  delete (doc: DocKey, op: DeleteOp,  author: Author): Promise&lt;ThreadId&gt;;  // hard purge
+  edit   (doc: DocKey, op: EditOp,    author: Author): Promise&lt;Comment&gt;;   // reserved
+  batch  (doc: DocKey, ops: Op[],     author: Author): Promise&lt;OpResult[]&gt;;
+}
+
+// One OpResult per op in a batch, in request order. It is a DISCRIMINATED UNION:
+// discriminate first on `ok`, then on `op`, so a single op carries its own
+// verb-specific payload — the type-safe mixed array a batch returns. Same union
+// the single-op POST returns (see #api). `reply`/`edit` arms are reserved.
+type OpResult =
+  | { ok: true;  op: "create";             thread:   Thread }
+  | { ok: true;  op: "reply";              comment:  Comment }   // reserved
+  | { ok: true;  op: "resolve" | "reopen"; thread:   Thread }
+  | { ok: true;  op: "delete";             threadId: ThreadId }  // v1: hard purge
+  | { ok: true;  op: "edit";               comment:  Comment }   // reserved
+  | { ok: false; op: Op["op"];             error:    OpError };</code></pre>
+    <p>
+      Each write method takes the exact op object the route parsed, plus the server-stamped <code>Author</code> (from the
+      session or the agent token — never from the body, so identity can't be spoofed). <code>DocKey</code> is the opaque
+      <code>(repo, ref, path)</code> tuple the collection URL already carries — locally it resolves under
+      <code>--root</code>, hosted it is the D1 key, and making it opaque is what lets one widget serve both worlds. Five
+      members (<code>create</code>/<code>reply</code>/<code>resolve</code>/<code>reopen</code>/<code>edit</code>)
+      correspond 1:1 to envelope <code>op</code> values (<code>create</code> / <code>reply</code> / <code>resolve</code> /
+      <code>reopen</code> / <code>delete</code> / <code>edit</code>, with <code>reply</code>/<code>edit</code> reserved);
+      <code>list</code> is the GET. <code>batch</code> is implemented
+      <em>in terms of those single-op methods</em>: it loops the ops in order, calls each op's own single-op method
+      independently, and collects one <code>OpResult</code> per op (best-effort — a failing op records its
+      <code>error</code> and the loop continues). Because <code>OpResult</code> discriminates first on <code>ok</code> and
+      then on <code>op</code>, a batch returns one array of mixed, verb-specific, type-safe results. Two implementations
+      sit behind the interface: <strong><code>D1Store</code></strong> (SQL) and <strong><code>LocalFileStore</code></strong>
+      (server-only JSON file; the agent never touches it).
+    </p>
+
+    <details>
+      <summary>Per-method impl in <code>D1Store</code> vs. <code>LocalFileStore</code>; batch loops the single-op methods</summary>
+      <table>
+        <thead><tr><th>Method</th><th>D1Store (SQL)</th><th>LocalFileStore (server-only JSON, read-modify-write)</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="k"><code>list</code></td>
+            <td><code>SELECT &hellip; WHERE repo=? AND ref=? AND path=? ORDER BY created_at</code> (index <code>idx_comments_doc</code>); rows folded into <code>Thread[]</code> by <code>reply_to</code>.</td>
+            <td>Read file, JSON-parse the one doc's model, return its threads.</td>
+          </tr>
+          <tr>
+            <td class="k"><code>create</code></td>
+            <td>One <code>INSERT</code> of the thread-root row (server-minted <code>id</code>, stamped author + <code>created_at</code>).</td>
+            <td>Read → push a new thread into the model → write file.</td>
+          </tr>
+          <tr>
+            <td class="k"><code>reply</code></td>
+            <td>One <code>INSERT</code> with <code>reply_to = &lt;threadId&gt;</code>; <code>404</code> if the root row is absent.</td>
+            <td>Read → locate thread → push reply → write file.</td>
+          </tr>
+          <tr>
+            <td class="k"><code>resolve</code> / <code>reopen</code></td>
+            <td>One <code>UPDATE comments SET resolved_at = ?|NULL WHERE id = &lt;threadId&gt;</code>, guarded so it only stamps on a real transition; zero rows affected → <code>404</code>.</td>
+            <td>Read → set/clear <code>resolvedAt</code> on the thread (only on a real transition) → write file.</td>
+          </tr>
+          <tr>
+            <td class="k"><code>edit</code></td>
+            <td>One <code>UPDATE comments SET body = ?, edited_at = ? WHERE id = &lt;commentId&gt; AND body &lt;&gt; ?</code> — the <code>body &lt;&gt; ?</code> guard makes an identical patch a no-op (zero rows, no new <code>edited_at</code>).</td>
+            <td>Read → if incoming body differs, replace body + set <code>editedAt</code>; if identical, leave untouched → write file.</td>
+          </tr>
+          <tr>
+            <td class="k"><code>batch</code></td>
+            <td>Loop the ops in order, calling <strong>each op's own single-op method above</strong> (the same <code>create</code>/<code>resolve</code>/… methods) independently — no wrapping <code>db.batch()</code>/transaction; collect one <code>OpResult</code> per op. A failing op records its <code>error</code> and the loop continues.</td>
+            <td>Loop the ops in order, calling <strong>each op's own single-op method above</strong> independently; each single-op method does its own read + write of the JSON file, so a batch is one read+write per op. A failing op records its <code>error</code> and the loop continues.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Batch is implemented in terms of the single-op methods, in both stores.</strong> There is no separate
+        batch code path and no wrapping transaction: <code>batch</code> simply iterates the array, dispatches each op to
+        its own single-op store method, and appends that method's result (or its caught error) to the ordered
+        <code>OpResult[]</code>. That yields the Layer-C contract for free — ordered results, best-effort per-op (a
+        failed or stale op never rolls back the ops that already ran), resolve/reopen/edit idempotent — and it is
+        identical for both stores because it <em>is</em> the same loop over the same methods.
+      </p>
+      <p>
+        <strong><code>LocalFileStore</code> does a read+write per op inside that loop, and that is accepted for v1.</strong>
+        A ten-op batch is ten read-modify-write cycles on the one JSON file. At the local single-user, human-or-agent
+        pace this is a non-issue, and reusing the exact single-op methods keeps the code trivially correct. A
+        <strong>load-once / save-once</strong> optimization (fold every op into one in-memory model, persist once) is
+        possible later behind the same <code>OpResult[]</code> contract, but it is not needed now and is deliberately not
+        built. <code>D1Store</code> has no analogous concern — each single-op method is its own statement, committed as it
+        runs. The only observable difference between the stores is a durability window under a mid-run crash, invisible in
+        the response.
+      </p>
+    </details>
+
+    <h4>Error handling — useful without leaking</h4>
+    <p>
+      A store method that can't complete surfaces an <code>OpError</code> that the widget turns into a
+      <strong>modal message</strong>. The widget shows a <strong>minimal set of messages that are useful to a reviewer
+      without leaking anything about the doc, the repo, or the caller's credentials.</strong>
+      <span class="rec">Decision: three user-facing messages, and the modal never surfaces repo existence, GitHub status
+      codes, or tokens.</span> <span class="badge ok">v1</span> A denial and a genuine 404 collapse to the <em>same</em>
+      generic message — the modal never distinguishes "you don't have access" from "it doesn't exist," preserving the
+      neutral-404 non-leak contract all the way to the UI.
+    </p>
+    <details>
+      <summary>The modal message set + what an <code>OpError</code> never carries</summary>
+      <table>
+        <thead><tr><th>Situation</th><th>What the modal shows</th><th>Never shown</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="k">Access probe fails — denial <em>or</em> genuine 404 (indistinguishable, by design)</td>
+            <td>&quot;You don't have access to this doc, or it doesn't exist.&quot;</td>
+            <td>Which of the two it was; whether the repo/doc exists; the GitHub <code>403</code>/<code>404</code>.</td>
+          </tr>
+          <tr>
+            <td class="k">Transient save failure (store write errored, network blip, D1 unavailable)</td>
+            <td>&quot;Couldn't save your comment — try again.&quot;</td>
+            <td>The underlying error, the store type, any stack or status code.</td>
+          </tr>
+          <tr>
+            <td class="k">Stale id — a <code>threadId</code>/<code>commentId</code> resolved/reopened/edited that no longer exists</td>
+            <td>&quot;This comment no longer exists.&quot;</td>
+            <td>Anything beyond &quot;gone&quot; — no repo/doc context, no id provenance.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>The rule.</strong> An <code>OpError</code> carries only a coarse <code>code</code>
+        (<code>no_access</code> — the merged denial/404 — · <code>transient</code> · <code>not_found</code>) plus the
+        <code>op</code> and, for <code>not_found</code>, the offending id so the widget can drop that thread from the
+        view. It <strong>never</strong> carries repo existence, a GitHub status code, a token, or the raw store error.
+        The neutral-<code>404</code> gate lives server-side (the <a href="#authz">access probe</a>), so a
+        <code>no_access</code> op result is the only access signal that ever reaches the browser, and it says nothing a
+        denied caller couldn't already infer. Server logs still record the real cause (with reviewer identity, per
+        <a href="#identity-logging">the logging decision</a>); the reviewer-facing modal is the redacted view.
+      </p>
+    </details>
+  </section>
+
+  <section id="widget-dirs">
+    <h3>Directory structure &amp; the shared/adapter boundary</h3>
+    <p>
+      The widget lives in one <code>comments/</code> tree with three siblings: a shared UX package and two runtime
+      adapters. The Node review server and the Worker each import the shared package and construct one adapter; neither
+      owns rendering or interaction code, and neither forks the lifecycle. <code>main.ts</code> keeps its
+      lifecycle but stops constructing its own store and stops minting <code>author: 'user'</code>: both arrive through a
+      <code>MountDeps { store, author }</code> seam each runtime builds and hands to the shared entry.
+    </p>
+<pre><code>comments/
+  review-ux/            # SHARED — every pixel + every interaction, one copy
+    claude.md
+    anchor.ts           #   W3C TextQuoteSelector encode/decode over the visible-text stream
+    types.ts            #   CommentsModel, Comment, Anchor, Thread + isWellShapedModel; grows optional seed `author`
+    store.ts            #   ICommentsStore interface + MountDeps { store, author } — the ONLY seams the UX sees
+    highlight.ts        #   ::highlight(htmldocs-cmt) registration + stylesheet (relocated out of main.ts)
+    gutter.ts           #   margin-gutter thread bubbles (relocated from ui.ts)
+    popover.ts          #   selection popover (relocated from ui.ts; article-only predicate removed)
+    composer.ts         #   the &lt;dialog&gt; composer + capture/save/reanchor wiring (relocated from ui.ts)
+    mount.ts            #   shared lifecycle: DOM-ready gate, highlight register, UI mount, save/reanchor.
+                        #   Takes MountDeps; does NOT construct a store or mint an author
+  adapters/
+    local/              # PER-RUNTIME — transport + identity + injection
+      claude.md
+      local-file-store.ts #  ICommentsStore over the local server's JSON file (server-only)
+      deps.ts             #  builds MountDeps: LocalFileStore + fixed author "user"
+      inject.ts           #  string-splice seed (incl. author) + &lt;script&gt; before &lt;/body&gt; off disk
+    hosted/             # PER-RUNTIME — transport + identity + injection
+      claude.md
+      d1-store.ts         #  ICommentsStore over /&lt;repo&gt;/&lt;doc&gt;?ref=&amp;comments (GET list, POST body-ops)
+      deps.ts             #  builds MountDeps: D1Store + real GitHub name from session KV
+      inject.ts           #  HTMLRewriter appends seed (incl. session author) + &lt;script&gt; on 200 HTML only</code></pre>
+    <p>
+      Because the store and the author arrive through <code>MountDeps</code>, the shared <code>mount.ts</code> has no
+      store-selection branch and no hardcoded identity — the two responsibilities that would otherwise sit in
+      <code>main.ts</code> move out to each adapter's <code>deps.ts</code>. Reviewer identity gets a real landing spot: an
+      optional <code>author</code> (login / display name) on the injected JSON seed, threaded through
+      <code>MountDeps</code> into the save path — local supplies a fixed string, hosted supplies the real GitHub name
+      captured at login.
+    </p>
+    <details>
+      <summary>Per-directory <code>claude.md</code> contracts</summary>
+      <article>
+        <h4><code>review-ux/claude.md</code></h4>
+        <p>
+          <em>Purpose:</em> the entire reviewer-facing experience — anchoring, the
+          <code>::highlight(htmldocs-cmt)</code> registration + stylesheet, the margin gutter, the selection popover, the
+          <code>&lt;dialog&gt;</code> composer, and the capture/save/reanchor lifecycle — plus the
+          <code>ICommentsStore</code> interface, the <code>MountDeps</code> seam, and the shared
+          <code>CommentsModel</code> / <code>Anchor</code> / <code>Thread</code> types.
+        </p>
+        <p>
+          <em>Sharing contract:</em> every file here is imported by both the local Node server and the hosted Worker;
+          this is the code that guarantees the two review experiences never diverge. Nothing here may reference a
+          transport, a filesystem, a server, GitHub, Cloudflare, D1, or the Worker runtime — its only outside
+          dependencies are the browser and <code>MountDeps</code>. It must not construct a store or mint reviewer
+          identity. Editing any file here changes <strong>both</strong> runtimes at once — verify against both.
+        </p>
+      </article>
+      <article>
+        <h4><code>adapters/local/claude.md</code></h4>
+        <p>
+          <em>Purpose:</em> the local (htmldocs <code>serve.ts</code>) side — a <code>LocalFileStore</code> that
+          persists to the server's JSON file, a <code>MountDeps</code> builder pairing it with the fixed
+          <code>&quot;user&quot;</code> author, and the string-splice injection shim.
+        </p>
+        <p>
+          <em>Sharing contract:</em> transport, identity, and injection only — no rendering, no interaction, no
+          anchoring. It implements <code>review-ux/</code>'s <code>ICommentsStore</code> and supplies
+          <code>MountDeps</code>; it must not re-style, re-lay-out, or re-wire any UX. Change how a comment looks or the
+          composer behaves in <code>review-ux/</code> so the hosted runtime gets it too.
+        </p>
+      </article>
+      <article>
+        <h4><code>adapters/hosted/claude.md</code></h4>
+        <p>
+          <em>Purpose:</em> the hosted (Cloudflare Worker) side — a <code>D1Store</code> over the
+          <code>?comments</code> body-op API, a <code>MountDeps</code> builder pairing it with the real GitHub name from
+          session KV, and the <code>HTMLRewriter</code> injection shim that appends the widget on <code>200</code> HTML
+          responses only, leaving the neutral 404 path untouched.
+        </p>
+        <p>
+          <em>Sharing contract:</em> transport, identity, and injection only — the same rule as the local adapter. It
+          maps the opaque doc key to <code>(repo, ref, path)</code> and supplies session identity through
+          <code>MountDeps</code>; it must not fork any <code>review-ux/</code> rendering. Auth and the access probe live
+          server-side and reach the widget only through the <code>ICommentsStore</code> surface — never by branching the
+          UX.
+        </p>
+      </article>
+    </details>
+    <aside class="risk" data-kind="open-decision">
+      <strong>Open — physical home of <code>review-ux/</code>.</strong> The layout assumes <code>comments/</code> sits
+      where both builds can import it — the skill's esbuild step (which must keep emitting the checked-in
+      <code>dist/comments.mjs</code>) and the Worker build. Whether that means moving today's
+      <code>skills/htmldocs/src/comments/</code> into a shared package the Worker repo also consumes, or vendoring it, is
+      unconfirmed; the paths and <code>claude.md</code> scheme here are contingent on that placement. This move gets its
+      own phase.
+    </aside>
+  </section>
+
+  <section id="widget-shared-table">
+    <h3>Shared vs. adapter-specific, at a glance</h3>
+    <table>
+      <thead><tr><th>Layer</th><th>Shared (one codebase)</th><th>Adapter-specific</th></tr></thead>
+      <tbody>
+        <tr><td class="k">Anchoring</td><td><span class="badge ok">shared</span> <code>anchor.ts</code></td><td>—</td></tr>
+        <tr><td class="k">Rendering (highlight, gutter)</td><td><span class="badge ok">shared</span> <code>highlight.ts</code>, <code>gutter.ts</code></td><td>—</td></tr>
+        <tr><td class="k">Interaction (popover, composer, lifecycle)</td><td><span class="badge ok">shared</span> <code>popover.ts</code>, <code>composer.ts</code>, <code>mount.ts</code></td><td>—</td></tr>
+        <tr><td class="k">Wire/disk model</td><td><span class="badge ok">shared</span> <code>types.ts</code> (<code>CommentsModel</code>, <code>Anchor</code>, <code>Thread</code>)</td><td>—</td></tr>
+        <tr><td class="k">Store interface + <code>MountDeps</code></td><td><span class="badge ok">shared</span> <code>store.ts</code> (<code>ICommentsStore</code>)</td><td>—</td></tr>
+        <tr><td class="k">Store implementation</td><td>—</td><td><code>LocalFileStore</code> (local) · <code>D1Store</code> (hosted)</td></tr>
+        <tr><td class="k">Identity (via <code>MountDeps</code>)</td><td>—</td><td>fixed <code>&quot;user&quot;</code> (local) · real GitHub name from session (hosted)</td></tr>
+        <tr><td class="k">Injection shim</td><td>—</td><td>string-splice (local) · <code>HTMLRewriter</code> (hosted)</td></tr>
+        <tr><td class="k">HTTP server</td><td>—</td><td><code>serve.ts</code> Node (local) · Worker <code>fetch</code> (hosted)</td></tr>
+      </tbody>
+    </table>
+    <p>
+      This is a real refactor, not a lift-and-drop: the highlight registration + stylesheet moves out of today's
+      <code>main.ts</code>; the popover, composer, and gutter move out of <code>ui.ts</code>; the DOM-ready lifecycle
+      stays in the shared <code>mount.ts</code> but sheds its store construction and identity minting. The single largest
+      piece of plumbing is relocating <code>src/comments/</code> to a location <strong>both</strong> builds consume — the
+      skill's esbuild step (which emits the checked-in <code>dist/comments.mjs</code> the skill distributes) and the
+      Worker's build. The article-only popover gate is dropped in the same pass
+      (<a href="#anchoring">Removing the article-only limit</a>).
+    </p>
+    <aside class="risk">
+      <strong>Constraint to design around:</strong> the skill checks in a prebuilt <code>dist/comments.mjs</code> for
+      distribution, so a shared source must still emit that checked-in artifact. This move gets its own phase.
+    </aside>
+  </section>
+
+  <section id="widget-inject">
+    <h3>Injection — shared at the contract, split at the mechanism</h3>
+    <p>
+      Both runtimes inject basically the same thing: an inline JSON seed of existing comments (so the page paints with
+      its comments and zero extra round trips) plus the <code>&lt;script type=&quot;module&quot;&gt;</code> widget tag.
+      <span class="rec">Decision: shared seed/tag helpers (the <em>what</em>), per-runtime injector (the <em>how</em>) — not
+      a shared injector, not a fork.</span> <span class="badge ok">chosen</span> One pair of shared helpers —
+      <code>seedJsonScript(model)</code> and <code>widgetScriptTag()</code> — produces the exact HTML to inject (both pure
+      functions of the shared <code>CommentsModel</code>). Each runtime keeps only the thin injector that <em>places</em>
+      those strings.
+    </p>
+    <ul>
+      <li><strong>Local:</strong> <code>serve.ts</code> string-splices the two helper outputs before
+        <code>&lt;/body&gt;</code> on files it reads off disk (today's <code>injectIntoHtml</code>).</li>
+      <li><strong>Hosted:</strong> the Worker wraps the Deliverable 1 doc response in <code>HTMLRewriter</code> and
+        <code>append</code>s the same two nodes to <code>&lt;body&gt;</code>, on a <code>200</code> HTML response only —
+        the neutral 404 path is untouched (no widget, no leak).</li>
+    </ul>
+<pre><code>new HTMLRewriter()
+  .on('body', { element(el) {
+    el.append(seedJsonScript(model), { html: true });
+    el.append(widgetScriptTag(), { html: true });
+  }})
+  .transform(docResponse)</code></pre>
+    <details>
+      <summary>Why the injector itself doesn't unify</summary>
+      <p>
+        <code>HTMLRewriter</code> is a streaming per-element callback — it never holds the whole document and exposes
+        <code>append</code>/<code>prepend</code>/<code>after</code> with <code>{ html: true }</code>, not string indexing
+        — whereas <code>serve.ts</code> operates on the full in-memory string. Any "shared injector" abstraction would
+        collapse to <code>(model) =&gt; [seedJsonScript(model), widgetScriptTag()]</code>, which is exactly the shared
+        helpers; the placement step has no honest common form. So the line sits at the emitted string: shared code
+        decides <em>what</em> markup and guarantees the escaping/contract once, each runtime owns the ~10 lines that
+        decide <em>where</em> it lands.
+      </p>
+      <aside class="risk">
+        <strong>Watch:</strong> the escaping (<code>&lt;</code> → <code>&amp;lt;</code> inside the
+        <code>&lt;script type=&quot;application/json&quot;&gt;</code> seed, so a comment body can't break out with a
+        <code>&lt;/script&gt;</code>) and the seed <code>id</code>/type live in the shared helpers, not in either
+        injector. If a runtime hand-rolls the <code>&lt;script&gt;</code> string it silently reopens that breakout hole
+        and the widget's boot-time sniff. Both injectors must call <code>seedJsonScript</code>/<code>widgetScriptTag</code>,
+        never inline the markup.
+      </aside>
+    </details>
+  </section>
+
+  <section id="widget-pr6">
+    <h3>GitHub PR #6 (local node-native server) is orthogonal</h3>
+    <p>
+      <a href="https://github.com/benbuzbee/agent-extensions/pull/6">GitHub PR #6</a> (node-native review server + Mermaid
+      <code>noscript</code> fallback) is <strong>orthogonal</strong> to this deliverable — and is unrelated to the
+      <code>PR1&hellip;PR6</code> stack in <a href="#phases">Implementation phases</a>, which are the branches that build
+      this deliverable. It moves
+      port/arg/file-vs-dir handling out of <code>serve.sh</code> into <code>serve.ts</code>'s yargs
+      CLI (so review mode runs anywhere <code>node</code> is on PATH) and adds a Mermaid fallback. It touches only the
+      local skill — not the widget, the anchor model, the persistence seam, or the Worker. It should <strong>merge on
+      its own</strong>; D2's server-side changes then layer cleanly on top of the node-native <code>serve.ts</code> it
+      produces. (It is also unrelated to the Miniflare question above: GitHub PR #6 is about the <em>local</em> Node server,
+      not about running Worker code locally.)
+    </p>
+    <aside class="risk" data-kind="open-decision">
+      <strong>Open decision — confirm references before this ships.</strong> GitHub PR #6 is cited by the
+      <code>benbuzbee/agent-extensions</code> URL from the research — confirm that's the correct public repo path for the
+      doc's audience. Also: the deeper Miniflare doc subpaths (<code>/workers/testing/miniflare/storage/d1/</code> etc.)
+      came through search-redirect wrappers, so only the top-level Miniflare overview URL is linked above; click-confirm
+      any deep link before citing it verbatim.
+    </aside>
+  </section>
+</article>
+
+<article id="prompting" data-kind="design">
+  <h2>Agent prompting — where it lives (pass 1)</h2>
+  <aside>
+    <strong>Decision.</strong> <span class="rec">The new agent-prompting doc/skill we later create lands in the
+    <a href="../../../plugins/useful-skills/skills/htmldocs/">htmldocs skill path</a>, referenced with the barest pointer
+    from <a href="../../../plugins/useful-skills/skills/htmldocs/SKILL.md"><code>SKILL.md</code></a></span> (e.g. "for
+    review 2.0 with a worker, see this file"), to be massaged in code review. This is a plan-record only — no file is
+    created or moved in this planning round; nothing that exists today moves. The exact prose and whether the pointer is
+    the right discovery path are revisited near the end of the build, once the API surface and widget behavior are real.
+  </aside>
+  <details>
+    <summary>Reasoning &amp; sequencing</summary>
+    <p>
+      The doc describes how an agent drives hosted review mode — the <a href="#api-route"><code>?comments</code></a> URL
+      shape, how to authenticate with its GitHub token, and the list / resolve recipe. It sits in the htmldocs skill path
+      alongside the local review guidance, with a one-line <code>SKILL.md</code> pointer so an agent already in review
+      context can discover it. Placing it there keeps a single review home rather than scattering guidance across the
+      app; the barest pointer keeps the commitment cheap and reversible.
+    </p>
+    <p>
+      <strong>Deferred to the end of the build:</strong> the exact prose, altitude, and recipes (they depend on the final
+      <code>?comments</code> route shape, the neutral-<code>404</code> access behavior, and how list / resolve actually
+      reads once built); and whether the <code>SKILL.md</code> pointer is the right or only discovery path versus a
+      tighter integration into the skill's review flow.
+    </p>
+    <p>
+      <strong>Sequencing:</strong> write the pass-1 doc during the docs phase, then treat prompting/discovery integration
+      as a final revisit pass. Fold the still-incomplete htmldoc-review skill documentation (flagged separately,
+      post-Deliverable-1 merge) into that same phase.
+    </p>
+  </details>
+</article>
+
+<article id="phases" data-kind="phases">
+  <h2>Implementation phases</h2>
+  <p>
+    Implementation is a <strong>stack of GitHub PRs</strong>, each branch based on the one before it. The stack is
+    ordered so every PR lands on already-proven ground and the Worker never appears before the local harness that
+    exercises it: <strong>PR0</strong> lays down the plan/docs and the execution workflow itself, then runtime-agnostic
+    business logic and its local server come first, the Worker and Cloudflare D1 arrive only once there is something to
+    run against them, and injection — the piece that touches every served doc — lands last. Each PR below is a
+    <strong>card</strong>: a box describing what is in it, with an attached box directly below describing what we
+    validate. Every card states its <strong>stack position</strong> (its base branch) up front, so an executor picking
+    up one card in isolation still knows exactly what it branches from.
+  </p>
+  <p class="lineage"><code>main &lt;- PR0 &lt;- PR1 &lt;- PR2 &lt;- PR3 &lt;- PR4 &lt;- PR5 &lt;- PR6</code></p>
+  <p>
+    The stack is authored with <strong>Graphite (<code>gt</code>)</strong>. In Graphite's model each PR is a
+    <strong>branch stacked on its parent</strong> above <code>trunk</code> (<code>main</code>): PR1 branches off
+    <code>main</code>, PR2 off PR1, and so on up the stack. <code>gt create</code> lands each layer; <code>gt submit
+    --stack</code> pushes the whole stack as one PR per branch; and when an earlier (downstack) layer changes,
+    <code>gt restack</code> / <code>gt sync</code> rebases every PR above it so the stack stays coherent — which is the
+    reason to stack rather than juggle base branches by hand. This is a personal public repo, so it rides Graphite's
+    free tier (personal repos + the stacked-PR CLI are free; the paid org plan is scoped to org-owned repos and isn't
+    needed here). The output is <strong>ordinary GitHub PRs</strong> — the stack is modeled purely through each PR's base
+    branch, so reviewers see standard pull requests with no Graphite dependency.
+  </p>
+
+  <aside class="risk" data-kind="guardrail">
+    <strong>No automatic deployments or live-infrastructure changes.</strong> Executing this stack means
+    <em>authoring the code and the PRs</em> — nothing more. No PR step deploys a Worker, provisions or migrates a real
+    Cloudflare D1, pushes secrets, or otherwise touches live infrastructure automatically. Every validation gate in
+    these cards runs <strong>offline</strong> (unit tests + local workerd/Miniflare). The wrangler/deploy changes that
+    later PRs add (the <code>[[d1_databases]]</code> block, the create-once step, <code>migrations apply --remote</code>)
+    are <strong>authored as code, not run</strong>. Real provisioning, the first live deploy, and any manual
+    verification against deployed infrastructure happen <strong>later, with a human in the loop</strong> — the goal of
+    this work is to land the whole reviewed PR stack, then decide manual-test steps together.
+  </aside>
+
+  <aside data-kind="validation-backbone">
+    <strong>Validation backbone is LOCAL.</strong> Two tiers, both offline: plain <strong>unit tests</strong> for
+    business logic, and a <strong>workerd-backed</strong> tier via <code>@cloudflare/vitest-pool-workers</code> /
+    Miniflare that runs the real Worker against a real migrated Cloudflare D1 inside Miniflare (migrations applied with
+    <code>readD1Migrations</code>/<code>applyD1Migrations</code>). Following the repo pattern, a vitest projects config
+    splits a <code>unit</code> project from a workerd-backed project, with the <code>*.workers.test.ts</code> files
+    excluded from the plain unit run and driven by a separate npm script. <strong>Live integration tests</strong>
+    (deploying a real test Worker and hitting its URL) are <span class="badge warn">deferred</span> — the
+    deploy/auth/fixture cost is not worth it yet; noted as future work, not built now.
+  </aside>
+
+  <section data-kind="pr-card" id="pr0">
+    <h3>PR0 — Plan, docs &amp; execution workflow <span class="badge open">foundation</span></h3>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 0 — branches off <code>main</code> (<code>main &lt;- PR0</code>). The base of the whole stack; everything else stacks on it.</p>
+    <p>
+      Land the planning artifacts and the execution scaffold before any product code, so the stack has a stable,
+      reviewable base. This PR carries this plan document itself (the <code>d2-review-mode-plan.html</code> and any
+      companion docs) and the <strong>execution workflow</strong> that drives building the rest of the stack. No product
+      behavior changes here — it exists so the design and the build process are themselves reviewed and versioned as the
+      foundation the coding PRs branch from.
+    </p>
+    <aside data-kind="validation">
+      <strong>Validate.</strong> Docs render and internal links resolve; the execution workflow is present and
+      self-consistent (its steps map to PR1&ndash;PR6). No code or tests to run — this layer is plan + process only.
+    </aside>
+    <details class="validation-evidence" open>
+      <summary>Validation evidence — d2/pr0-plan-docs (gate green, 0 fix round(s))</summary>
+      <p>
+        <strong>Commands run:</strong> docs-only link/anchor check (grep-based anchor extraction, href vs. id diff, relative-link existence check), plus a structural mapping of build-workflow phases to plan PR cards.
+      </p>
+      <p>
+        <strong>Code review:</strong> skipped (docs-only layer)
+      </p>
+      <p>
+        <strong>Fable review:</strong> plan-fidelity lens → approve (0 blocker/major findings)
+      </p>
+      <p>
+        <strong>Findings fixed:</strong> 0
+      </p>
+      <pre>
+$ grep -oP 'href="#[^"]*"' docs/plans/worker/d2-review-mode-plan.html | sed ... | sort -u
+(82 unique href targets extracted)
+
+$ grep -oP 'id="[^"]*"' docs/plans/worker/d2-review-mode-plan.html | sed ... | sort -u
+(42 unique ids extracted)
+
+$ comm -23 &lt;(hrefs sorted) &lt;(ids sorted)
+=== BROKEN ANCHORS (href targets missing an id) ===
+=== DONE ===
+(0 broken anchors)
+
+$ cd docs/plans/worker &amp;&amp; for f in &lt;8 relative links&gt;; do [ -e "$f" ] &amp;&amp; echo "OK: $f" || echo "BROKEN: $f"; done
+OK: ../../../apps/htmldoc-review/README.md
+OK: ../../../plugins/useful-skills/skills/htmldocs/
+OK: ../../../plugins/useful-skills/skills/htmldocs/docs/review_system.html
+OK: ../../../plugins/useful-skills/skills/htmldocs/references/comments.md
+OK: ../../../plugins/useful-skills/skills/htmldocs/SKILL.md
+OK: ../../proxy.html
+OK: d1-handoff.md
+OK: htmldoc_worker_review.html
+
+Build workflow phases (d2-build-workflow.js) vs plan PR cards:
+  Preflight -&gt; (no plan card, scaffolding only)
+  PR0 -&gt; #pr0 (Plan, docs &amp; execution workflow)
+  PR1 -&gt; #pr1 (Extraction + shared UX + store seam)
+  PR2 -&gt; #pr2 (Comment API business logic)
+  PR3 -&gt; #pr3 (Worker + Cloudflare D1)
+  PR4 -&gt; #pr4 (Comment API on the Worker + checkAccess)
+  PR5 -&gt; #pr5 (Identity capture + session migration)
+  PR6 -&gt; #pr6 (Injection + docs)
+  Wrap-up -&gt; (no plan card, scaffolding only)
+All 7 PR cards (PR0-PR6) have matching workflow phases with correct planAnchor references.
+      </pre>
+    </details>
+  </section>
+
+  <section data-kind="pr-card" id="pr1">
+    <h3>PR1 — Extraction + shared UX + store seam <span class="badge open">local only</span></h3>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 1 — branches off <code>PR0</code> (<code>PR0 &lt;- PR1</code>).</p>
+    <p>
+      Establish the shape everything else builds on, entirely local. Move <code>src/comments/</code> into a
+      <a href="#widget-dirs">shared <code>review-ux/</code> tree</a> holding <em>all</em> UX — rendering through in-page
+      interaction — with per-runtime <code>adapters/{local,hosted}/</code>. Remove the article-only gate so any DOM
+      region is reviewable. Define the <a href="#db-design"><code>ICommentsStore</code></a> seam and the <em>full type
+      layer its signatures name</em>: the branded <code>ThreadId</code>/<code>CommentId</code>/<code>Anchor</code>
+      types, numeric epoch-ms timestamps, the per-op envelope types (<code>CreateOp</code>/<code>ResolveOp</code>/<code>ReopenOp</code>/<code>DeleteOp</code>,
+      with <code>ReplyOp</code>/<code>EditOp</code> reserved), and the <code>OpResult</code> discriminated union the
+      seam's methods return — then ship <code>LocalFileStore</code> behind that seam and rebuild the checked-in
+      <code>dist/comments.mjs</code> bundle. Only the type layer lands here; the request validation and op logic are
+      PR2, so <code>LocalFileStore</code> compiles and unit-tests without reaching forward to a later PR.
+    </p>
+    <aside data-kind="validation">
+      <strong>Validate.</strong> Unit tests for <code>LocalFileStore</code> and the anchoring core; a regression pass on
+      local review mode confirming the article gate is gone and resolve shows a green indicator; the bundle artifact
+      (<code>dist/comments.mjs</code>) rebuilds clean.
+    </aside>
+    <details>
+      <summary>PR1 specifics — files, seams, tests</summary>
+      <ul>
+        <li><strong>Tree:</strong> <code>review-ux/</code> (shared UX + <code>store.ts</code> seam + <code>mount.ts</code>)
+          and <code>adapters/local/</code>, <code>adapters/hosted/</code> per the
+          <a href="#widget-dirs">directory layout</a>. Shared source still emits the checked-in
+          <code>dist/comments.mjs</code> the skill distributes — the esbuild step is preserved, not replaced.</li>
+        <li><strong>Seam &amp; types:</strong> the <code>ICommentsStore</code> interface
+          (<code>list</code>/<code>create</code>/<code>reply</code>/<code>resolve</code>/<code>reopen</code>/<code>delete</code>/<code>edit</code>/<code>batch</code>)
+          and every type its signatures name — branded <code>ThreadId</code>/<code>CommentId</code>/<code>Anchor</code>,
+          numeric epoch-ms timestamps, the per-op envelope types
+          (<code>CreateOp</code>/<code>ResolveOp</code>/<code>ReopenOp</code>/<code>DeleteOp</code> in v1;
+          <code>ReplyOp</code>/<code>EditOp</code> reserved), and the <code>OpResult</code> discriminated union. Landing
+          the whole type layer here is what lets <code>LocalFileStore</code> compile and unit-test against a complete
+          seam with no dependency on a later PR; Zod schemas and op logic are explicitly PR2.</li>
+        <li><strong>Gate removal:</strong> replace the "intersects an <code>&lt;article&gt;</code>" predicate with a
+          minimal one (non-collapsed selection, in the doc body, not inside the widget UI) — see
+          <a href="#anchoring">anchoring</a>.</li>
+        <li><strong>Tests:</strong> <code>LocalFileStore</code> round-trip; anchor encode/decode across block/inline
+          boundaries; a local-review regression asserting the popover appears outside articles and resolve turns the
+          indicator green without hiding the comment.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section data-kind="pr-card" id="pr2">
+    <h3>PR2 — Comment API business logic <span class="badge open">runtime-agnostic</span></h3>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 2 — branches off <code>PR1</code> (<code>PR1 &lt;- PR2</code>).</p>
+    <p>
+      Implement the whole comment API as pure logic that knows nothing about Cloudflare, against the op and
+      <code>OpResult</code> types PR1 already declared. Each v1 verb — <code>create</code>/<code>resolve</code>/<code>reopen</code>/<code>delete</code>,
+      with <code>reply</code>/<code>edit</code> reserved — gets its handler; request bodies are validated by
+      <a href="#api">Zod (<code>zod/mini</code>)</a> schemas that reject a malformed envelope with <code>400</code>
+      before any store call; each handler returns its <code>OpResult</code> arm; and <a href="#api-route">batch</a> is a
+      loop over the single-op methods. The <strong>local server</strong> mounts this logic over HTTP, so the entire API
+      is exercisable end-to-end with no Worker in the picture.
+    </p>
+    <aside data-kind="validation">
+      <strong>Validate.</strong> Unit tests per verb plus batch partial-failure (one bad op does not roll back the rest);
+      Zod envelope-rejection tests (unknown <code>op</code>, missing field &rarr; <code>400</code> before any store
+      call). Anchor <em>shape</em> is validated; DOM-match is out of scope here.
+    </aside>
+    <details>
+      <summary>PR2 specifics — envelope, validation, batch</summary>
+      <ul>
+        <li><strong>Envelope:</strong> one op object or an array of them; <code>reply</code>/<code>edit</code> parse but
+          reject with <code>400 "op not yet supported"</code>; author is stamped by the caller, never read from the
+          body.</li>
+        <li><strong>Schemas:</strong> <code>zod/mini</code> per-op request schemas over the PR1 op types; the envelope
+          is rejected before the store is touched.</li>
+        <li><strong>Batch:</strong> best-effort per-op, results in request order, implemented as a loop over the
+          single-op methods — no cross-op transaction (see <a href="#api-route">Layer C</a>).</li>
+        <li><strong>Local mount:</strong> the Node server exposes the <code>?comments</code> shape over HTTP against
+          <code>LocalFileStore</code>, so curl + a token drives every verb with no Worker.</li>
+        <li><strong>Tests:</strong> one suite per verb; batch partial-failure; <code>OpResult</code> union coverage;
+          Zod rejection cases; anchor-shape validation only.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section data-kind="pr-card" id="pr3">
+    <h3>PR3 — Worker + Cloudflare D1</h3>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 3 — branches off <code>PR2</code> (<code>PR2 &lt;- PR3</code>).</p>
+    <p>
+      Bring the Worker and its database online — provisioning and store only, no API mounted yet. Provision one
+      <a href="#store">Cloudflare D1</a> database, wire it into <code>wrangler.toml</code> and the
+      <a href="#db-migrations">deploy script</a>, add the <code>0001_create_comments.sql</code> migration, and implement
+      <code>D1Store</code> behind the same <a href="#db-design"><code>ICommentsStore</code></a> seam PR1 defined and
+      PR2's logic already targets. The <code>wrangler.toml</code> and deploy-script changes are <strong>written as
+      code</strong> here; no database is actually provisioned and no deploy is run — that is a human-in-the-loop step
+      later (see the <a href="#phases">guardrail above</a>).
+    </p>
+    <aside data-kind="validation">
+      <strong>Validate.</strong> LOCAL workerd via <code>@cloudflare/vitest-pool-workers</code> — <code>D1Store</code>
+      exercised against a <em>real migrated</em> Cloudflare D1 inside Miniflare, round-tripping from within the Worker.
+      No live deploy.
+    </aside>
+    <details>
+      <summary>PR3 specifics — provisioning, migration, workerd tests</summary>
+      <ul>
+        <li><strong>Provisioning:</strong> a <code>[[d1_databases]]</code> block in <code>wrangler.toml</code>; the
+          deploy script gains a create-once step (guarded on the <code>REPLACE_WITH_D1_DATABASE_ID</code> placeholder)
+          and an unconditional <code>migrations apply --remote</code> — see the
+          <a href="#db-migrations">deploy &amp; vendor model</a>.</li>
+        <li><strong>Store:</strong> <code>D1Store</code> normalizes a missing <code>ref</code> to the <code>'default'</code>
+          sentinel on write and backs Q1&ndash;Q3 from the <a href="#db-queries">expected queries</a>.</li>
+        <li><strong>Tests:</strong> <code>*.workers.test.ts</code> under the workerd project; migrations applied via
+          <code>readD1Migrations</code>/<code>applyD1Migrations</code> into Miniflare's D1; create &rarr; list &rarr;
+          resolve round-trips asserted from inside the Worker.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section data-kind="pr-card" id="pr4">
+    <h3>PR4 — Comment API on the Worker + <code>checkAccess</code></h3>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 4 — branches off <code>PR3</code> (<code>PR3 &lt;- PR4</code>).</p>
+    <p>
+      Mount PR2's logic on the Worker and put the authorization chokepoint in front of it. The
+      <a href="#api-route"><code>?comments</code> body-op action</a> layers onto the existing doc route, and the
+      <a href="#authz"><code>checkAccess</code></a> chokepoint probes <code>(repo, ref, path)</code> <strong>once per
+      request or batch</strong> before any op runs, mapping any non-200 to the neutral <code>404</code>; the deny value
+      is named <code>denialResponse</code>. This is the agent-facing surface — list + resolve, single or batch. Comment
+      writes stamp their <code>Author</code> from the session through the seam PR1 defined; PR4 runs on a
+      <strong>placeholder identity</strong> that satisfies the <code>author_login</code>/<code>author_id</code>
+      <code>NOT NULL</code> columns, and real captured names arrive in PR5 — so nothing here reaches forward to identity
+      capture.
+    </p>
+    <aside data-kind="validation">
+      <strong>Validate.</strong> workerd tests for list/create/resolve/delete/batch against the migrated D1
+      (<code>create</code> stamps a <strong>placeholder author</strong> here — real author-name capture is validated in
+      PR5); an unauthorized doc returns the neutral <code>404</code> (no existence leak); and the probe is asserted to
+      fire exactly <strong>once per batch</strong>, not per op.
+    </aside>
+    <details>
+      <summary>PR4 specifics — chokepoint, deny mapping, tests</summary>
+      <ul>
+        <li><strong>Chokepoint:</strong> <code>checkAccess</code> sits after the <code>/auth/*</code> switch and token
+          resolution, guarding both the serve-doc and comment branches; a future verb cannot forget it. See the
+          <a href="#authz">probe mechanics</a>.</li>
+        <li><strong>Author:</strong> writes stamp the <code>Author</code> from the session via the seam, defaulting to a
+          placeholder until PR5 supplies real <code>{login, name, id}</code>; this keeps the <code>NOT NULL</code>
+          author columns satisfied without depending on identity capture.</li>
+        <li><strong>Deny:</strong> both GitHub <code>403</code> and <code>404</code> map to one neutral response held in
+          <code>denialResponse</code>.</li>
+        <li><strong>Probe-once:</strong> a single <code>checkAccess</code> call authorizes the whole batch; a workerd
+          test spies the probe count and asserts one call per batch request.</li>
+        <li><strong>Tests:</strong> workerd suites for each verb and batch; unauthorized-doc &rarr; neutral
+          <code>404</code>; probe-count assertion.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section data-kind="pr-card" id="pr5">
+    <h3>PR5 — Identity capture + session migration</h3>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 5 — branches off <code>PR4</code> (<code>PR4 &lt;- PR5</code>).</p>
+    <p>
+      Give comments real author names. <a href="#identity"><code>completeLogin</code></a> calls <code>GET /user</code>
+      once and persists <code>{ login, name, id }</code> plus a <code>version</code> field on the session record; older
+      sessions self-heal via a <strong>lazy on-read upgrade</strong> with no forced re-auth. All writes go through the
+      single <a href="#identity-writer"><code>persist()</code></a> chokepoint, and the comment API's author stamp
+      switches from the PR4 placeholder to the captured identity.
+    </p>
+    <aside data-kind="validation">
+      <strong>Validate.</strong> Unit tests for the single-writer / lazy-migration path (pinned <code>iat</code>,
+      version branch, in-place upgrade); a workerd test that a real author name surfaces on a created comment.
+    </aside>
+    <details>
+      <summary>PR5 specifics — single writer, migration, tests</summary>
+      <ul>
+        <li><strong>Writer:</strong> <code>persist()</code> is the only constructor of a <code>SessionData</code>;
+          <code>iat</code> is pinned (minted once, carried on refresh), <code>version</code> is stamped every write —
+          see the <a href="#identity-writer">session-writer sketch</a>.</li>
+        <li><strong>Migration:</strong> identity capture ships as <code>version: 2</code>; a pre-identity record
+          (<code>version: 1</code>) triggers an on-read <code>GET /user</code> backfill using the stored token; nobody is
+          logged out.</li>
+        <li><strong>Stamping:</strong> the comment API now reads <code>author_login</code>/<code>author_name</code>/<code>author_id</code>
+          from the session, never the body — snapshot, not a live join (see <a href="#identity-snapshot">snapshot</a>) —
+          replacing PR4's placeholder.</li>
+        <li><strong>Tests:</strong> unit coverage of the migration branch and pinned <code>iat</code>; a workerd test
+          asserting the stamped author name appears on the created comment.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section data-kind="pr-card" id="pr6">
+    <h3>PR6 — Injection + docs (pass 1)</h3>
+    <p class="stack-pos"><strong>Stack position:</strong> layer 6 (top) — branches off <code>PR5</code> (<code>PR5 &lt;- PR6</code>).</p>
+    <p>
+      Wire the widget into served docs and write the first docs pass. On a 200 HTML doc response the Worker's
+      <a href="#widget"><code>HTMLRewriter</code></a> appends the widget script plus an inline JSON seed of the doc's
+      comments — resolved <em>and</em> open, each carrying its <code>resolvedAt</code>; the local server does the
+      equivalent string-splice. Both call the same shared helpers, so a <strong>unified injection test</strong> feeds
+      one doc through <em>both</em> injectors and asserts they emit the <em>same injected markup</em> (the shared
+      <code>seedJsonScript</code>/<code>widgetScriptTag</code> output), the guard against the two paths drifting. Also
+      write the pass-1 docs at <code>proxy.html</code> level (what we built, references to related docs,
+      forward-looking) plus the barest <code>SKILL.md</code> pointer.
+    </p>
+    <aside data-kind="validation">
+      <strong>Validate.</strong> The unified injection test (one doc, both paths, asserting identical injected markup
+      from the shared seed/tag helpers); an e2e in local workerd — comment on a hosted doc, reload and it persists,
+      resolve it and the indicator turns green while the comment stays visible.
+    </aside>
+    <details>
+      <summary>PR6 specifics — injection parity, e2e, docs</summary>
+      <ul>
+        <li><strong>Injection:</strong> Worker <code>HTMLRewriter</code> vs. local string-splice, both emitting the
+          same script tag and the same inline JSON seed (open + resolved, each with <code>resolvedAt</code>) from the
+          shared <code>seedJsonScript</code>/<code>widgetScriptTag</code> helpers; the neutral-404 path is untouched.</li>
+        <li><strong>Unified test:</strong> a single fixture doc fed through both injectors, asserting the injected
+          fragment (shared seed + script tag) is identical. The runtimes still <em>place</em> that fragment differently
+          (<code>HTMLRewriter</code> append inside <code>&lt;body&gt;</code> vs. string-splice before
+          <code>&lt;/body&gt;</code>), so the assertion is on the shared emitted markup, not whole-document
+          byte-equality.</li>
+        <li><strong>E2e:</strong> workerd — create a comment on a hosted doc, reload to confirm persistence, resolve to
+          confirm the green indicator with the comment still visible.</li>
+        <li><strong>Docs:</strong> a pass-1 doc at the <code>proxy.html</code> level (built surface, related-doc links,
+          forward-looking notes) and a one-line pointer added to the htmldocs <code>SKILL.md</code>; deeper
+          prompting/discovery integration stays deferred per <a href="#prompting">prompting</a>.</li>
+      </ul>
+    </details>
+  </section>
+
+  <aside data-kind="exit-criteria">
+    <strong>Deliverable 2 done when:</strong> a reviewer on a hosted doc can comment on any DOM region and it persists
+    across reloads and users; an agent with a GitHub token can list a doc's comments and <strong>resolve</strong> (or
+    <strong>delete</strong>) one by id, and is refused with a neutral <code>404</code> on a doc it can't see; comments
+    display real author names; resolved comments are retained (auditable) and <strong>stay visible with a green
+    indicator, never hidden</strong>, while a deleted thread is purged outright; and local review mode still works via
+    the shared widget with no regression.
+  </aside>
+</article>
+
+<article id="questions" data-kind="decisions">
+  <h2>Open questions</h2>
+  <p>
+    One genuinely-open item remains; the rest are settled in <a href="#decisions">Locked decisions</a>.
+  </p>
+  <ul class="criteria">
+    <li data-status="decided"><span class="badge ok">decided</span> <strong>Resolve UX — keep it simple for v1.</strong>
+      <span class="rec">Decision: resolving a thread just changes its comment indicator color to green</span> (instead of
+      the default color) to signal resolved — no hide/toggle machinery and no reopen affordance in the v1 UX. Resolve
+      keeps the row, so the data is all there; the <em>display</em> stays minimal. The UX can be expanded later (a "show
+      resolved" toggle, a reopen affordance) without a schema change. (The API still exposes <code>reopen</code> as an
+      op — see <a href="#api-route">the op envelope</a> — this decision is only about the v1 widget affordance.)</li>
+    <li data-status="open"><span class="badge open">open</span> <strong>Probe caching.</strong> The access probe adds
+      one GitHub Contents call per comment request. Comment ops are rare — and a <strong>batch</strong> POST is one
+      request that clears the probe once for many ops (<a href="#api-route">batch is first-class</a>), so it already cuts
+      per-op probe pressure — so the 5,000/hr core limit isn't a concern. If bursty agent runs ever bite, add a short-TTL
+      per-<code>(caller, repo, ref, path)</code> probe cache (on top of the free <code>304</code> conditional re-probe).
+      Left as a documented lever, not built in v1. See <a href="#authz">Authorization</a>.</li>
+  </ul>
+  <aside data-kind="decision-lead">
+    <strong>Decision:</strong> v1 ships <em>both</em> — <code>resolve</code> as the default soft-close (auditable,
+    reopenable) and <code>delete</code> as a genuine hard purge. They are distinct verbs with distinct intent, both in
+    the v1 op set, verb table, and store interface (see <a href="#api">comment API</a>).
+  </aside>
+</article>
+
+<aside id="related" data-kind="related">
+  <strong>Related:</strong>
+  <a href="htmldoc_worker_review.html">htmldoc_worker_review.html</a> — the overall architecture &amp; Deliverable split ·
+  <a href="../../proxy.html">proxy.html</a> — the Deliverable 1 proxy layer, in depth ·
+  <a href="d1-handoff.md">d1-handoff.md</a> — what Deliverable 1 shipped + live status ·
+  <a href="../../../plugins/useful-skills/skills/htmldocs/docs/review_system.html">htmldocs review_system.html</a> — the local widget this reuses ·
+  <a href="../../../plugins/useful-skills/skills/htmldocs/references/comments.md">htmldocs comments.md</a> — local sidecar schema &amp; agent recipe (the model for the new API).
+</aside>
+
+</body>
+</html>
