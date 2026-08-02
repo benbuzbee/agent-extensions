@@ -110,6 +110,23 @@ function mockContents(
     .reply(status, body, { headers: { "content-type": contentType } });
 }
 
+/**
+ * Queue a single-use mock for the checkAccess PROBE that runs BEFORE
+ * serveDoc on every authenticated doc request. The probe hits the SAME
+ * Contents path fetchDoc uses (fetch-mock matches origin+method+path and ignores
+ * the Accept header), so a doc-serve test must queue the probe FIRST and the
+ * doc-fetch interceptor SECOND: the probe consumes the first matching
+ * interceptor, the fetch the second. Queue them out of order and the probe would
+ * eat the doc body mock. A denied probe (403/404) is the single interceptor —
+ * serveDoc never runs, so no doc-fetch mock is queued at all.
+ */
+function mockProbe(
+  status: number,
+  opts: { repo?: string; path?: string; ref?: string } = {},
+) {
+  mockContents(status, "", opts);
+}
+
 /** Queue a single-use mock for the GitHub OAuth token endpoint (validate or refresh). */
 function mockTokenEndpoint(status: number, body: unknown) {
   fetchMock
@@ -167,6 +184,7 @@ async function assertNoTokenLeak(res: Response, token = KNOWN_TOKEN) {
 describe("doc route: 200 serves raw HTML", () => {
   it("returns upstream HTML verbatim with text/html and leaks no token", async () => {
     await seedSession("sess-200");
+    mockProbe(200); // checkAccess probe (consumed first)
     mockContents(200, "<h1>hi</h1>");
 
     const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
@@ -187,6 +205,7 @@ describe("doc route: org-scoped repo + ?ref routing", () => {
   it("repo comes from the first path segment; any repo in the org is reachable", async () => {
     await seedSession("sess-repo");
     // A DIFFERENT repo than the default fixture, with a nested doc path.
+    mockProbe(200, { repo: "app-android", path: "docs/setup.html" });
     mockContents(200, "<h1>other</h1>", {
       repo: "app-android",
       path: "docs/setup.html",
@@ -204,6 +223,7 @@ describe("doc route: org-scoped repo + ?ref routing", () => {
     await seedSession("sess-noref");
     // No `ref` in the mock -> interceptor path has no `?ref`. If the Worker
     // appended a ref, this interceptor would not match and the call would fail.
+    mockProbe(200);
     mockContents(200, "<h1>default</h1>");
 
     const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
@@ -217,6 +237,7 @@ describe("doc route: org-scoped repo + ?ref routing", () => {
   it("?ref with a slashed branch is percent-encoded for the Contents API", async () => {
     await seedSession("sess-ref");
     // Slashed branch must survive as feature%2Fa%2Fb in the upstream call.
+    mockProbe(200, { ref: "feature/a/b" });
     mockContents(200, "<h1>branch</h1>", { ref: "feature/a/b" });
 
     const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}?ref=feature/a/b`, {
@@ -245,7 +266,8 @@ describe("doc route: org-scoped repo + ?ref routing", () => {
 describe("doc route: 404/403 collapse to one neutral response", () => {
   it("404 from GitHub -> neutral 404 'not found or no access'", async () => {
     await seedSession("sess-404");
-    mockContents(404, JSON.stringify({ message: "Not Found" }));
+    // The checkAccess probe denies here; serveDoc never runs (no doc-fetch mock).
+    mockProbe(404);
 
     const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       headers: { cookie: "sid=sess-404" },
@@ -257,7 +279,8 @@ describe("doc route: 404/403 collapse to one neutral response", () => {
 
   it("403 from GitHub -> identical neutral 404 (no distinct 403)", async () => {
     await seedSession("sess-403");
-    mockContents(403, JSON.stringify({ message: "Forbidden" }));
+    // The checkAccess probe denies here; serveDoc never runs (no doc-fetch mock).
+    mockProbe(403);
 
     const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       headers: { cookie: "sid=sess-403" },
@@ -271,14 +294,14 @@ describe("doc route: 404/403 collapse to one neutral response", () => {
 
   it("missing (404) and forbidden (403) are byte-for-byte identical", async () => {
     await seedSession("sess-cmp-a");
-    mockContents(404, JSON.stringify({ message: "Not Found" }));
+    mockProbe(404);
     const missing = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       headers: { cookie: "sid=sess-cmp-a" },
     });
     const missingBody = await missing.text();
 
     await seedSession("sess-cmp-b");
-    mockContents(403, JSON.stringify({ message: "Forbidden" }));
+    mockProbe(403);
     const forbidden = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       headers: { cookie: "sid=sess-cmp-b" },
     });
@@ -348,6 +371,10 @@ describe("silent refresh (tier 1)", () => {
       refresh_token_expires_in: 15897600, // ~6mo refresh horizon
       token_type: "bearer",
     });
+    // The refresh happens in getValidAccessToken (token resolution) BEFORE the
+    // probe, so the probe already sees the fresh token. Order: token POST,
+    // then probe(200), then the doc fetch(200).
+    mockProbe(200);
     mockContents(200, "<h1>refreshed</h1>");
 
     // Use worker.fetch + waitOnExecutionContext so a ctx.waitUntil write-back flushes.
@@ -649,6 +676,69 @@ describe("session cookie shape + KV storage after callback", () => {
     expect(stored.refresh_token).toBe("gho_super_secret_refresh");
     expect(typeof stored.expires_at).toBe("number");
     expect(stored.expires_at).toBeGreaterThan(Date.now());
+  });
+});
+
+// ===========================================================================
+// checkAccess probe 401: a session token GitHub rejects (revoked/rotated
+// server-side) while its stored expiry still looks valid must force ONE
+// refresh and re-probe — not collapse straight to the neutral 404. A bearer
+// has no session to refresh, so its 401 probe IS the neutral 404.
+// ===========================================================================
+describe("checkAccess probe 401 (locally-valid session token GitHub rejects)", () => {
+  it("probe 401 -> one refresh -> re-probe 200 -> doc served, rotated pair in KV", async () => {
+    // Locally valid (unexpired) session whose token GitHub no longer accepts:
+    // the clock check passes, so no proactive refresh runs before the probe.
+    await seedSession("sess-probe-401", {
+      access_token: "revoked_access",
+      refresh_token: "r1",
+    });
+
+    // Order matters (fetch-mock is a FIFO per origin+method+path): the first
+    // probe consumes the 401, the token POST refreshes, the second probe sees
+    // 200 with the fresh token, then serveDoc fetches the doc body.
+    mockProbe(401);
+    mockTokenEndpoint(200, {
+      access_token: "fresh_access",
+      refresh_token: "r2",
+      expires_in: 28800,
+      refresh_token_expires_in: 15897600,
+      token_type: "bearer",
+    });
+    mockProbe(200);
+    mockContents(200, "<h1>re-authed</h1>");
+
+    // fetchWorker so the KV write-back in ctx.waitUntil flushes.
+    const res = await fetchWorker(`${ORIGIN}/${DOC_URL}`, {
+      headers: { cookie: "sid=sess-probe-401" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.clone().text()).toBe("<h1>re-authed</h1>");
+
+    // The forced refresh persisted the NEW access token and ROTATED refresh
+    // token; afterEach's assertNoPendingInterceptors enforces "exactly one
+    // refresh POST" (and exactly two probes).
+    const storedRaw = await env.SESSIONS.get(sessKey("sess-probe-401"));
+    expect(storedRaw).not.toBeNull();
+    const stored = JSON.parse(storedRaw!);
+    expect(stored.access_token).toBe("fresh_access");
+    expect(stored.refresh_token).toBe("r2");
+    await assertNoTokenLeak(res, "fresh_access");
+  });
+
+  it("bearer probe 401 -> neutral 404, no token endpoint call", async () => {
+    // A bearer credential has no session to refresh: the single 401 probe is
+    // the only outbound call (no token mock queued — a refresh attempt would
+    // fail net-connect/afterEach), and the caller gets the uniform neutral 404.
+    mockProbe(401);
+
+    const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
+      headers: { Authorization: "Bearer gho_agent_rejected" },
+    });
+
+    expect(res.status).toBe(404);
+    expect(await res.text()).toMatch(/not found or no access/i);
   });
 });
 

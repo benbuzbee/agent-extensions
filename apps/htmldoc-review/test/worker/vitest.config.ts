@@ -14,10 +14,20 @@
 // beforeAll then applies it into Miniflare's local D1 with `applyD1Migrations`
 // (from `cloudflare:test`). `readD1Migrations` is exported from the package root
 // in 0.16 — the "/config" subpath the doc-comment mentions does not exist here.
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // Mirrors tsconfig's "@shared/*" — Vite doesn't read tsconfig paths.
+      // (.href: fileURLToPath is typed against node:url's URL, not the global.)
+      "@shared": fileURLToPath(
+        new URL("../../../../plugins/useful-skills/skills/htmldocs/src/comments", import.meta.url).href,
+      ),
+    },
+  },
   plugins: [
     cloudflareTest(async () => {
       // Relative to the process cwd, which is the app root (where `npm test`

@@ -10,10 +10,10 @@
 // INTEGERs; the anchor triple is stored as an opaque JSON blob (the DB never
 // parses it — anchoring stays client-side).
 //
-// The comment API is NOT mounted on the Worker in PR3, so nothing imports this
-// from index.ts yet (that is PR4, gated on the physical-home move — see
-// comments-seam.ts). Its round-trips are validated directly against a migrated
-// D1 inside Miniflare.
+// The Worker mounts the comment API: index.ts -> handleComments ->
+// handleCommentsRequest drives this store's list/create/resolve/reopen/delete.
+// Its round-trips are also validated directly against a migrated D1 inside
+// Miniflare (see d1-store.workers.test.ts).
 
 import {
   createThread,
@@ -21,12 +21,10 @@ import {
   reopenThread,
   NotFoundError,
   isNotFoundError,
-  asTimestamp,
-  asThreadId,
-  asCommentId,
-} from "../core/comments-seam";
+} from "@shared/api/thread-ops";
+import { asThreadId, asCommentId, asTimestamp } from "@shared/review-ux/types";
+import type { ICommentsStore } from "@shared/review-ux/store";
 import type {
-  ICommentsStore,
   Thread,
   ThreadId,
   Comment,
@@ -42,7 +40,7 @@ import type {
   Op,
   OpResult,
   OpError,
-} from "../core/comments-seam";
+} from "@shared/review-ux/types";
 
 // The literal `?ref=` sentinel: a missing/empty ref is stored AND queried as
 // this exact string so route and store agree (never '' or NULL).
