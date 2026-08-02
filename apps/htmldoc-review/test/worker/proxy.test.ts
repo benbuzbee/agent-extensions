@@ -383,6 +383,17 @@ describe("doc route: unauthenticated", () => {
     expect(decodeURIComponent(loc)).toContain(`/${DOC_PATH}`);
   });
 
+  it("keeps the query string in the return-to, so a ?ref= pin survives login", async () => {
+    const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}?ref=feature/pinned`, {
+      redirect: "manual",
+    });
+    expect(res.status).toBe(302);
+    const loc = new URL(res.headers.get("location")!);
+    expect(loc.searchParams.get("return")).toBe(
+      `/${DOC_URL}?ref=feature/pinned`,
+    );
+  });
+
   it("a session id with no KV row -> 302 to login (treated as no session)", async () => {
     const res = await SELF.fetch(`${ORIGIN}/${DOC_URL}`, {
       redirect: "manual",
@@ -894,6 +905,29 @@ describe("/auth/callback identity capture failure", () => {
 
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe(`${ORIGIN}/`);
+  });
+
+  it("a ?ref= pin survives the FULL login round-trip back to the doc", async () => {
+    const { state, cookie } = await mintStateWithReturn(
+      `/${DOC_URL}?ref=feature/pinned`,
+    );
+    mockTokenEndpoint(200, {
+      access_token: "gho_pinned_ref",
+      refresh_token: "gho_pinned_ref_r",
+      expires_in: 28800,
+      refresh_token_expires_in: 15897600,
+      token_type: "bearer",
+    });
+    mockUser(CAPTURED_IDENTITY);
+    const res = await SELF.fetch(
+      `${ORIGIN}/auth/callback?code=goodcode&state=${encodeURIComponent(state)}`,
+      { redirect: "manual", headers: { cookie } },
+    );
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(
+      `${ORIGIN}/${DOC_URL}?ref=feature/pinned`,
+    );
   });
 });
 

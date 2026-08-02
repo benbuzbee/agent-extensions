@@ -93,7 +93,11 @@ function sessionValidSinceOf(raw: number | string | undefined): number {
 
 function loginRedirect(url: URL): Response {
   const login = new URL(ROUTES.login, url.origin);
-  login.searchParams.set("return", url.pathname);
+  // pathname AND search: a doc view pinned with ?ref= must come back pinned
+  // after the OAuth round-trip. Only doc views reach here (an unauthenticated
+  // ?comments API call gets a 401, never a redirect), so the query is safe to
+  // carry and sanitizeReturnPath accepts any same-origin path?query.
+  login.searchParams.set("return", url.pathname + url.search);
   return new Response(null, { status: 302, headers: { Location: login.toString() } });
 }
 
