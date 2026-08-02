@@ -22,6 +22,7 @@ import {
   reopenThread,
   NotFoundError,
   isNotFoundError,
+  NotImplementedError,
 } from "@shared/api/thread-ops";
 import { withOpThreadId } from "@shared/api/handlers";
 import { asThreadId, asCommentId, asTimestamp } from "@shared/review-ux/types";
@@ -48,10 +49,6 @@ import type {
 // (normalizeRef), so this store is the single owner of the default — the route
 // forwards the raw ref and never substitutes it. Never '' or NULL in the table.
 const REF_DEFAULT = "default";
-
-// Thrown by the reserved (v1-unsupported) reply/edit ops. Matches the message
-// the shared api/handlers reserves so a batch surfaces it as a per-op transient.
-const RESERVED_MESSAGE = "op not yet supported";
 
 // author_id is NOT NULL. Every Worker create carries a real numeric id: a
 // session create uses the captured identity, and a bearer mutation resolves the
@@ -229,22 +226,23 @@ export class D1Store implements ICommentsStore {
     return op.threadId;
   }
 
-  // Reserved in v1 — envelope-parsed, then rejected. Throws a plain Error whose
-  // message batch() maps to a per-op transient result.
+  // Reserved in v1 — envelope-parsed, then rejected. Throws NotImplementedError;
+  // batch() maps it to a per-op transient result.
   async reply(_doc: DocKey, _op: ReplyOp, _author: Author): Promise<Comment> {
-    throw new Error(RESERVED_MESSAGE);
+    throw new NotImplementedError();
   }
 
   async edit(_doc: DocKey, _op: EditOp, _author: Author): Promise<Comment> {
-    throw new Error(RESERVED_MESSAGE);
+    throw new NotImplementedError();
   }
 
   // Best-effort per-op: loop the single-op methods, build OpResult[] in request
   // order, and catch EVERY throw with the same mapping the shared
   // handlers.errorToOpError uses — not_found for a NotFoundError, transient for
-  // anything else (including the reserved reply/edit Error, whose message is
-  // RESERVED_MESSAGE). There is no 'unsupported' OpError code, so a reserved op
-  // inside a batch is a per-op transient, never a whole-batch reject.
+  // anything else (including the reserved reply/edit NotImplementedError, whose
+  // message becomes the transient message). There is no 'unsupported' OpError
+  // code, so a reserved op inside a batch is a per-op transient, never a
+  // whole-batch reject.
   async batch(doc: DocKey, ops: Op[], author: Author): Promise<OpResult[]> {
     const results: OpResult[] = [];
     for (const op of ops) {

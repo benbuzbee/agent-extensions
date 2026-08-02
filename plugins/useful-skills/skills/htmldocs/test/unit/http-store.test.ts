@@ -4,6 +4,9 @@ import type {
   Thread, Author, Op, CreateOp, ResolveOp, ReopenOp, DeleteOp,
 } from '../../src/comments/review-ux/types';
 import { asThreadId, asCommentId, asTimestamp } from '../../src/comments/review-ux/types';
+import {
+  NotImplementedError, isNotImplementedError, isNotFoundError,
+} from '../../src/comments/api/thread-ops';
 
 // The widget's doc key is derived server-side from the URL + session, so the
 // HttpCommentsStore ignores the DocKey arg and builds its collection URL from
@@ -195,6 +198,22 @@ describe('HttpCommentsStore — error arms map non-2xx to tagged OpErrors', () =
     ).rejects.toThrow('op not yet supported');
     // Neither reserved op touches the network.
     expect(calls).toHaveLength(0);
+  });
+
+  it('reply/edit reject with the shared NotImplementedError type', async () => {
+    const store = new HttpCommentsStore();
+    const replyErr = await store
+      .reply(DOC, { op: 'reply', threadId: asThreadId('t1'), text: 'x' }, AUTHOR)
+      .catch((e) => e);
+    const editErr = await store
+      .edit(DOC, { op: 'edit', commentId: asCommentId('c1'), patch: { body: 'x' } }, AUTHOR)
+      .catch((e) => e);
+    for (const err of [replyErr, editErr]) {
+      expect(err).toBeInstanceOf(NotImplementedError);
+      expect(isNotImplementedError(err)).toBe(true);
+      // Distinct from the not_found error — the two guards never cross-match.
+      expect(isNotFoundError(err)).toBe(false);
+    }
   });
 });
 

@@ -23,6 +23,7 @@ import type { CommentsModel } from './legacy-format';
 import { threadToLegacy, legacyToThread } from './legacy-format';
 import {
   createThread, resolveThread, reopenThread, deleteThread, isNotFoundError,
+  NotImplementedError,
 } from '../../api/thread-ops';
 import { applyOp } from '../../api/handlers';
 
@@ -80,7 +81,7 @@ export class SidecarStore implements ICommentsStore {
   }
 
   async reply(_doc: DocKey, _op: ReplyOp, _author: Author): Promise<Comment> {
-    throw new Error('op not yet supported');
+    throw new NotImplementedError();
   }
 
   async resolve(_doc: DocKey, op: ResolveOp, _author: Author): Promise<Thread> {
@@ -114,7 +115,7 @@ export class SidecarStore implements ICommentsStore {
   }
 
   async edit(_doc: DocKey, _op: EditOp, _author: Author): Promise<Comment> {
-    throw new Error('op not yet supported');
+    throw new NotImplementedError();
   }
 
   async batch(doc: DocKey, ops: Op[], author: Author): Promise<OpResult[]> {

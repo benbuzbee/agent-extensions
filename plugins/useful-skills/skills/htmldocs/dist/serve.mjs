@@ -6471,6 +6471,13 @@ var NotFoundError = class extends Error {
 function isNotFoundError(err) {
   return !!err && typeof err === "object" && err.notFound === true;
 }
+var NotImplementedError = class extends Error {
+  notImplemented = true;
+  constructor() {
+    super("op not yet supported");
+    this.name = "NotImplementedError";
+  }
+};
 function createThread(threads, op, author, newId, now) {
   const id = asThreadId(newId());
   const thread = {
@@ -6516,7 +6523,7 @@ function deleteThread(threads, op) {
 }
 
 // src/comments/api/handlers.ts
-var RESERVED_MESSAGE = "op not yet supported";
+var RESERVED_MESSAGE = new NotImplementedError().message;
 function errorToOpError(err) {
   const tagged = err.opError;
   if (tagged && typeof tagged.code === "string") return tagged;
@@ -6695,7 +6702,7 @@ var SidecarStore = class {
     return thread;
   }
   async reply(_doc, _op, _author) {
-    throw new Error("op not yet supported");
+    throw new NotImplementedError();
   }
   async resolve(_doc, op, _author) {
     const threads = await this.loadThreads();
@@ -6731,7 +6738,7 @@ var SidecarStore = class {
     return result.threadId;
   }
   async edit(_doc, _op, _author) {
-    throw new Error("op not yet supported");
+    throw new NotImplementedError();
   }
   async batch(doc, ops, author) {
     const results = [];

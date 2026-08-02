@@ -6,9 +6,9 @@
 import type { ICommentsStore } from '../review-ux/store';
 import type { DocKey, Author, Op, OpResult, OpError, ThreadId, Thread } from '../review-ux/types';
 import { parseEnvelope } from './schemas';
-import { isNotFoundError } from './thread-ops';
+import { isNotFoundError, NotImplementedError } from './thread-ops';
 
-const RESERVED_MESSAGE = 'op not yet supported';
+const RESERVED_MESSAGE = new NotImplementedError().message;
 
 /** Pull an OpError out of whatever a store threw. A store may tag an error with
  *  `.opError`; thread-ops throws NotFoundError; anything else is a genuine
