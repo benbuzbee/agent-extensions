@@ -6,8 +6,7 @@ A marketplace of plugins for agentic harnesses (Claude Code, OpenCode, Pi, etc).
 
 ### `useful-skills`
 
-- **`tech-diagrams`** — Boxes-and-arrows technical diagrams (architecture, data flow, state machines, ER, class hierarchies). Takes a custom agent-friendly `.yaml` grammar and can render to `.svg` or `.excalidraw`.
-- **`htmldocs`** — Reviewable HTML documentation (issue logs, architecture specs, handoffs, runbooks) that reads well for humans _and_ parses predictably for agents. Supports SVG diagrams well.
+- **`htmldocs`** — Reviewable HTML documentation (issue logs, architecture specs, handoffs, runbooks) that reads well for humans _and_ parses predictably for agents. Supports SVG diagrams well, plus inline Mermaid for anything beyond a few shapes.
 
 ## Install (Claude Code)
 
@@ -29,7 +28,6 @@ agent-extensions/
     └── useful-skills/
         ├── .claude-plugin/plugin.json
         └── skills/
-            ├── tech-diagrams/
             └── htmldocs/
 ```
 
