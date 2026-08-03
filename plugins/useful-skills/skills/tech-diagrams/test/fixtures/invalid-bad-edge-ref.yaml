@@ -1,7 +1,0 @@
-version: 1
-nodes:
-  a:
-    label: A
-edges:
-  - from: a
-    to: ghost
